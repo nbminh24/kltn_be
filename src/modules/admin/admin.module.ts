@@ -1,7 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
+import { AdminAuthController } from './admin-auth.controller';
+import { AdminAuthService } from './admin-auth.service';
+import { Admin } from '../../entities/admin.entity';
 import { Product } from '../../entities/product.entity';
 import { Category } from '../../entities/category.entity';
 import { Order } from '../../entities/order.entity';
@@ -18,6 +23,7 @@ import { AiRecommendation } from '../../entities/ai-recommendation.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
+      Admin,
       Product,
       Category,
       Order,
@@ -31,9 +37,17 @@ import { AiRecommendation } from '../../entities/ai-recommendation.entity';
       ChatbotMessage,
       AiRecommendation,
     ]),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'),
+        signOptions: { expiresIn: '8h' },
+      }),
+      inject: [ConfigService],
+    }),
   ],
-  controllers: [AdminController],
-  providers: [AdminService],
-  exports: [AdminService],
+  controllers: [AdminController, AdminAuthController],
+  providers: [AdminService, AdminAuthService],
+  exports: [AdminService, AdminAuthService],
 })
 export class AdminModule {}

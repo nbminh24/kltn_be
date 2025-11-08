@@ -33,13 +33,11 @@ DROP TABLE IF EXISTS admins CASCADE;
 -- ADMINS
 -- ========================================
 CREATE TABLE admins (
-  id BIGSERIAL PRIMARY KEY,
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   name VARCHAR,
   email VARCHAR NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  role VARCHAR NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  role VARCHAR NOT NULL
 );
 
 -- ========================================
@@ -276,9 +274,11 @@ CREATE TABLE customer_addresses (
 -- SEED DATA (Optional test data)
 -- ========================================
 
--- Test admin
+-- Default admin account
+-- Email: admin@shop.com | Password: superSecretAdminPassword123
 INSERT INTO admins (name, email, password_hash, role) VALUES
-('Admin Test', 'admin@test.com', '$2b$10$dummyhash', 'admin');
+('Super Admin', 'admin@shop.com', '$2b$10$LSJo1cnbdrPIF78KxPHvdeq7TvSNzDAzpGlS.fPDgUmv9G.Kaq/vm', 'super_admin')
+ON CONFLICT (email) DO NOTHING;
 
 -- Test categories
 INSERT INTO categories (name, slug) VALUES

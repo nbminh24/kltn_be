@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
 
 // Entities
+import { Admin } from './entities/admin.entity';
 import { Customer } from './entities/customer.entity';
 import { User } from './entities/user.entity';
 import { Product } from './entities/product.entity';
@@ -58,6 +59,7 @@ import { InternalModule } from './modules/internal/internal.module';
           type: 'postgres',
           url: databaseUrl,
           entities: [
+            Admin,
             Customer,
             User,
             Product,
