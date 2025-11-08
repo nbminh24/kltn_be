@@ -128,100 +128,19 @@ export class AdminService {
   }
 
   async createProduct(createProductDto: CreateProductDto) {
-    // Check SKU uniqueness
-    const existingProduct = await this.productRepository.findOne({
-      where: { sku: createProductDto.sku },
-    });
-
-    if (existingProduct) {
-      throw new BadRequestException('SKU đã tồn tại trong hệ thống');
-    }
-
-    // Generate ID and slug
-    const id = `prod_${Date.now()}`;
-    const slug = this.generateSlug(createProductDto.name);
-
-    // Extract variants and images from DTO
-    const { variants, images, ...productData } = createProductDto;
-
-    const product = this.productRepository.create({
-      id,
-      slug,
-      ...productData,
-      rating: 0,
-      reviews_count: 0,
-      sold_count: 0,
-      ai_indexed: false,
-    });
-
-    await this.productRepository.save(product);
-
-    // Create variants if provided
-    const createdVariants = [];
-    if (variants && variants.length > 0) {
-      for (const variantData of variants) {
-        const variant = this.variantRepository.create({
-          id: IdGenerator.generate('var'),
-          product_id: product.id,
-          ...variantData,
-        });
-        await this.variantRepository.save(variant);
-        createdVariants.push(variant);
-      }
-    }
-
-    // Create images if provided
-    const createdImages = [];
-    if (images && images.length > 0) {
-      for (let i = 0; i < images.length; i++) {
-        const imageData = images[i];
-        const image = this.imageRepository.create({
-          id: IdGenerator.generate('img'),
-          product_id: product.id,
-          image_url: imageData.image_url,
-          is_primary: imageData.is_primary ?? (i === 0), // First image is primary by default
-          display_order: imageData.display_order ?? i,
-        });
-        await this.imageRepository.save(image);
-        createdImages.push(image);
-      }
-    }
-
-    return {
-      message: 'Tạo sản phẩm thành công',
-      data: {
-        ...product,
-        variants: createdVariants,
-        images: createdImages,
-      },
-    };
+    // DEPRECATED: Use AdminProductsService instead
+    throw new BadRequestException('Please use /api/v1/admin/products endpoints');
   }
 
   async updateProduct(id: string, updateProductDto: UpdateProductDto) {
-    const product = await this.productRepository.findOne({ where: { id } });
-
-    if (!product) {
-      throw new NotFoundException('Không tìm thấy sản phẩm');
-    }
-
-    // Update slug if name changed
-    if (updateProductDto.name && updateProductDto.name !== product.name) {
-      product.slug = this.generateSlug(updateProductDto.name);
-    }
-
-    Object.assign(product, updateProductDto);
-    await this.productRepository.save(product);
-
-    return {
-      message: 'Cập nhật sản phẩm thành công',
-      data: product,
-    };
+    // DEPRECATED: Use AdminProductsService instead
+    throw new BadRequestException('Please use /api/v1/admin/products endpoints');
   }
 
   // ==================== CATEGORIES MANAGEMENT ====================
   async getCategories() {
     const categories = await this.categoryRepository.find({
-      order: { created_at: 'DESC' },
+      order: { name: 'ASC' },
     });
 
     return {
@@ -241,10 +160,8 @@ export class AdminService {
     }
 
     const category = this.categoryRepository.create({
-      id,
       slug,
       ...createCategoryDto,
-      products_count: 0,
     });
 
     await this.categoryRepository.save(category);
@@ -256,7 +173,7 @@ export class AdminService {
   }
 
   async updateCategory(id: string, updateCategoryDto: UpdateCategoryDto) {
-    const category = await this.categoryRepository.findOne({ where: { id } });
+    const category = await this.categoryRepository.findOne({ where: { id: parseInt(id) as any } });
 
     if (!category) {
       throw new NotFoundException('Không tìm thấy danh mục');
@@ -316,17 +233,17 @@ export class AdminService {
   }
 
   async updateOrderStatus(id: string, status: string) {
-    const order = await this.orderRepository.findOne({ where: { id } });
+    const order = await this.orderRepository.findOne({ where: { id: parseInt(id) as any } });
 
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
 
-    order.status = status;
+    order.fulfillment_status = status;
     await this.orderRepository.save(order);
 
     return {
-      message: `Cập nhật trạng thái đơn hàng thành ${status}`,
+      message: 'Cập nhật trạng thái đơn hàng thành công',
       data: order,
     };
   }
@@ -371,26 +288,26 @@ export class AdminService {
   async getCustomerById(id: string) {
     const customer = await this.userRepository.findOne({
       where: { id },
-      relations: ['orders', 'addresses'],
     });
 
     if (!customer) {
       throw new NotFoundException('Không tìm thấy khách hàng');
     }
 
-    // Calculate total spent
+    // Calculate total spent and orders count
     const totalSpentResult = await this.orderRepository
       .createQueryBuilder('order')
-      .select('COALESCE(SUM(order.total), 0)', 'total')
-      .where('order.user_id = :userId', { userId: id })
-      .andWhere('order.status != :status', { status: 'Cancelled' })
+      .select('COALESCE(SUM(order.total_amount), 0)', 'total')
+      .addSelect('COUNT(order.id)', 'count')
+      .where('order.customer_id = :customerId', { customerId: id })
+      .andWhere('order.fulfillment_status != :status', { status: 'cancelled' })
       .getRawOne();
 
     return {
       data: {
         ...customer,
-        totalSpent: parseFloat(totalSpentResult?.total || 0),
-        ordersCount: customer.orders?.length || 0,
+        totalSpent: parseFloat(totalSpentResult?.total || '0'),
+        ordersCount: parseInt(totalSpentResult?.count || '0'),
       },
     };
   }
@@ -461,131 +378,40 @@ export class AdminService {
     return {
       data: variants,
       total: variants.length,
-      lowStockCount: variants.filter(v => v.stock < 10).length,
+      lowStockCount: variants.filter(v => v.total_stock < 10).length,
     };
   }
 
   // ==================== PRODUCT VARIANTS MANAGEMENT ====================
   async createVariant(productId: string, variantData: any) {
-    const product = await this.productRepository.findOne({ where: { id: productId } });
-    if (!product) {
-      throw new NotFoundException('Không tìm thấy sản phẩm');
-    }
-
-    // Check SKU uniqueness
-    const existingVariant = await this.variantRepository.findOne({
-      where: { sku: variantData.sku },
-    });
-    if (existingVariant) {
-      throw new BadRequestException('SKU biến thể đã tồn tại');
-    }
-
-    const variant = this.variantRepository.create({
-      id: IdGenerator.generate('var'),
-      product_id: productId,
-      ...variantData,
-    });
-
-    await this.variantRepository.save(variant);
-
-    return {
-      message: 'Tạo biến thể thành công',
-      data: variant,
-    };
+    // DEPRECATED: Use new ProductVariantsService
+    throw new BadRequestException('Please use /api/v1/admin/variants endpoints');
   }
 
   async updateVariant(productId: string, variantId: string, updateData: any) {
-    const variant = await this.variantRepository.findOne({
-      where: { id: variantId, product_id: productId },
-    });
-
-    if (!variant) {
-      throw new NotFoundException('Không tìm thấy biến thể');
-    }
-
-    Object.assign(variant, updateData);
-    await this.variantRepository.save(variant);
-
-    return {
-      message: 'Cập nhật biến thể thành công',
-      data: variant,
-    };
+    // DEPRECATED
+    throw new BadRequestException('Please use /api/v1/admin/variants endpoints');
   }
 
   async deleteVariant(productId: string, variantId: string) {
-    const result = await this.variantRepository.delete({
-      id: variantId,
-      product_id: productId,
-    });
-
-    if (result.affected === 0) {
-      throw new NotFoundException('Không tìm thấy biến thể');
-    }
-
-    return {
-      message: 'Xóa biến thể thành công',
-    };
+    // DEPRECATED
+    throw new BadRequestException('Please use /api/v1/admin/variants endpoints');
   }
 
   // ==================== PRODUCT IMAGES MANAGEMENT ====================
   async createImage(productId: string, imageData: any) {
-    const product = await this.productRepository.findOne({ where: { id: productId } });
-    if (!product) {
-      throw new NotFoundException('Không tìm thấy sản phẩm');
-    }
-
-    // Get current images count for display_order
-    const imagesCount = await this.imageRepository.count({
-      where: { product_id: productId },
-    });
-
-    const image = this.imageRepository.create({
-      id: IdGenerator.generate('img'),
-      product_id: productId,
-      image_url: imageData.image_url,
-      is_primary: imageData.is_primary ?? false,
-      display_order: imageData.display_order ?? imagesCount,
-    });
-
-    await this.imageRepository.save(image);
-
-    return {
-      message: 'Thêm ảnh thành công',
-      data: image,
-    };
+    // DEPRECATED
+    throw new BadRequestException('Please use /api/v1/admin/images endpoints');
   }
 
   async updateImage(productId: string, imageId: string, updateData: any) {
-    const image = await this.imageRepository.findOne({
-      where: { id: imageId, product_id: productId },
-    });
-
-    if (!image) {
-      throw new NotFoundException('Không tìm thấy ảnh');
-    }
-
-    Object.assign(image, updateData);
-    await this.imageRepository.save(image);
-
-    return {
-      message: 'Cập nhật ảnh thành công',
-      data: image,
-    };
+    // DEPRECATED
+    throw new BadRequestException('Please use /api/v1/admin/images endpoints');
   }
 
   async deleteImage(productId: string, imageId: string) {
-    const result = await this.imageRepository.delete({
-      id: imageId,
-      product_id: productId,
-    });
-
-    if (result.affected === 0) {
-      throw new NotFoundException('Không tìm thấy ảnh');
-    }
-
-    return {
-      message: 'Xóa ảnh thành công',
-    };
+    // DEPRECATED
+    throw new BadRequestException('Please use /api/v1/admin/images endpoints');
   }
 
   // ==================== PROMOTIONS MANAGEMENT ====================

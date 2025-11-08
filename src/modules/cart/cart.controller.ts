@@ -32,7 +32,10 @@ export class CartController {
   @ApiResponse({ status: 201, description: 'Thêm vào giỏ thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy sản phẩm' })
   addItem(@CurrentUser() user: any, @Body() body: AddToCartDto) {
-    return this.cartService.addItem(user.userId, body);
+    return this.cartService.addItem(user.userId, {
+      variant_id: body.variant_id,
+      quantity: body.quantity || 1,
+    });
   }
 
   @Put('items/:id')
@@ -43,7 +46,7 @@ export class CartController {
   @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy sản phẩm trong giỏ' })
   updateItem(@CurrentUser() user: any, @Param('id') id: string, @Body() body: UpdateCartItemDto) {
-    return this.cartService.updateItem(user.userId, id, body.quantity);
+    return this.cartService.updateItem(user.userId, parseInt(id), body.quantity);
   }
 
   @Delete('items/:id')
@@ -54,7 +57,7 @@ export class CartController {
   @ApiResponse({ status: 200, description: 'Xóa thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy sản phẩm trong giỏ' })
   removeItem(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.cartService.removeItem(user.userId, id);
+    return this.cartService.removeItem(user.userId, parseInt(id));
   }
 
   @Post('apply-coupon')

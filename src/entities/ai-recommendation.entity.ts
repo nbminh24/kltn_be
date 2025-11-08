@@ -1,17 +1,17 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { User } from './user.entity';
 import { Product } from './product.entity';
 
 @Entity('ai_recommendations')
 export class AiRecommendation {
-  @PrimaryColumn({ type: 'varchar', length: 50 })
-  id: string;
+  @PrimaryGeneratedColumn('identity')
+  id: number;
 
-  @Column({ type: 'varchar', length: 50 })
-  user_id: string;
+  @Column({ type: 'bigint' })
+  user_id: number;
 
-  @Column({ type: 'varchar', length: 50 })
-  product_id: string;
+  @Column({ type: 'bigint' })
+  product_id: number;
 
   @Column({ type: 'decimal', precision: 5, scale: 4, nullable: true })
   score: number;
@@ -30,7 +30,7 @@ export class AiRecommendation {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @ManyToOne(() => Product, product => product.recommendations, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Product, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'product_id' })
   product: Product;
 }

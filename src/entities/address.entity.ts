@@ -45,7 +45,7 @@ export class Address {
   updated_at: Date;
 
   // Relations
-  @ManyToOne(() => User, user => user.addresses, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user: User;
 }

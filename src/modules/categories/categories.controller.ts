@@ -10,9 +10,9 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Danh sách categories' })
+  @ApiOperation({ summary: 'Danh sách categories (Public - chỉ active)' })
   findAll() {
-    return this.categoriesService.findAll();
+    return this.categoriesService.findAllActive();
   }
 
   @Get(':slug/products')

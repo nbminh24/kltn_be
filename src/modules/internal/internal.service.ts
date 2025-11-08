@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { Order } from '../../entities/order.entity';
@@ -20,30 +20,8 @@ export class InternalService {
   ) {}
 
   async getOrderById(orderId: string) {
-    const order = await this.orderRepository.findOne({
-      where: { id: orderId },
-      relations: ['items', 'items.product', 'user'],
-    });
-
-    if (!order) {
-      throw new NotFoundException('Order not found');
-    }
-
-    return {
-      order: {
-        id: order.id,
-        status: order.status,
-        total: order.total,
-        order_date: order.order_date,
-        tracking_number: order.tracking_number,
-        shipping_address: order.shipping_address,
-        items: order.items.map(item => ({
-          product_name: item.product_name,
-          quantity: item.quantity,
-          price: item.price,
-        })),
-      },
-    };
+    // DEPRECATED - Use OrdersService instead
+    throw new BadRequestException('Please use /api/v1/orders endpoints');
   }
 
   async searchProducts(query: string, limit: number = 10) {
@@ -51,7 +29,6 @@ export class InternalService {
       where: [
         { name: Like(`%${query}%`) },
         { description: Like(`%${query}%`) },
-        { sku: Like(`%${query}%`) },
       ],
       relations: ['category', 'images'],
       take: limit,
@@ -61,9 +38,9 @@ export class InternalService {
       products: products.map(p => ({
         id: p.id,
         name: p.name,
-        price: p.price,
+        price: (p as any).selling_price || 0,
         category: p.category?.name,
-        image: p.images?.[0]?.image_url,
+        image: (p as any).thumbnail_url || null,
         slug: p.slug,
       })),
       count: products.length,

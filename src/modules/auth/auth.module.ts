@@ -7,11 +7,12 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { Customer } from '../../entities/customer.entity';
+import { Admin } from '../../entities/admin.entity';
 import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Customer]),
+    TypeOrmModule.forFeature([Customer, Admin]),
     PassportModule,
     EmailModule,
     ConfigModule,

@@ -1,7 +1,7 @@
 import {
   Entity,
   Column,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
@@ -12,14 +12,14 @@ import { User } from './user.entity';
 
 @Entity('reviews')
 export class Review {
-  @PrimaryColumn({ type: 'varchar', length: 50 })
-  id: string;
+  @PrimaryGeneratedColumn('identity')
+  id: number;
 
-  @Column({ type: 'varchar', length: 50 })
-  product_id: string;
+  @Column({ type: 'bigint' })
+  product_id: number;
 
-  @Column({ type: 'varchar', length: 50 })
-  user_id: string;
+  @Column({ type: 'bigint' })
+  user_id: number;
 
   @Column({ type: 'int' })
   rating: number; // 1-5
@@ -40,11 +40,11 @@ export class Review {
   updated_at: Date;
 
   // Relations
-  @ManyToOne(() => Product, product => product.reviews, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Product, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'product_id' })
   product: Product;
 
-  @ManyToOne(() => User, user => user.reviews, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user: User;
 }

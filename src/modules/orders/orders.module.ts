@@ -4,13 +4,15 @@ import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { Order } from '../../entities/order.entity';
 import { OrderItem } from '../../entities/order-item.entity';
+import { Cart } from '../../entities/cart.entity';
 import { CartItem } from '../../entities/cart-item.entity';
-import { User } from '../../entities/user.entity';
-import { Product } from '../../entities/product.entity';
+import { Customer } from '../../entities/customer.entity';
 import { ProductVariant } from '../../entities/product-variant.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Order, OrderItem, CartItem, User, Product, ProductVariant])],
+  imports: [
+    TypeOrmModule.forFeature([Order, OrderItem, Cart, CartItem, Customer, ProductVariant]),
+  ],
   controllers: [OrdersController],
   providers: [OrdersService],
   exports: [OrdersService],

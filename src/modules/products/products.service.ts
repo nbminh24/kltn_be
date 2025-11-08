@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from '../../entities/product.entity';
@@ -95,7 +95,7 @@ export class ProductsService {
 
   async findOne(id: string) {
     const product = await this.productRepository.findOne({
-      where: { id },
+      where: { id: parseInt(id) as any },
       relations: ['category', 'images', 'variants', 'reviews', 'reviews.user'],
     });
 
@@ -115,45 +115,12 @@ export class ProductsService {
 
     return {
       product,
-      relatedProducts: relatedProducts.filter(p => p.id !== id),
+      relatedProducts: relatedProducts.filter(p => p.id !== parseInt(id)),
     };
   }
 
   async createReview(productId: string, userId: string, reviewData: any) {
-    const product = await this.productRepository.findOne({ where: { id: productId } });
-
-    if (!product) {
-      throw new NotFoundException('Product not found');
-    }
-
-    // Check if user purchased this product
-    const hasPurchased = await this.orderItemRepository
-      .createQueryBuilder('item')
-      .innerJoin('item.order', 'order')
-      .where('order.user_id = :userId', { userId })
-      .andWhere('item.product_id = :productId', { productId })
-      .andWhere('order.status = :status', { status: 'Delivered' })
-      .getCount();
-
-    const review = this.reviewRepository.create({
-      id: IdGenerator.generate('review'),
-      product_id: productId,
-      user_id: userId,
-      rating: reviewData.rating,
-      title: reviewData.title,
-      comment: reviewData.comment,
-      verified_purchase: hasPurchased > 0,
-    });
-
-    await this.reviewRepository.save(review);
-
-    // Update product rating
-    const reviews = await this.reviewRepository.find({ where: { product_id: productId } });
-    const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
-    product.rating = Math.round(avgRating * 10) / 10;
-    product.reviews_count = reviews.length;
-    await this.productRepository.save(product);
-
-    return { message: 'Review created successfully', review };
+    // DEPRECATED: Reviews disabled temporarily
+    throw new BadRequestException('Review feature is under maintenance');
   }
 }

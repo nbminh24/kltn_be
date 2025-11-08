@@ -17,11 +17,11 @@ export class Wishlist {
   added_at: Date;
 
   // Relations
-  @ManyToOne(() => User, user => user.wishlists, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @ManyToOne(() => Product, product => product.wishlists, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Product, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'product_id' })
   product: Product;
 }

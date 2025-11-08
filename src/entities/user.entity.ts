@@ -58,21 +58,8 @@ export class User {
   @UpdateDateColumn()
   updated_at: Date;
 
-  // Relations
-  @OneToMany(() => Order, order => order.user)
-  orders: Order[];
-
-  @OneToMany(() => Review, review => review.user)
-  reviews: Review[];
-
-  @OneToMany(() => Wishlist, wishlist => wishlist.user)
-  wishlists: Wishlist[];
-
-  @OneToMany(() => CartItem, cartItem => cartItem.user)
-  cart_items: CartItem[];
-
-  @OneToMany(() => Address, address => address.user)
-  addresses: Address[];
+  // Relations removed - User entity is not used in new schema
+  // Orders, Cart, Wishlist now use Customer entity instead
 
   @OneToMany(() => ChatbotConversation, conversation => conversation.user)
   conversations: ChatbotConversation[];

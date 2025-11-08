@@ -1,31 +1,28 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { Product } from './product.entity';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
+import { ProductVariant } from './product-variant.entity';
 
 @Entity('product_images')
 export class ProductImage {
-  @PrimaryColumn({ type: 'varchar', length: 50 })
-  id: string;
+  @PrimaryGeneratedColumn('identity', { type: 'bigint', generatedIdentity: 'ALWAYS' })
+  id: number;
 
-  @Column({ type: 'varchar', length: 50 })
-  product_id: string;
+  @Column({ type: 'bigint' })
+  variant_id: number;
 
-  @Column({ type: 'varchar', length: 500 })
+  @Column({ type: 'text' })
   image_url: string;
 
-  @Column({ type: 'int', default: 0 })
-  display_order: number;
-
   @Column({ type: 'boolean', default: false })
-  is_primary: boolean;
-
-  @Column({ type: 'vector', length: 512, nullable: true })
-  image_vector: string; // pgvector stores as text
-
-  @CreateDateColumn()
-  created_at: Date;
+  is_main: boolean;
 
   // Relations
-  @ManyToOne(() => Product, product => product.images, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'product_id' })
-  product: Product;
+  @ManyToOne(() => ProductVariant, variant => variant.images)
+  @JoinColumn({ name: 'variant_id' })
+  variant: ProductVariant;
 }

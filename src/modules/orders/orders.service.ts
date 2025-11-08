@@ -3,11 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Order } from '../../entities/order.entity';
 import { OrderItem } from '../../entities/order-item.entity';
+import { Cart } from '../../entities/cart.entity';
 import { CartItem } from '../../entities/cart-item.entity';
-import { User } from '../../entities/user.entity';
-import { Product } from '../../entities/product.entity';
+import { Customer } from '../../entities/customer.entity';
 import { ProductVariant } from '../../entities/product-variant.entity';
-import { IdGenerator } from '../../common/utils/id-generator';
 
 @Injectable()
 export class OrdersService {
@@ -16,101 +15,75 @@ export class OrdersService {
     private orderRepository: Repository<Order>,
     @InjectRepository(OrderItem)
     private orderItemRepository: Repository<OrderItem>,
+    @InjectRepository(Cart)
+    private cartRepository: Repository<Cart>,
     @InjectRepository(CartItem)
     private cartItemRepository: Repository<CartItem>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    @InjectRepository(Product)
-    private productRepository: Repository<Product>,
+    @InjectRepository(Customer)
+    private customerRepository: Repository<Customer>,
     @InjectRepository(ProductVariant)
     private variantRepository: Repository<ProductVariant>,
   ) {}
 
-  async createOrder(userId: string, orderData: any) {
-    // Get cart items
-    const cartItems = await this.cartItemRepository.find({
-      where: { user_id: userId },
-      relations: ['product', 'product.images'],
+  async createOrder(customerId: number, orderData: any) {
+    // Get customer's cart
+    const cart = await this.cartRepository.findOne({
+      where: { customer_id: customerId },
+      relations: ['items', 'items.variant', 'items.variant.product'],
     });
 
-    if (cartItems.length === 0) {
+    if (!cart || cart.items.length === 0) {
       throw new BadRequestException('Cart is empty');
     }
 
+    const customer = await this.customerRepository.findOne({ where: { id: customerId } });
+
     // Calculate totals
-    const subtotal = cartItems.reduce((sum, item) => {
-      return sum + parseFloat(item.product.price.toString()) * item.quantity;
+    const subtotal = cart.items.reduce((sum, item) => {
+      return sum + parseFloat((item.variant.product as any).selling_price?.toString() || '0') * item.quantity;
     }, 0);
 
+    const shipping_fee = orderData.shipping_fee || 0;
+    const total_amount = subtotal + shipping_fee;
+
     const order = this.orderRepository.create({
-      id: IdGenerator.generate('order'),
-      user_id: userId,
-      subtotal,
-      discount: orderData.discount || 0,
-      promo_code: orderData.promo_code || null,
-      delivery_fee: orderData.delivery_fee || 0,
-      total: subtotal - (orderData.discount || 0) + (orderData.delivery_fee || 0),
-      payment_method: orderData.payment_method,
-      payment_status: 'Pending',
-      shipping_name: orderData.shipping_name,
-      shipping_phone: orderData.shipping_phone,
+      customer_id: customerId,
+      customer_email: customer?.email || orderData.customer_email,
       shipping_address: orderData.shipping_address,
-      shipping_city: orderData.shipping_city,
-      shipping_state: orderData.shipping_state || null,
-      shipping_postal_code: orderData.shipping_postal_code,
-      tracking_number: null,
-      delivered_date: null,
+      shipping_phone: orderData.shipping_phone,
+      payment_method: orderData.payment_method || 'cod',
+      payment_status: 'unpaid',
+      fulfillment_status: 'pending',
+      shipping_fee,
+      total_amount,
     });
 
     await this.orderRepository.save(order);
 
     // Create order items
-    for (const cartItem of cartItems) {
+    for (const cartItem of cart.items) {
       const orderItem = this.orderItemRepository.create({
-        id: IdGenerator.generate('item'),
         order_id: order.id,
-        product_id: cartItem.product_id,
-        product_variant_id: cartItem.product_variant_id || null,
-        product_name: cartItem.product.name,
-        product_image: cartItem.product.images?.[0]?.image_url,
-        size: cartItem.product_variant?.size || null,
-        color: cartItem.product_variant?.color || null,
-        price: cartItem.product.price,
+        variant_id: cartItem.variant_id,
         quantity: cartItem.quantity,
-        subtotal: parseFloat(cartItem.product.price.toString()) * cartItem.quantity,
+        price_at_purchase: parseFloat((cartItem.variant.product as any).selling_price?.toString() || '0'),
       });
 
       await this.orderItemRepository.save(orderItem);
-
-      // Reduce stock for variant or product
-      if (cartItem.product_variant_id) {
-        await this.variantRepository.decrement(
-          { id: cartItem.product_variant_id },
-          'stock',
-          cartItem.quantity,
-        );
-      }
-
-      // Increase sold_count for product
-      await this.productRepository.increment(
-        { id: cartItem.product_id },
-        'sold_count',
-        cartItem.quantity,
-      );
     }
 
     // Clear cart
-    await this.cartItemRepository.delete({ user_id: userId });
+    await this.cartItemRepository.delete({ cart_id: cart.id });
 
     return { message: 'Order created successfully', order };
   }
 
-  async getUserOrders(userId: string, query: any) {
+  async getUserOrders(customerId: number, query: any) {
     const { page = 1, limit = 10 } = query;
     const skip = (page - 1) * limit;
 
     const [orders, total] = await this.orderRepository.findAndCount({
-      where: { user_id: userId },
+      where: { customer_id: customerId },
       relations: ['items'],
       order: { created_at: 'DESC' },
       skip,
@@ -128,10 +101,10 @@ export class OrdersService {
     };
   }
 
-  async getOrderById(userId: string, orderId: string) {
+  async getOrderById(customerId: number, orderId: number) {
     const order = await this.orderRepository.findOne({
-      where: { id: orderId, user_id: userId },
-      relations: ['items', 'items.product'],
+      where: { id: orderId, customer_id: customerId },
+      relations: ['items', 'items.variant'],
     });
 
     if (!order) {
@@ -141,9 +114,9 @@ export class OrdersService {
     return { order };
   }
 
-  async cancelOrder(userId: string, orderId: string) {
+  async cancelOrder(customerId: number, orderId: number) {
     const order = await this.orderRepository.findOne({
-      where: { id: orderId, user_id: userId },
+      where: { id: orderId, customer_id: customerId },
       relations: ['items'],
     });
 
@@ -151,29 +124,11 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    if (order.status !== 'Pending' && order.status !== 'Confirmed') {
+    if (order.fulfillment_status !== 'pending' && order.fulfillment_status !== 'confirmed') {
       throw new BadRequestException('Cannot cancel this order at current status');
     }
 
-    // Restore stock if order had stock reduced
-    for (const item of order.items) {
-      if (item.product_variant_id) {
-        await this.variantRepository.increment(
-          { id: item.product_variant_id },
-          'stock',
-          item.quantity,
-        );
-      }
-
-      // Reduce sold_count
-      await this.productRepository.decrement(
-        { id: item.product_id },
-        'sold_count',
-        item.quantity,
-      );
-    }
-
-    order.status = 'Cancelled';
+    order.fulfillment_status = 'cancelled';
     await this.orderRepository.save(order);
 
     return { message: 'Order cancelled successfully' };

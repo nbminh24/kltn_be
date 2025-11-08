@@ -41,7 +41,7 @@ export class OrdersController {
   @ApiResponse({ status: 200, description: 'Chi tiết đơn hàng' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
   getOrderById(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.ordersService.getOrderById(user.userId, id);
+    return this.ordersService.getOrderById(user.userId, parseInt(id));
   }
 
   @Get(':id/tracking')
@@ -52,7 +52,7 @@ export class OrdersController {
   @ApiResponse({ status: 200, description: 'Thông tin tracking' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
   getTracking(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.ordersService.getOrderById(user.userId, id);
+    return this.ordersService.getOrderById(user.userId, parseInt(id));
   }
 
   @Post(':id/cancel')
@@ -64,6 +64,6 @@ export class OrdersController {
   @ApiResponse({ status: 400, description: 'Không thể hủy đơn hàng ở trạng thái hiện tại' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
   cancelOrder(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.ordersService.cancelOrder(user.userId, id);
+    return this.ordersService.cancelOrder(user.userId, parseInt(id));
   }
 }
