@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Patch, Param, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ProductVariantsService } from './product-variants.service';
 import { UpdateVariantDto } from './dto/update-variant.dto';
@@ -43,10 +43,11 @@ export class AdminVariantsController {
     return this.variantsService.findByProduct(parseInt(id));
   }
 
+  @Put('variants/:id')
   @Patch('variants/:id')
   @ApiOperation({
     summary: 'Cập nhật variant riêng lẻ',
-    description: 'Cập nhật SKU hoặc status của 1 variant',
+    description: 'Cập nhật SKU hoặc status của 1 variant. Support cả PUT và PATCH.',
   })
   @ApiResponse({
     status: 200,

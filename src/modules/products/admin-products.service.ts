@@ -133,6 +133,17 @@ export class AdminProductsService {
       createProductDto.selected_color_ids,
     );
 
+    // Auto-generate SKUs if not provided
+    for (const variant of createProductDto.variants) {
+      if (!variant.sku) {
+        variant.sku = await this.generateSKU(
+          createProductDto.name,
+          variant.color_id,
+          variant.size_id,
+        );
+      }
+    }
+
     // Validate SKUs are unique
     await this.validateSKUs(createProductDto.variants.map(v => v.sku));
 
@@ -207,8 +218,19 @@ export class AdminProductsService {
       );
     }
 
-    // Validate SKUs if provided
+    // Auto-generate SKUs if provided but not filled
     if (updateProductDto.variants) {
+      const productName = updateProductDto.name || product.name;
+      for (const variant of updateProductDto.variants) {
+        if (!variant.sku) {
+          variant.sku = await this.generateSKU(
+            productName,
+            variant.color_id,
+            variant.size_id,
+          );
+        }
+      }
+      
       const skus = updateProductDto.variants.map(v => v.sku);
       await this.validateSKUs(skus, id);
     }
@@ -358,5 +380,48 @@ export class AdminProductsService {
         `SKU đã tồn tại: ${duplicateSKUs.join(', ')}`,
       );
     }
+  }
+
+  // Helper: Auto-generate SKU from product name, color code, and size code
+  // Format: PRODUCT_NAME-COLOR-SIZE (e.g., AO_KHOAC_BOMBER-WHT-M)
+  private async generateSKU(productName: string, colorId: number, sizeId: number): Promise<string> {
+    // Get color and size info
+    const [color, size] = await Promise.all([
+      this.colorRepository.findOne({ where: { id: colorId as any } }),
+      this.sizeRepository.findOne({ where: { id: sizeId as any } }),
+    ]);
+
+    if (!color || !size) {
+      throw new BadRequestException('Color hoặc Size không tồn tại');
+    }
+
+    // Normalize product name: remove special chars, uppercase, replace spaces with _
+    const normalizedName = productName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+      .toUpperCase()
+      .replace(/[^A-Z0-9\s]/g, '') // Remove special chars
+      .trim()
+      .replace(/\s+/g, '_'); // Replace spaces with _
+
+    // Get color code (first 3 chars uppercase from name)
+    const colorCode = color.name.substring(0, 3).toUpperCase();
+    
+    // Get size code (name uppercase)
+    const sizeCode = size.name.toUpperCase();
+
+    // Generate base SKU
+    let baseSku = `${normalizedName}-${colorCode}-${sizeCode}`;
+    
+    // Check if SKU exists, if yes, append counter
+    let sku = baseSku;
+    let counter = 1;
+    
+    while (await this.variantRepository.findOne({ where: { sku } })) {
+      sku = `${baseSku}-${counter}`;
+      counter++;
+    }
+
+    return sku;
   }
 }

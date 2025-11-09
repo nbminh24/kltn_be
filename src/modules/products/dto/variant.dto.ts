@@ -20,11 +20,12 @@ export class VariantDto {
 
   @ApiProperty({
     example: 'TSH-M-WHT',
-    description: 'SKU (unique globally)',
+    description: 'SKU (unique globally) - Tự động generate nếu không cung cấp',
+    required: false,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  sku: string;
+  sku?: string;
 
   @ApiProperty({
     example: 'active',

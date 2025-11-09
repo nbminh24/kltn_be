@@ -13,6 +13,11 @@ export class StorageService {
     const supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_KEY');
     this.bucket = this.configService.get<string>('SUPABASE_STORAGE_BUCKET', 'lecas');
 
+    // Debug log
+    this.logger.log(`🔍 DEBUG - SUPABASE_URL: ${supabaseUrl ? 'EXISTS' : 'MISSING'}`);
+    this.logger.log(`🔍 DEBUG - SUPABASE_SERVICE_KEY: ${supabaseKey ? 'EXISTS (length: ' + supabaseKey.length + ')' : 'MISSING'}`);
+    this.logger.log(`🔍 DEBUG - SUPABASE_STORAGE_BUCKET: ${this.bucket}`);
+
     if (!supabaseUrl || !supabaseKey) {
       this.logger.warn('⚠️ Supabase credentials not configured - Storage features will be disabled');
       return;
