@@ -13,6 +13,11 @@ import { Promotion } from '../../entities/promotion.entity';
 import { ChatbotConversation } from '../../entities/chatbot-conversation.entity';
 import { ChatbotMessage } from '../../entities/chatbot-message.entity';
 import { AiRecommendation } from '../../entities/ai-recommendation.entity';
+import { Customer } from '../../entities/customer.entity';
+import { SupportTicketReply } from '../../entities/support-ticket-reply.entity';
+import { RestockBatch } from '../../entities/restock-batch.entity';
+import { RestockItem } from '../../entities/restock-item.entity';
+import { OrderStatusHistory } from '../../entities/order-status-history.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { IdGenerator } from '../../common/utils/id-generator';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -20,6 +25,11 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { UpdatePageDto } from './dto/update-page.dto';
+import { RestockDto } from './dto/restock.dto';
+import { ReplyTicketDto } from './dto/reply-ticket.dto';
+import { UpdateCustomerStatusDto } from './dto/update-customer-status.dto';
+import { EmailService } from '../email/email.service';
+import * as XLSX from 'xlsx';
 
 @Injectable()
 export class AdminService {
@@ -48,6 +58,17 @@ export class AdminService {
     private messageRepository: Repository<ChatbotMessage>,
     @InjectRepository(AiRecommendation)
     private recommendationRepository: Repository<AiRecommendation>,
+    @InjectRepository(Customer)
+    private customerRepository: Repository<Customer>,
+    @InjectRepository(SupportTicketReply)
+    private ticketReplyRepository: Repository<SupportTicketReply>,
+    @InjectRepository(RestockBatch)
+    private restockBatchRepository: Repository<RestockBatch>,
+    @InjectRepository(RestockItem)
+    private restockItemRepository: Repository<RestockItem>,
+    @InjectRepository(OrderStatusHistory)
+    private statusHistoryRepository: Repository<OrderStatusHistory>,
+    private emailService: EmailService,
   ) {}
 
   // ==================== DASHBOARD ====================
@@ -726,6 +747,302 @@ export class AdminService {
       reason_counts: reasonCounts,
       top_products: topProducts,
       top_users: topUsers,
+    };
+  }
+
+  // ==================== INVENTORY RESTOCK ====================
+  async restockInventory(adminId: number, restockDto: RestockDto) {
+    const queryRunner = this.variantRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Create batch
+      const batch = queryRunner.manager.create(RestockBatch, {
+        admin_id: adminId,
+        type: 'Manual',
+      });
+      const savedBatch = await queryRunner.manager.save(batch);
+
+      // Process each item
+      for (const item of restockDto.items) {
+        // Create restock item record
+        const restockItem = queryRunner.manager.create(RestockItem, {
+          batch_id: savedBatch.id,
+          variant_id: item.variant_id,
+          quantity: item.quantity,
+        });
+        await queryRunner.manager.save(restockItem);
+
+        // Update variant stock
+        await queryRunner.manager.increment(
+          ProductVariant,
+          { id: item.variant_id },
+          'total_stock',
+          item.quantity,
+        );
+      }
+
+      await queryRunner.commitTransaction();
+
+      return {
+        message: 'Inventory restocked successfully',
+        batch_id: savedBatch.id,
+        items_updated: restockDto.items.length,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async restockInventoryBatch(adminId: number, file: Express.Multer.File) {
+    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const data: any[] = XLSX.utils.sheet_to_json(sheet);
+
+    if (!data || data.length === 0) {
+      throw new BadRequestException('Excel file is empty');
+    }
+
+    const queryRunner = this.variantRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    const failedSkus: string[] = [];
+    let updatedCount = 0;
+
+    try {
+      // Create batch
+      const batch = queryRunner.manager.create(RestockBatch, {
+        admin_id: adminId,
+        type: 'Excel',
+      });
+      const savedBatch = await queryRunner.manager.save(batch);
+
+      // Process each row
+      for (const row of data) {
+        const sku = row.sku || row.SKU;
+        const quantity = parseInt(row.quantity || row.Quantity);
+
+        if (!sku || !quantity || quantity <= 0) {
+          failedSkus.push(sku || 'Unknown SKU');
+          continue;
+        }
+
+        // Find variant by SKU
+        const variant = await queryRunner.manager.findOne(ProductVariant, {
+          where: { sku },
+        });
+
+        if (!variant) {
+          failedSkus.push(sku);
+          continue;
+        }
+
+        // Create restock item
+        const restockItem = queryRunner.manager.create(RestockItem, {
+          batch_id: savedBatch.id,
+          variant_id: variant.id,
+          quantity,
+        });
+        await queryRunner.manager.save(restockItem);
+
+        // Update stock
+        await queryRunner.manager.increment(
+          ProductVariant,
+          { id: variant.id },
+          'total_stock',
+          quantity,
+        );
+
+        updatedCount++;
+      }
+
+      await queryRunner.commitTransaction();
+
+      return {
+        message: 'Batch restock completed',
+        batch_id: savedBatch.id,
+        updated_variants: updatedCount,
+        failed_skus: failedSkus,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // ==================== SUPPORT TICKETS MANAGEMENT ====================
+  async getAllSupportTickets(query: any) {
+    const { page = 1, limit = 20, status } = query;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.ticketRepository
+      .createQueryBuilder('t')
+      .leftJoinAndSelect('t.customer', 'c')
+      .orderBy('t.created_at', 'DESC');
+
+    if (status) {
+      queryBuilder.andWhere('t.status = :status', { status });
+    }
+
+    const [tickets, total] = await queryBuilder
+      .skip(skip)
+      .take(parseInt(limit))
+      .getManyAndCount();
+
+    return {
+      data: tickets,
+      metadata: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getSupportTicketDetail(ticketId: number) {
+    const ticket = await this.ticketRepository.findOne({
+      where: { id: ticketId },
+      relations: ['customer'],
+    });
+
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+
+    const replies = await this.ticketReplyRepository.find({
+      where: { ticket_id: ticketId },
+      relations: ['admin'],
+      order: { created_at: 'ASC' },
+    });
+
+    return {
+      ticket_details: ticket,
+      replies,
+    };
+  }
+
+  async replyToTicket(ticketId: number, adminId: number, replyDto: ReplyTicketDto) {
+    const ticket = await this.ticketRepository.findOne({
+      where: { id: ticketId },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+
+    // Create reply
+    const reply = this.ticketReplyRepository.create({
+      ticket_id: ticketId,
+      admin_id: adminId,
+      body: replyDto.body,
+    });
+    await this.ticketReplyRepository.save(reply);
+
+    // Update ticket status
+    ticket.status = 'replied';
+    await this.ticketRepository.save(ticket);
+
+    // Send email notification
+    try {
+      await this.emailService.sendMail({
+        to: ticket.customer_email,
+        subject: `[Ticket #${ticket.ticket_code}] Bạn có phản hồi mới`,
+        template: 'ticket-reply',
+        context: {
+          ticketCode: ticket.ticket_code,
+          subject: ticket.subject,
+          replyBody: replyDto.body,
+        },
+      });
+    } catch (emailError) {
+      console.error('Failed to send email:', emailError);
+      // Don't throw - email failure shouldn't fail the operation
+    }
+
+    return {
+      message: 'Reply sent successfully',
+      reply,
+    };
+  }
+
+  // ==================== CUSTOMER MANAGEMENT ====================
+  async updateCustomerStatus(customerId: number, updateStatusDto: UpdateCustomerStatusDto) {
+    const customer = await this.customerRepository.findOne({
+      where: { id: customerId },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    customer.status = updateStatusDto.status;
+    await this.customerRepository.save(customer);
+
+    return {
+      message: `Customer ${updateStatusDto.status === 'active' ? 'activated' : 'deactivated'} successfully`,
+      customer,
+    };
+  }
+
+  // ==================== ORDER STATUS WITH EMAIL ====================
+  async updateOrderStatusWithEmail(orderId: number, status: string, adminId?: number) {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Update status
+    order.fulfillment_status = status;
+    await this.orderRepository.save(order);
+
+    // Log status history
+    const history = this.statusHistoryRepository.create({
+      order_id: orderId,
+      status,
+      admin_id: adminId,
+    });
+    await this.statusHistoryRepository.save(history);
+
+    // Send email notification
+    try {
+      const statusTexts = {
+        pending: 'đang chờ xử lý',
+        processing: 'đang được xử lý',
+        shipped: 'đã được giao cho đơn vị vận chuyển',
+        delivered: 'đã được giao thành công',
+        cancelled: 'đã bị hủy',
+      };
+
+      await this.emailService.sendMail({
+        to: order.customer_email,
+        subject: `Đơn hàng #${order.id} ${statusTexts[status]}`,
+        template: 'order-status-update',
+        context: {
+          orderId: order.id,
+          newStatus: status,
+          statusText: statusTexts[status],
+          totalAmount: order.total_amount,
+        },
+      });
+    } catch (emailError) {
+      console.error('Failed to send email:', emailError);
+    }
+
+    return {
+      message: 'Order status updated successfully',
+      order,
     };
   }
 

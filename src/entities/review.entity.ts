@@ -30,6 +30,9 @@ export class Review {
   @Column({ type: 'text', nullable: true })
   comment: string;
 
+  @Column({ type: 'varchar', default: 'pending' })
+  status: string; // 'pending', 'approved', 'rejected'
+
   @CreateDateColumn({ type: 'timestamp with time zone' })
   created_at: Date;
 

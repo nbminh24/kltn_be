@@ -301,4 +301,122 @@ export class EmailService {
       </html>
     `;
   }
+
+  // ==================== GENERIC SEND MAIL METHOD ====================
+  async sendMail(options: { to: string; subject: string; template?: string; context?: any; html?: string }) {
+    try {
+      let htmlContent = options.html || '';
+
+      // If template is specified, use it
+      if (options.template && options.context) {
+        switch (options.template) {
+          case 'ticket-reply':
+            htmlContent = this.getTicketReplyTemplate(options.context);
+            break;
+          case 'order-status-update':
+            htmlContent = this.getOrderStatusUpdateTemplate(options.context);
+            break;
+          default:
+            htmlContent = options.html || '';
+        }
+      }
+
+      await this.transporter.sendMail({
+        from: `"LeCas Fashion" <${this.configService.get('EMAIL_USER')}>`,
+        to: options.to,
+        subject: options.subject,
+        html: htmlContent,
+      });
+
+      this.logger.log(`Email sent successfully to ${options.to}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to send email to ${options.to}:`, error.message);
+      return false;
+    }
+  }
+
+  private getTicketReplyTemplate(context: any): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #000; color: #fff; padding: 20px; text-align: center; }
+          .content { padding: 30px; background: #f9f9f9; }
+          .reply-box { background: #fff; border-left: 4px solid #000; padding: 15px; margin: 20px 0; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>LeCas Fashion Support</h1>
+          </div>
+          <div class="content">
+            <h2>Ticket #${context.ticketCode}</h2>
+            <p><strong>Tiêu đề:</strong> ${context.subject}</p>
+            <div class="reply-box">
+              <h3>Phản hồi từ đội ngũ hỗ trợ:</h3>
+              <p>${context.replyBody}</p>
+            </div>
+            <p>Nếu bạn có thắc mắc gì thêm, vui lòng trả lời email này.</p>
+          </div>
+          <div class="footer">
+            <p>&copy; 2024 LeCas Fashion. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  private getOrderStatusUpdateTemplate(context: any): string {
+    const statusColors = {
+      pending: '#FFA500',
+      processing: '#1E90FF',
+      shipped: '#32CD32',
+      delivered: '#008000',
+      cancelled: '#DC143C',
+    };
+
+    const color = statusColors[context.newStatus] || '#000';
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #000; color: #fff; padding: 20px; text-align: center; }
+          .content { padding: 30px; background: #f9f9f9; }
+          .status-badge { display: inline-block; padding: 10px 20px; background: ${color}; color: #fff; border-radius: 5px; font-weight: bold; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>LeCas Fashion</h1>
+          </div>
+          <div class="content">
+            <h2>Cập nhật trạng thái đơn hàng</h2>
+            <p>Đơn hàng <strong>#${context.orderId}</strong> của bạn ${context.statusText}.</p>
+            <div style="text-align: center; margin: 20px 0;">
+              <span class="status-badge">${context.newStatus.toUpperCase()}</span>
+            </div>
+            <p><strong>Tổng tiền:</strong> ${context.totalAmount?.toLocaleString?.() || context.totalAmount}đ</p>
+            <p>Cảm ơn bạn đã mua sắm tại LeCas Fashion!</p>
+          </div>
+          <div class="footer">
+            <p>&copy; 2024 LeCas Fashion. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
 }

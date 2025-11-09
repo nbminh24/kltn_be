@@ -6,6 +6,7 @@ import { ProductVariant } from '../../entities/product-variant.entity';
 import { Category } from '../../entities/category.entity';
 import { PromotionProduct } from '../../entities/promotion-product.entity';
 import { Promotion } from '../../entities/promotion.entity';
+import { Review } from '../../entities/review.entity';
 
 @Injectable()
 export class ProductsService {
@@ -20,6 +21,8 @@ export class ProductsService {
     private promotionProductRepository: Repository<PromotionProduct>,
     @InjectRepository(Promotion)
     private promotionRepository: Repository<Promotion>,
+    @InjectRepository(Review)
+    private reviewRepository: Repository<Review>,
   ) {}
 
   async findAll(query: any) {
@@ -215,6 +218,17 @@ export class ProductsService {
         }),
     );
 
+    // Get approved reviews for this product
+    const reviews = await this.reviewRepository
+      .createQueryBuilder('r')
+      .innerJoin('r.variant', 'v')
+      .leftJoinAndSelect('r.customer', 'c')
+      .where('v.product_id = :productId', { productId: product.id })
+      .andWhere('r.status = :status', { status: 'approved' })
+      .orderBy('r.created_at', 'DESC')
+      .take(10)
+      .getMany();
+
     return {
       product: {
         ...product,
@@ -227,6 +241,7 @@ export class ProductsService {
         sizes: availableSizes,
       },
       related_products: relatedWithPromotions,
+      reviews,
     };
   }
 

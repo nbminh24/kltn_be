@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Put, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Patch, Param, Query, Body, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 // DEPRECATED DTOs - moved to respective modules
 // import { CreateProductDto } from './dto/create-product.dto';
 // import { UpdateProductDto } from './dto/update-product.dto';
@@ -354,12 +356,12 @@ export class AdminController {
   @ApiOperation({
     summary: '[Admin] Quản lý đơn hàng - Cập nhật trạng thái',
     description:
-      'Cập nhật trạng thái đơn hàng (Pending → Confirmed → Processing → Shipped → Delivered / hoặc Cancelled)',
+      'Cập nhật trạng thái đơn hàng (Pending → Confirmed → Processing → Shipped → Delivered / hoặc Cancelled). Email thông báo sẽ được gửi tự động.',
   })
   @ApiResponse({ status: 200, description: 'Cập nhật trạng thái thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
-  updateOrderStatus(@Param('id') id: string, @Body() updateStatusDto: UpdateOrderStatusDto) {
-    return this.adminService.updateOrderStatus(id, updateStatusDto.status);
+  updateOrderStatus(@CurrentUser() user: any, @Param('id') id: string, @Body() updateStatusDto: UpdateOrderStatusDto) {
+    return this.adminService.updateOrderStatusWithEmail(parseInt(id), updateStatusDto.status, user.sub);
   }
 
   // ==================== CUSTOMERS MANAGEMENT ====================
@@ -520,5 +522,71 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Danh sách tồn kho' })
   getInventory(@Query('low_stock') lowStock?: string) {
     return this.adminService.getInventory(lowStock === 'true');
+  }
+
+  @Post('inventory/restock')
+  @ApiOperation({
+    summary: '[UC-A04] Nhập kho thủ công',
+    description: 'Nhập hàng vào kho (tạo phiếu nhập kho) với danh sách variants và số lượng',
+  })
+  @ApiResponse({ status: 201, description: 'Nhập kho thành công' })
+  restockInventory(@CurrentUser() user: any, @Body() restockDto: any) {
+    return this.adminService.restockInventory(user.sub, restockDto);
+  }
+
+  @Post('inventory/restock-batch')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: '[UC-A04] Nhập kho qua Excel',
+    description: 'Upload file Excel để cập nhật tồn kho hàng loạt. File cần có 2 cột: sku và quantity',
+  })
+  @ApiResponse({ status: 201, description: 'Import thành công' })
+  restockInventoryBatch(@CurrentUser() user: any, @UploadedFile() file: Express.Multer.File) {
+    return this.adminService.restockInventoryBatch(user.sub, file);
+  }
+
+  // ==================== SUPPORT TICKETS MANAGEMENT ====================
+  @Get('support-tickets')
+  @ApiOperation({
+    summary: '[UC-A05] Danh sách phiếu hỗ trợ',
+    description: 'Lấy danh sách các phiếu hỗ trợ do khách gửi với filter theo status',
+  })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiQuery({ name: 'status', required: false, example: 'pending' })
+  @ApiResponse({ status: 200, description: 'Danh sách tickets' })
+  getAllSupportTickets(@Query() query: any) {
+    return this.adminService.getAllSupportTickets(query);
+  }
+
+  @Get('support-tickets/:id')
+  @ApiOperation({
+    summary: '[UC-A05] Chi tiết phiếu hỗ trợ',
+    description: 'Lấy chi tiết một phiếu hỗ trợ bao gồm lịch sử chat/replies',
+  })
+  @ApiResponse({ status: 200, description: 'Chi tiết ticket và replies' })
+  getSupportTicketDetail(@Param('id') id: string) {
+    return this.adminService.getSupportTicketDetail(parseInt(id));
+  }
+
+  @Post('support-tickets/:id/reply')
+  @ApiOperation({
+    summary: '[UC-A05] Admin trả lời ticket',
+    description: 'Admin gửi trả lời cho khách hàng. Email sẽ được gửi tự động.',
+  })
+  @ApiResponse({ status: 201, description: 'Gửi reply thành công' })
+  replyToTicket(@CurrentUser() user: any, @Param('id') id: string, @Body() replyDto: any) {
+    return this.adminService.replyToTicket(parseInt(id), user.sub, replyDto);
+  }
+
+  // ==================== CUSTOMER MANAGEMENT ENHANCEMENTS ====================
+  @Patch('customers/:id/status')
+  @ApiOperation({
+    summary: '[UC-A06] Khóa/Mở khóa tài khoản khách hàng',
+    description: 'Admin cập nhật trạng thái tài khoản (active/inactive)',
+  })
+  @ApiResponse({ status: 200, description: 'Cập nhật trạng thái thành công' })
+  updateCustomerStatus(@Param('id') id: string, @Body() updateStatusDto: any) {
+    return this.adminService.updateCustomerStatus(parseInt(id), updateStatusDto);
   }
 }

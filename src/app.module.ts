@@ -24,7 +24,11 @@ import { Review } from './entities/review.entity';
 import { Promotion } from './entities/promotion.entity';
 import { PromotionProduct } from './entities/promotion-product.entity';
 import { SupportTicket } from './entities/support-ticket.entity';
+import { SupportTicketReply } from './entities/support-ticket-reply.entity';
 import { StaticPage } from './entities/static-page.entity';
+import { Page } from './entities/page.entity';
+import { RestockBatch } from './entities/restock-batch.entity';
+import { RestockItem } from './entities/restock-item.entity';
 import { ChatbotConversation } from './entities/chatbot-conversation.entity';
 import { ChatbotMessage } from './entities/chatbot-message.entity';
 import { AiRecommendation } from './entities/ai-recommendation.entity';
@@ -48,6 +52,9 @@ import { PromotionsModule } from './modules/promotions/promotions.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { AiModule } from './modules/ai/ai.module';
 import { InternalModule } from './modules/internal/internal.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { PagesModule } from './modules/pages/pages.module';
 
 @Module({
   imports: [
@@ -88,7 +95,11 @@ import { InternalModule } from './modules/internal/internal.module';
             Promotion,
             PromotionProduct,
             SupportTicket,
+            SupportTicketReply,
             StaticPage,
+            Page,
+            RestockBatch,
+            RestockItem,
             ChatbotConversation,
             ChatbotMessage,
             AiRecommendation,
@@ -130,6 +141,9 @@ import { InternalModule } from './modules/internal/internal.module';
     CheckoutModule,
     AiModule,
     InternalModule,
+    ReviewsModule,
+    AnalyticsModule,
+    PagesModule,
   ],
 })
 export class AppModule {}

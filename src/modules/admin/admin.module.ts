@@ -19,6 +19,12 @@ import { Promotion } from '../../entities/promotion.entity';
 import { ChatbotConversation } from '../../entities/chatbot-conversation.entity';
 import { ChatbotMessage } from '../../entities/chatbot-message.entity';
 import { AiRecommendation } from '../../entities/ai-recommendation.entity';
+import { Customer } from '../../entities/customer.entity';
+import { SupportTicketReply } from '../../entities/support-ticket-reply.entity';
+import { RestockBatch } from '../../entities/restock-batch.entity';
+import { RestockItem } from '../../entities/restock-item.entity';
+import { OrderStatusHistory } from '../../entities/order-status-history.entity';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -36,7 +42,13 @@ import { AiRecommendation } from '../../entities/ai-recommendation.entity';
       ChatbotConversation,
       ChatbotMessage,
       AiRecommendation,
+      Customer,
+      SupportTicketReply,
+      RestockBatch,
+      RestockItem,
+      OrderStatusHistory,
     ]),
+    EmailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
