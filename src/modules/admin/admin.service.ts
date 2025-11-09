@@ -313,18 +313,14 @@ export class AdminService {
   }
 
   // ==================== SUPPORT & CONTENT MANAGEMENT ====================
-  async updateTicket(id: string, updateTicketDto: UpdateTicketDto) {
+  async updateTicket(id: number, updateTicketDto: UpdateTicketDto) {
     const ticket = await this.ticketRepository.findOne({ where: { id } });
 
     if (!ticket) {
       throw new NotFoundException('Không tìm thấy ticket');
     }
 
-    // If admin reply is provided, update replied_at
-    if (updateTicketDto.admin_reply) {
-      ticket.replied_at = new Date();
-    }
-
+    // Only update status - replies are handled separately via support_ticket_replies table
     Object.assign(ticket, updateTicketDto);
     await this.ticketRepository.save(ticket);
 
@@ -464,162 +460,33 @@ export class AdminService {
     };
   }
 
+  /* 
+   * ==================== PROMOTIONS ====================
+   * DEPRECATED: Promotion schema changed - these methods disabled
+   * Use PromotionsModule for new promotion management
+   */
   async getPromotionById(id: string) {
-    const promotion = await this.promotionRepository.findOne({ where: { id } });
-
-    if (!promotion) {
-      throw new NotFoundException('Không tìm thấy mã giảm giá');
-    }
-
-    return { promotion };
+    throw new BadRequestException('Feature deprecated - use /api/v1/promotions');
   }
 
   async createPromotion(createPromotionDto: any) {
-    // Validate code format
-    const code = createPromotionDto.code.toUpperCase().trim();
-    
-    if (!/^[A-Z0-9]{3,20}$/.test(code)) {
-      throw new BadRequestException(
-        'Mã giảm giá phải là chữ IN HOA, không dấu, 3-20 ký tự',
-      );
-    }
-
-    // Check code uniqueness
-    const existingPromotion = await this.promotionRepository.findOne({
-      where: { code },
-    });
-
-    if (existingPromotion) {
-      throw new BadRequestException('Mã giảm giá đã tồn tại');
-    }
-
-    // Validate discount_value based on type
-    if (createPromotionDto.type === 'percentage') {
-      if (createPromotionDto.discount_value < 1 || createPromotionDto.discount_value > 100) {
-        throw new BadRequestException('Giảm giá theo % phải từ 1-100');
-      }
-    } else if (createPromotionDto.discount_value <= 0) {
-      throw new BadRequestException('Giá trị giảm giá phải lớn hơn 0');
-    }
-
-    // Validate dates
-    if (createPromotionDto.start_date && createPromotionDto.expiry_date) {
-      const startDate = new Date(createPromotionDto.start_date);
-      const expiryDate = new Date(createPromotionDto.expiry_date);
-      
-      if (startDate >= expiryDate) {
-        throw new BadRequestException('Ngày hết hạn phải sau ngày bắt đầu');
-      }
-    }
-
-    const promotion = this.promotionRepository.create({
-      id: IdGenerator.generate('promo'),
-      code,
-      ...createPromotionDto,
-      usage_count: 0,
-    });
-
-    await this.promotionRepository.save(promotion);
-
-    return {
-      message: 'Tạo mã giảm giá thành công',
-      data: promotion,
-    };
+    throw new BadRequestException('Feature deprecated - use /api/v1/promotions');
   }
 
   async updatePromotion(id: string, updatePromotionDto: any) {
-    const promotion = await this.promotionRepository.findOne({ where: { id } });
-
-    if (!promotion) {
-      throw new NotFoundException('Không tìm thấy mã giảm giá');
-    }
-
-    // Validate discount_value if updating
-    if (updatePromotionDto.type || updatePromotionDto.discount_value) {
-      const type = updatePromotionDto.type || promotion.type;
-      const value = updatePromotionDto.discount_value || promotion.discount_value;
-
-      if (type === 'percentage' && (value < 1 || value > 100)) {
-        throw new BadRequestException('Giảm giá theo % phải từ 1-100');
-      } else if (type === 'fixed' && value <= 0) {
-        throw new BadRequestException('Giá trị giảm giá phải lớn hơn 0');
-      }
-    }
-
-    // Validate dates if updating
-    if (updatePromotionDto.start_date || updatePromotionDto.expiry_date) {
-      const startDate = new Date(updatePromotionDto.start_date || promotion.start_date);
-      const expiryDate = new Date(updatePromotionDto.expiry_date || promotion.expiry_date);
-      
-      if (startDate && expiryDate && startDate >= expiryDate) {
-        throw new BadRequestException('Ngày hết hạn phải sau ngày bắt đầu');
-      }
-    }
-
-    Object.assign(promotion, updatePromotionDto);
-    await this.promotionRepository.save(promotion);
-
-    return {
-      message: 'Cập nhật mã giảm giá thành công',
-      data: promotion,
-    };
+    throw new BadRequestException('Feature deprecated - use /api/v1/promotions');
   }
 
   async deletePromotion(id: string) {
-    const result = await this.promotionRepository.delete(id);
-
-    if (result.affected === 0) {
-      throw new NotFoundException('Không tìm thấy mã giảm giá');
-    }
-
-    return {
-      message: 'Xóa mã giảm giá thành công',
-    };
+    throw new BadRequestException('Feature deprecated - use /api/v1/promotions');
   }
 
   async togglePromotionStatus(id: string) {
-    const promotion = await this.promotionRepository.findOne({ where: { id } });
-
-    if (!promotion) {
-      throw new NotFoundException('Không tìm thấy mã giảm giá');
-    }
-
-    promotion.status = promotion.status === 'Active' ? 'Inactive' : 'Active';
-    await this.promotionRepository.save(promotion);
-
-    return {
-      message: `Đã ${promotion.status === 'Active' ? 'kích hoạt' : 'vô hiệu hóa'} mã giảm giá`,
-      data: promotion,
-    };
+    throw new BadRequestException('Feature deprecated - use /api/v1/promotions');
   }
 
   async getPromotionUsageStats(code: string) {
-    const promotion = await this.promotionRepository.findOne({ where: { code } });
-
-    if (!promotion) {
-      throw new NotFoundException('Không tìm thấy mã giảm giá');
-    }
-
-    const remainingUsage = promotion.usage_limit 
-      ? promotion.usage_limit - promotion.usage_count 
-      : null;
-
-    const isActive = 
-      promotion.status === 'Active' &&
-      (!promotion.expiry_date || new Date(promotion.expiry_date) >= new Date()) &&
-      (!promotion.usage_limit || promotion.usage_count < promotion.usage_limit);
-
-    return {
-      promotion,
-      stats: {
-        usage_count: promotion.usage_count,
-        usage_limit: promotion.usage_limit,
-        remaining_usage: remainingUsage,
-        is_active: isActive,
-        is_expired: promotion.expiry_date && new Date(promotion.expiry_date) < new Date(),
-        is_usage_limit_reached: promotion.usage_limit && promotion.usage_count >= promotion.usage_limit,
-      },
-    };
+    throw new BadRequestException('Feature deprecated - use /api/v1/promotions');
   }
 
   // ==================== CHATBOT ANALYTICS ====================

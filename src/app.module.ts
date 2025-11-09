@@ -15,12 +15,14 @@ import { ProductImage } from './entities/product-image.entity';
 import { Category } from './entities/category.entity';
 import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
+import { OrderStatusHistory } from './entities/order-status-history.entity';
 import { CartItem } from './entities/cart-item.entity';
 import { WishlistItem } from './entities/wishlist-item.entity';
 import { CustomerAddress } from './entities/customer-address.entity';
 import { Cart } from './entities/cart.entity';
 import { Review } from './entities/review.entity';
 import { Promotion } from './entities/promotion.entity';
+import { PromotionProduct } from './entities/promotion-product.entity';
 import { SupportTicket } from './entities/support-ticket.entity';
 import { StaticPage } from './entities/static-page.entity';
 import { ChatbotConversation } from './entities/chatbot-conversation.entity';
@@ -43,6 +45,7 @@ import { AccountModule } from './modules/account/account.module';
 import { SupportModule } from './modules/support/support.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
+import { CheckoutModule } from './modules/checkout/checkout.module';
 import { AiModule } from './modules/ai/ai.module';
 import { InternalModule } from './modules/internal/internal.module';
 
@@ -76,12 +79,14 @@ import { InternalModule } from './modules/internal/internal.module';
             ProductVariant,
             Order,
             OrderItem,
+            OrderStatusHistory,
             Cart,
             CartItem,
             WishlistItem,
             CustomerAddress,
             Review,
             Promotion,
+            PromotionProduct,
             SupportTicket,
             StaticPage,
             ChatbotConversation,
@@ -122,6 +127,7 @@ import { InternalModule } from './modules/internal/internal.module';
     SupportModule,
     AdminModule,
     PromotionsModule,
+    CheckoutModule,
     AiModule,
     InternalModule,
   ],

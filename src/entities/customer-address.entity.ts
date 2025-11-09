@@ -9,7 +9,7 @@ import { Customer } from './customer.entity';
 
 @Entity('customer_addresses')
 export class CustomerAddress {
-  @PrimaryGeneratedColumn('identity')
+  @PrimaryGeneratedColumn('identity', { type: 'bigint', generatedIdentity: 'ALWAYS' })
   id: number;
 
   @Column({ type: 'bigint' })

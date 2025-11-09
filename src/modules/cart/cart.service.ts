@@ -57,10 +57,18 @@ export class CartService {
   async addItem(customerId: number, data: { variant_id: number; quantity: number }) {
     const cart = await this.getOrCreateCart(customerId);
 
-    // Check if variant exists
-    const variant = await this.variantRepository.findOne({ where: { id: data.variant_id } });
+    // Check if variant exists and is active
+    const variant = await this.variantRepository.findOne({ 
+      where: { id: data.variant_id, status: 'active' },
+    });
     if (!variant) {
       throw new NotFoundException('Product variant not found');
+    }
+
+    // Check stock availability (UC-C10 requirement)
+    const availableStock = variant.total_stock - variant.reserved_stock;
+    if (availableStock < data.quantity) {
+      throw new BadRequestException(`Không đủ hàng. Chỉ còn ${availableStock} sản phẩm.`);
     }
 
     // Check if item already in cart
@@ -72,9 +80,14 @@ export class CartService {
     });
 
     if (existingItem) {
-      existingItem.quantity += data.quantity;
+      // Check stock for new total quantity
+      const newQuantity = existingItem.quantity + data.quantity;
+      if (availableStock < newQuantity) {
+        throw new BadRequestException(`Không đủ hàng. Chỉ còn ${availableStock} sản phẩm.`);
+      }
+      existingItem.quantity = newQuantity;
       await this.cartItemRepository.save(existingItem);
-      return { message: 'Cart updated', item: existingItem };
+      return { message: 'Đã thêm vào giỏ hàng thành công', item: existingItem };
     }
 
     const cartItem = this.cartItemRepository.create({
@@ -85,7 +98,7 @@ export class CartService {
 
     await this.cartItemRepository.save(cartItem);
 
-    return { message: 'Added to cart', item: cartItem };
+    return { message: 'Đã thêm vào giỏ hàng thành công', item: cartItem };
   }
 
   async updateItem(customerId: number, itemId: number, quantity: number) {
@@ -93,16 +106,23 @@ export class CartService {
     
     const item = await this.cartItemRepository.findOne({
       where: { id: itemId, cart_id: cart.id },
+      relations: ['variant'],
     });
 
     if (!item) {
       throw new NotFoundException('Cart item not found');
     }
 
+    // Check stock availability (UC-C10 requirement)
+    const availableStock = item.variant.total_stock - item.variant.reserved_stock;
+    if (availableStock < quantity) {
+      throw new BadRequestException(`Không đủ hàng. Chỉ còn ${availableStock} sản phẩm.`);
+    }
+
     item.quantity = quantity;
     await this.cartItemRepository.save(item);
 
-    return { message: 'Cart item updated', item };
+    return { message: 'Cập nhật giỏ hàng thành công', item };
   }
 
   async removeItem(customerId: number, itemId: number) {

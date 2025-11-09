@@ -15,17 +15,24 @@ export class SupportService {
   ) {}
 
   async createTicket(data: any) {
+    // Generate unique ticket code
+    const ticket_code = `TKT-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+
     const ticket = this.ticketRepository.create({
-      id: IdGenerator.generate('ticket'),
-      customer_name: data.customer_name,
+      ticket_code,
+      customer_id: data.customer_id || null,
       customer_email: data.customer_email,
       subject: data.subject,
-      message: data.message,
-      priority: data.priority || 'medium',
+      source: 'contact_form',
+      status: 'pending',
     });
 
     await this.ticketRepository.save(ticket);
-    return { message: 'Support ticket created', ticket };
+    
+    return { 
+      message: 'Yêu cầu hỗ trợ đã được gửi. Chúng tôi sẽ phản hồi sớm nhất qua email.', 
+      ticket_code: ticket.ticket_code,
+    };
   }
 
   async getPage(slug: string) {

@@ -20,7 +20,7 @@ export class AddressesController {
   })
   @ApiResponse({ status: 200, description: 'Danh sách địa chỉ' })
   findAll(@CurrentUser() user: any) {
-    return this.addressesService.findAll(user.userId);
+    return this.addressesService.findAll(user.sub);
   }
 
   @Post()
@@ -30,7 +30,7 @@ export class AddressesController {
   })
   @ApiResponse({ status: 201, description: 'Địa chỉ được tạo thành công' })
   create(@CurrentUser() user: any, @Body() body: CreateAddressDto) {
-    return this.addressesService.create(user.userId, body);
+    return this.addressesService.create(user.sub, body);
   }
 
   @Put(':id')
@@ -41,7 +41,7 @@ export class AddressesController {
   @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy địa chỉ' })
   update(@CurrentUser() user: any, @Param('id') id: string, @Body() body: UpdateAddressDto) {
-    return this.addressesService.update(user.userId, id, body);
+    return this.addressesService.update(user.sub, parseInt(id), body);
   }
 
   @Delete(':id')
@@ -52,6 +52,6 @@ export class AddressesController {
   @ApiResponse({ status: 200, description: 'Xóa thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy địa chỉ' })
   delete(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.addressesService.delete(user.userId, id);
+    return this.addressesService.delete(user.sub, parseInt(id));
   }
 }

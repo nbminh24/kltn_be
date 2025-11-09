@@ -2,10 +2,13 @@ import { IsInt, IsPositive } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
-export class AddToWishlistDto {
-  @ApiProperty({ description: 'ID variant (size + color)', example: 1 })
+export class CreatePaymentUrlDto {
+  @ApiProperty({ 
+    description: 'ID đơn hàng vừa tạo',
+    example: 1,
+  })
   @Type(() => Number)
   @IsInt()
   @IsPositive()
-  variant_id: number;
+  order_id: number;
 }

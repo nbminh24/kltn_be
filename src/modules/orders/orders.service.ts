@@ -7,6 +7,7 @@ import { Cart } from '../../entities/cart.entity';
 import { CartItem } from '../../entities/cart-item.entity';
 import { Customer } from '../../entities/customer.entity';
 import { ProductVariant } from '../../entities/product-variant.entity';
+import { OrderStatusHistory } from '../../entities/order-status-history.entity';
 
 @Injectable()
 export class OrdersService {
@@ -23,6 +24,8 @@ export class OrdersService {
     private customerRepository: Repository<Customer>,
     @InjectRepository(ProductVariant)
     private variantRepository: Repository<ProductVariant>,
+    @InjectRepository(OrderStatusHistory)
+    private statusHistoryRepository: Repository<OrderStatusHistory>,
   ) {}
 
   async createOrder(customerId: number, orderData: any) {
@@ -112,6 +115,33 @@ export class OrdersService {
     }
 
     return { order };
+  }
+
+  async getStatusHistory(customerId: number, orderId: number) {
+    // Verify order belongs to customer
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId, customer_id: customerId },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Get status history timeline
+    const history = await this.statusHistoryRepository.find({
+      where: { order_id: orderId },
+      relations: ['admin'],
+      order: { created_at: 'ASC' },
+    });
+
+    return {
+      order: {
+        id: order.id,
+        fulfillment_status: order.fulfillment_status,
+        payment_status: order.payment_status,
+      },
+      timeline: history,
+    };
   }
 
   async cancelOrder(customerId: number, orderId: number) {

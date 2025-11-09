@@ -14,34 +14,33 @@ export class WishlistController {
 
   @Get()
   @ApiOperation({ 
-    summary: 'Danh sách sản phẩm yêu thích',
-    description: 'Lấy tất cả sản phẩm trong danh sách yêu thích của user. Bao gồm thông tin sản phẩm, giá, ảnh và danh mục.'
+    summary: '[UC-C9] Danh sách sản phẩm yêu thích',
+    description: 'Lấy tất cả variants trong danh sách yêu thích của khách hàng. Bao gồm thông tin sản phẩm, size, color, ảnh và danh mục.'
   })
   @ApiResponse({ status: 200, description: 'Danh sách wishlist' })
   getWishlist(@CurrentUser() user: any) {
-    return this.wishlistService.getWishlist(user.userId);
+    return this.wishlistService.getWishlist(user.sub);
   }
 
-  @Post()
+  @Post('toggle')
   @ApiOperation({ 
-    summary: 'Thêm sản phẩm vào wishlist',
-    description: 'Thêm một sản phẩm vào danh sách yêu thích. Không thêm nếu sản phẩm đã tồn tại.'
+    summary: '[UC-C9] Toggle wishlist (Thêm/Xóa)',
+    description: 'Nếu variant chưa có trong wishlist thì thêm vào, nếu đã có thì xóa khỏi. Trả về trạng thái mới (added/removed).'
   })
-  @ApiResponse({ status: 201, description: 'Thêm vào wishlist thành công' })
-  @ApiResponse({ status: 404, description: 'Không tìm thấy sản phẩm' })
-  @ApiResponse({ status: 409, description: 'Sản phẩm đã có trong wishlist' })
-  addToWishlist(@CurrentUser() user: any, @Body() body: AddToWishlistDto) {
-    return this.wishlistService.addToWishlist(user.userId, body.product_id);
+  @ApiResponse({ status: 200, description: 'Toggle thành công' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy variant' })
+  toggleWishlist(@CurrentUser() user: any, @Body() body: AddToWishlistDto) {
+    return this.wishlistService.toggleWishlist(user.sub, body.variant_id);
   }
 
-  @Delete(':productId')
+  @Delete(':variantId')
   @ApiOperation({ 
-    summary: 'Xóa sản phẩm khỏi wishlist',
-    description: 'Xóa một sản phẩm khỏi danh sách yêu thích của user.'
+    summary: '[UC-C9] Xóa variant khỏi wishlist',
+    description: 'Xóa một variant khỏi danh sách yêu thích của khách hàng.'
   })
   @ApiResponse({ status: 200, description: 'Xóa thành công' })
-  @ApiResponse({ status: 404, description: 'Không tìm thấy sản phẩm trong wishlist' })
-  removeFromWishlist(@CurrentUser() user: any, @Param('productId') productId: string) {
-    return this.wishlistService.removeFromWishlist(user.userId, productId);
+  @ApiResponse({ status: 404, description: 'Không tìm thấy variant trong wishlist' })
+  removeFromWishlist(@CurrentUser() user: any, @Param('variantId') variantId: string) {
+    return this.wishlistService.removeFromWishlist(user.sub, parseInt(variantId));
   }
 }

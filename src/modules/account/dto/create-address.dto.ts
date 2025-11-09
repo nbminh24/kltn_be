@@ -1,50 +1,39 @@
-import { IsNotEmpty, IsString, IsBoolean, IsOptional, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsString, IsBoolean, IsOptional, IsIn } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateAddressDto {
-  @ApiProperty({ example: 'Nhà riêng' })
+  @ApiProperty({ 
+    example: '123 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+    description: 'Địa chỉ chi tiết đầy đủ'
+  })
   @IsNotEmpty()
   @IsString()
-  @MaxLength(100)
-  label: string;
+  detailed_address: string;
 
-  @ApiProperty({ example: 'Nguyễn Văn A' })
+  @ApiProperty({ 
+    example: '0901234567',
+    description: 'Số điện thoại liên hệ'
+  })
   @IsNotEmpty()
   @IsString()
-  @MaxLength(255)
-  recipient_name: string;
+  phone_number: string;
 
-  @ApiProperty({ example: '0901234567' })
-  @IsNotEmpty()
-  @IsString()
-  @MaxLength(20)
-  recipient_phone: string;
-
-  @ApiProperty({ example: '123 Nguyễn Huệ' })
-  @IsNotEmpty()
-  @IsString()
-  @MaxLength(500)
-  address_line: string;
-
-  @ApiProperty({ example: 'Quận 1' })
-  @IsNotEmpty()
-  @IsString()
-  @MaxLength(100)
-  district: string;
-
-  @ApiProperty({ example: 'TP. Hồ Chí Minh' })
-  @IsNotEmpty()
-  @IsString()
-  @MaxLength(100)
-  city: string;
-
-  @ApiProperty({ example: '700000', required: false })
+  @ApiProperty({ 
+    example: 'Home',
+    description: 'Loại địa chỉ: Home, Office, Other',
+    enum: ['Home', 'Office', 'Other'],
+    required: false 
+  })
   @IsOptional()
   @IsString()
-  @MaxLength(10)
-  postal_code?: string;
+  @IsIn(['Home', 'Office', 'Other'])
+  address_type?: string;
 
-  @ApiProperty({ example: true, required: false })
+  @ApiProperty({ 
+    example: false, 
+    description: 'Đặt làm địa chỉ mặc định',
+    required: false 
+  })
   @IsOptional()
   @IsBoolean()
   is_default?: boolean;

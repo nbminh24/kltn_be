@@ -1,33 +1,39 @@
-import { IsString, IsBoolean, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsString, IsBoolean, IsOptional, IsIn } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateAddressDto {
-  @ApiProperty({ description: 'Tên người nhận', example: 'Nguyễn Văn A' })
+  @ApiProperty({ 
+    example: '123 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+    description: 'Địa chỉ chi tiết đầy đủ'
+  })
+  @IsNotEmpty()
   @IsString()
-  name: string;
+  detailed_address: string;
 
-  @ApiProperty({ description: 'Địa chỉ', example: '123 Nguyễn Huệ' })
+  @ApiProperty({ 
+    example: '0901234567',
+    description: 'Số điện thoại liên hệ'
+  })
+  @IsNotEmpty()
   @IsString()
-  address: string;
+  phone_number: string;
 
-  @ApiProperty({ description: 'Thành phố', example: 'Hồ Chí Minh' })
-  @IsString()
-  city: string;
-
-  @ApiProperty({ description: 'Quận/Huyện', example: 'Quận 1', required: false })
+  @ApiProperty({ 
+    example: 'Home',
+    description: 'Loại địa chỉ: Home, Office, Other',
+    enum: ['Home', 'Office', 'Other'],
+    required: false 
+  })
   @IsOptional()
   @IsString()
-  state?: string;
+  @IsIn(['Home', 'Office', 'Other'])
+  address_type?: string;
 
-  @ApiProperty({ description: 'Mã bưu điện', example: '700000' })
-  @IsString()
-  postal_code: string;
-
-  @ApiProperty({ description: 'Số điện thoại', example: '0909123456' })
-  @IsString()
-  phone: string;
-
-  @ApiProperty({ description: 'Đặt làm địa chỉ mặc định', example: false, required: false, default: false })
+  @ApiProperty({ 
+    example: false, 
+    description: 'Đặt làm địa chỉ mặc định',
+    required: false 
+  })
   @IsOptional()
   @IsBoolean()
   is_default?: boolean;

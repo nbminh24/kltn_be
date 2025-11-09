@@ -17,6 +17,8 @@ import { Review } from '../../entities/review.entity';
 import { Category } from '../../entities/category.entity';
 import { Order } from '../../entities/order.entity';
 import { OrderItem } from '../../entities/order-item.entity';
+import { Promotion } from '../../entities/promotion.entity';
+import { PromotionProduct } from '../../entities/promotion-product.entity';
 import { CommonModule } from '../../common/common.module';
 
 @Module({
@@ -31,6 +33,8 @@ import { CommonModule } from '../../common/common.module';
       Category,
       Order,
       OrderItem,
+      Promotion,
+      PromotionProduct,
     ]),
     CommonModule,
   ],

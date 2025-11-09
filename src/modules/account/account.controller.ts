@@ -20,14 +20,14 @@ export class AccountController {
   @ApiOperation({ summary: 'Lấy thông tin tài khoản' })
   @ApiResponse({ status: 200, description: 'Thông tin profile' })
   getProfile(@CurrentUser() user: any) {
-    return this.accountService.getProfile(user.userId);
+    return this.accountService.getProfile(user.sub);
   }
 
   @Put('profile')
   @ApiOperation({ summary: 'Cập nhật thông tin tài khoản' })
   @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
   updateProfile(@CurrentUser() user: any, @Body() body: UpdateProfileDto) {
-    return this.accountService.updateProfile(user.userId, body);
+    return this.accountService.updateProfile(user.sub, body);
   }
 
   @Put('password')
@@ -35,37 +35,37 @@ export class AccountController {
   @ApiResponse({ status: 200, description: 'Đổi mật khẩu thành công' })
   @ApiResponse({ status: 401, description: 'Mật khẩu cũ không đúng' })
   changePassword(@CurrentUser() user: any, @Body() body: ChangePasswordDto) {
-    return this.accountService.changePassword(user.userId, body);
+    return this.accountService.changePassword(user.sub, body);
   }
 
   // ==================== ADDRESSES ====================
   @Get('addresses')
-  @ApiOperation({ summary: 'Danh sách địa chỉ giao hàng' })
-  @ApiResponse({ status: 200, description: 'Danh sách địa chỉ' })
+  @ApiOperation({ summary: '[UC-C13] Danh sách địa chỉ giao hàng' })
+  @ApiResponse({ status: 200, description: 'Danh sách địa chỉ. Địa chỉ mặc định (is_default=true) được đánh dấu' })
   getAddresses(@CurrentUser() user: any) {
-    return this.accountService.getAddresses(user.userId);
+    return this.accountService.getAddresses(user.sub);
   }
 
   @Post('addresses')
-  @ApiOperation({ summary: 'Thêm địa chỉ giao hàng mới' })
+  @ApiOperation({ summary: '[UC-C13] Thêm địa chỉ giao hàng mới' })
   @ApiResponse({ status: 201, description: 'Thêm địa chỉ thành công' })
   createAddress(@CurrentUser() user: any, @Body() body: CreateAddressDto) {
-    return this.accountService.createAddress(user.userId, body);
+    return this.accountService.createAddress(user.sub, body);
   }
 
   @Put('addresses/:id')
-  @ApiOperation({ summary: 'Cập nhật địa chỉ giao hàng' })
+  @ApiOperation({ summary: '[UC-C13] Cập nhật địa chỉ giao hàng' })
   @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy địa chỉ' })
   updateAddress(@CurrentUser() user: any, @Param('id') id: string, @Body() body: UpdateAddressDto) {
-    return this.accountService.updateAddress(user.userId, id, body);
+    return this.accountService.updateAddress(user.sub, id, body);
   }
 
   @Delete('addresses/:id')
-  @ApiOperation({ summary: 'Xóa địa chỉ giao hàng' })
+  @ApiOperation({ summary: '[UC-C13] Xóa địa chỉ giao hàng' })
   @ApiResponse({ status: 200, description: 'Xóa thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy địa chỉ' })
   deleteAddress(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.accountService.deleteAddress(user.userId, id);
+    return this.accountService.deleteAddress(user.sub, id);
   }
 }

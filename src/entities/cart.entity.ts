@@ -13,7 +13,7 @@ import { CartItem } from './cart-item.entity';
 
 @Entity('carts')
 export class Cart {
-  @PrimaryGeneratedColumn('identity')
+  @PrimaryGeneratedColumn('identity', { type: 'bigint', generatedIdentity: 'ALWAYS' })
   id: number;
 
   @Column({ type: 'bigint', nullable: true, unique: true })

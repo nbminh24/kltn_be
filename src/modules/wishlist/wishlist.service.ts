@@ -1,65 +1,88 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Wishlist } from '../../entities/wishlist.entity';
-import { Product } from '../../entities/product.entity';
-import { IdGenerator } from '../../common/utils/id-generator';
+import { WishlistItem } from '../../entities/wishlist-item.entity';
+import { ProductVariant } from '../../entities/product-variant.entity';
 
 @Injectable()
 export class WishlistService {
   constructor(
-    @InjectRepository(Wishlist)
-    private wishlistRepository: Repository<Wishlist>,
-    @InjectRepository(Product)
-    private productRepository: Repository<Product>,
+    @InjectRepository(WishlistItem)
+    private wishlistItemRepository: Repository<WishlistItem>,
+    @InjectRepository(ProductVariant)
+    private variantRepository: Repository<ProductVariant>,
   ) {}
 
-  async getWishlist(userId: string) {
-    const items = await this.wishlistRepository.find({
-      where: { user_id: userId },
-      relations: ['product', 'product.images', 'product.category'],
-      order: { added_at: 'DESC' },
-    });
+  async getWishlist(customerId: number) {
+    const items = await this.wishlistItemRepository
+      .createQueryBuilder('wishlist')
+      .leftJoinAndSelect('wishlist.variant', 'variant')
+      .leftJoinAndSelect('variant.product', 'product')
+      .leftJoinAndSelect('variant.size', 'size')
+      .leftJoinAndSelect('variant.color', 'color')
+      .leftJoinAndSelect('variant.images', 'images')
+      .leftJoinAndSelect('product.category', 'category')
+      .where('wishlist.customer_id = :customerId', { customerId })
+      .orderBy('wishlist.id', 'DESC')
+      .getMany();
 
-    return { items, count: items.length };
+    return { data: items, count: items.length };
   }
 
-  async addToWishlist(userId: string, productId: string) {
-    const product = await this.productRepository.findOne({ where: { id: parseInt(productId) as any } });
+  /**
+   * Toggle wishlist - Add if not exists, Remove if exists (UC-C9)
+   */
+  async toggleWishlist(customerId: number, variantId: number) {
+    // Check if variant exists
+    const variant = await this.variantRepository.findOne({ 
+      where: { id: variantId, status: 'active' },
+    });
 
-    if (!product) {
-      throw new NotFoundException('Product not found');
+    if (!variant) {
+      throw new NotFoundException('Variant not found');
     }
 
-    const existing = await this.wishlistRepository.findOne({
-      where: { user_id: userId, product_id: productId },
+    // Check if already in wishlist
+    const existing = await this.wishlistItemRepository.findOne({
+      where: { customer_id: customerId, variant_id: variantId },
     });
 
     if (existing) {
-      throw new ConflictException('Product already in wishlist');
+      // Remove from wishlist
+      await this.wishlistItemRepository.remove(existing);
+      return { 
+        message: 'Đã xóa khỏi Yêu thích',
+        action: 'removed',
+        in_wishlist: false,
+      };
+    } else {
+      // Add to wishlist
+      const wishlistItem = this.wishlistItemRepository.create({
+        customer_id: customerId,
+        variant_id: variantId,
+      });
+
+      await this.wishlistItemRepository.save(wishlistItem);
+      
+      return { 
+        message: 'Đã thêm vào Yêu thích',
+        action: 'added',
+        in_wishlist: true,
+        item: wishlistItem,
+      };
     }
-
-    const wishlistItem = this.wishlistRepository.create({
-      id: IdGenerator.generate('wish'),
-      user_id: userId,
-      product_id: productId,
-    });
-
-    await this.wishlistRepository.save(wishlistItem);
-
-    return { message: 'Added to wishlist', item: wishlistItem };
   }
 
-  async removeFromWishlist(userId: string, productId: string) {
-    const result = await this.wishlistRepository.delete({
-      user_id: userId,
-      product_id: productId,
+  async removeFromWishlist(customerId: number, variantId: number) {
+    const result = await this.wishlistItemRepository.delete({
+      customer_id: customerId,
+      variant_id: variantId,
     });
 
     if (result.affected === 0) {
       throw new NotFoundException('Wishlist item not found');
     }
 
-    return { message: 'Removed from wishlist' };
+    return { message: 'Đã xóa khỏi Yêu thích' };
   }
 }

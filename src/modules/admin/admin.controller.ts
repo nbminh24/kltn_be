@@ -3,17 +3,18 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@ne
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
-import { CreateCategoryDto } from './dto/create-category.dto';
-import { UpdateCategoryDto } from './dto/update-category.dto';
+// DEPRECATED DTOs - moved to respective modules
+// import { CreateProductDto } from './dto/create-product.dto';
+// import { UpdateProductDto } from './dto/update-product.dto';
+// import { CreateCategoryDto } from './dto/create-category.dto';
+// import { UpdateCategoryDto } from './dto/update-category.dto';
+// import { CreateVariantDto } from './dto/create-variant.dto';
+// import { UpdateVariantDto } from './dto/update-variant.dto';
+// import { CreateImageDto } from './dto/create-image.dto';
+// import { UpdateImageDto } from './dto/update-image.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { UpdatePageDto } from './dto/update-page.dto';
-import { CreateVariantDto } from './dto/create-variant.dto';
-import { UpdateVariantDto } from './dto/update-variant.dto';
-import { CreateImageDto } from './dto/create-image.dto';
-import { UpdateImageDto } from './dto/update-image.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth('JWT-auth')
@@ -35,6 +36,9 @@ export class AdminController {
   }
 
   // ==================== PRODUCTS MANAGEMENT ====================
+  // DEPRECATED: Products APIs moved to ProductsModule (admin-products.controller.ts)
+  // Use: GET/POST/PUT /admin/products
+  /*
   @Get('products')
   @ApiOperation({
     summary: '[Admin] Quản lý sản phẩm - Danh sách',
@@ -94,8 +98,12 @@ export class AdminController {
   updateProduct(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
     return this.adminService.updateProduct(id, updateProductDto);
   }
+  */
 
   // ==================== PRODUCT VARIANTS ====================
+  // DEPRECATED: Variants APIs moved to ProductsModule (admin-variants.controller.ts)
+  // Use: POST/PUT/DELETE /admin/products/:productId/variants
+  /*
   @Post('products/:productId/variants')
   @ApiOperation({
     summary: '[Admin] Quản lý biến thể - Tạo mới',
@@ -133,8 +141,12 @@ export class AdminController {
   deleteVariant(@Param('productId') productId: string, @Param('variantId') variantId: string) {
     return this.adminService.deleteVariant(productId, variantId);
   }
+  */
 
   // ==================== PRODUCT IMAGES ====================
+  // DEPRECATED: Images APIs moved to ProductsModule (admin-images.controller.ts)
+  // Use: POST/PUT/DELETE /admin/products/:productId/images
+  /*
   @Post('products/:productId/images')
   @ApiOperation({
     summary: '[Admin] Quản lý ảnh - Thêm ảnh',
@@ -171,8 +183,12 @@ export class AdminController {
   deleteImage(@Param('productId') productId: string, @Param('imageId') imageId: string) {
     return this.adminService.deleteImage(productId, imageId);
   }
+  */
 
   // ==================== CATEGORIES MANAGEMENT ====================
+  // DEPRECATED: Categories APIs moved to CategoriesModule (admin-categories.controller.ts)
+  // Use: GET/POST/PUT /admin/categories
+  /*
   @Get('categories')
   @ApiOperation({
     summary: '[Admin] Quản lý danh mục - Danh sách',
@@ -206,6 +222,7 @@ export class AdminController {
   updateCategory(@Param('id') id: string, @Body() updateCategoryDto: UpdateCategoryDto) {
     return this.adminService.updateCategory(id, updateCategoryDto);
   }
+  */
 
   // ==================== PROMOTIONS MANAGEMENT ====================
   @Get('promotions')
@@ -380,14 +397,14 @@ export class AdminController {
   // ==================== SUPPORT & CONTENT MANAGEMENT ====================
   @Put('support/tickets/:id')
   @ApiOperation({
-    summary: '[Admin] Hỗ trợ - Trả lời và cập nhật ticket',
+    summary: '[Admin] Hỗ trợ - Cập nhật trạng thái ticket',
     description:
-      'Admin trả lời ticket khách hàng, cập nhật trạng thái (pending → in_progress → resolved → closed) và độ ưu tiên',
+      'Admin cập nhật trạng thái ticket (pending → in_progress → resolved → closed). Replies được quản lý riêng qua support_ticket_replies.',
   })
   @ApiResponse({ status: 200, description: 'Cập nhật ticket thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy ticket' })
   updateTicket(@Param('id') id: string, @Body() updateTicketDto: UpdateTicketDto) {
-    return this.adminService.updateTicket(id, updateTicketDto);
+    return this.adminService.updateTicket(parseInt(id), updateTicketDto);
   }
 
   @Put('pages/:slug')

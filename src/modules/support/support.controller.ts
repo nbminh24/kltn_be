@@ -4,7 +4,7 @@ import { SupportService } from './support.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 
-@ApiTags('Support')
+@ApiTags('📞 Customer - Support')
 @Controller()
 export class SupportController {
   constructor(private readonly supportService: SupportService) {}
@@ -12,10 +12,10 @@ export class SupportController {
   @Post('support/tickets')
   @Public()
   @ApiOperation({ 
-    summary: 'Gửi yêu cầu hỗ trợ',
-    description: 'Tạo ticket hỗ trợ khách hàng với thông tin liên hệ, tiêu đề, nội dung và mức độ ưu tiên. AI chatbot sẽ thử giải quyết tự động.'
+    summary: '[UC-C15] Gửi yêu cầu hỗ trợ',
+    description: 'Khách hàng gửi form liên hệ/hỗ trợ. Tạo ticket mới với status=pending và source=contact_form. Không cần đăng nhập.'
   })
-  @ApiResponse({ status: 201, description: 'Ticket được tạo thành công' })
+  @ApiResponse({ status: 201, description: 'Yêu cầu hỗ trợ đã được gửi. Chúng tôi sẽ phản hồi sớm nhất.' })
   createTicket(@Body() body: CreateTicketDto) {
     return this.supportService.createTicket(body);
   }

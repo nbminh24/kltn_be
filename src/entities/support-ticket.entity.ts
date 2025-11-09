@@ -1,40 +1,45 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { 
+  Entity, 
+  Column, 
+  PrimaryGeneratedColumn, 
+  CreateDateColumn, 
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
+import { Customer } from './customer.entity';
 
 @Entity('support_tickets')
 export class SupportTicket {
-  @PrimaryColumn({ type: 'varchar', length: 50 })
-  id: string;
+  @PrimaryGeneratedColumn('identity', { type: 'bigint', generatedIdentity: 'ALWAYS' })
+  id: number;
 
-  @Column({ type: 'varchar', length: 255 })
-  customer_name: string;
+  @Column({ type: 'varchar', unique: true })
+  ticket_code: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'bigint', nullable: true })
+  customer_id: number;
+
+  @Column({ type: 'varchar', nullable: true })
   customer_email: string;
 
-  @Column({ type: 'varchar', length: 500 })
+  @Column({ type: 'varchar' })
   subject: string;
 
-  @Column({ type: 'text' })
-  message: string;
-
-  @Column({ type: 'varchar', length: 20, default: 'pending' })
+  @Column({ type: 'varchar', default: 'pending' })
   status: string; // pending, in_progress, resolved, closed
 
-  @Column({ type: 'varchar', length: 20, default: 'medium' })
-  priority: string; // low, medium, high, urgent
+  @Column({ type: 'varchar', default: 'contact_form' })
+  source: string; // contact_form, chatbot, email
 
-  @Column({ type: 'boolean', default: false })
-  ai_attempted: boolean;
-
-  @Column({ type: 'text', nullable: true })
-  admin_reply: string;
-
-  @Column({ type: 'timestamp', nullable: true })
-  replied_at: Date;
-
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamp with time zone' })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
   updated_at: Date;
+
+  // Relations
+  @ManyToOne(() => Customer, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'customer_id' })
+  customer: Customer;
 }

@@ -4,7 +4,7 @@ import { ProductVariant } from './product-variant.entity';
 
 @Entity('wishlist_items')
 export class WishlistItem {
-  @PrimaryGeneratedColumn('identity')
+  @PrimaryGeneratedColumn('identity', { type: 'bigint', generatedIdentity: 'ALWAYS' })
   id: number;
 
   @Column({ type: 'bigint' })

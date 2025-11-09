@@ -1,10 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Cart } from './cart.entity';
 import { ProductVariant } from './product-variant.entity';
 
 @Entity('cart_items')
 export class CartItem {
-  @PrimaryGeneratedColumn('identity')
+  @PrimaryGeneratedColumn('identity', { type: 'bigint', generatedIdentity: 'ALWAYS' })
   id: number;
 
   @Column({ type: 'bigint' })
@@ -13,14 +13,8 @@ export class CartItem {
   @Column({ type: 'bigint' })
   variant_id: number;
 
-  @Column({ type: 'int', default: 1 })
+  @Column({ type: 'int' })
   quantity: number;
-
-  @CreateDateColumn()
-  added_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
 
   // Relations
   @ManyToOne(() => Cart, cart => cart.items, { onDelete: 'CASCADE' })

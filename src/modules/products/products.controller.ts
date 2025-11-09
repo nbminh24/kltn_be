@@ -14,14 +14,18 @@ export class ProductsController {
   @Get()
   @Public()
   @ApiOperation({ 
-    summary: 'Danh sách sản phẩm',
-    description: 'Lấy danh sách sản phẩm với filter theo danh mục, tìm kiếm, sắp xếp và phân trang. Bao gồm thông tin sản phẩm, giá, ảnh, đánh giá.'
+    summary: '[UC-C5] Danh sách sản phẩm',
+    description: 'Lấy danh sách sản phẩm với filter theo danh mục, màu, size, giá, tìm kiếm, sắp xếp và phân trang. Hiển thị cả giá gốc và giá flash sale (nếu có).'
   })
   @ApiQuery({ name: 'page', required: false, example: 1, description: 'Trang hiện tại' })
   @ApiQuery({ name: 'limit', required: false, example: 20, description: 'Số sản phẩm mỗi trang' })
-  @ApiQuery({ name: 'category', required: false, example: 'dien-thoai', description: 'Slug danh mục' })
-  @ApiQuery({ name: 'search', required: false, example: 'iPhone', description: 'Tìm kiếm theo tên' })
-  @ApiQuery({ name: 'sort', required: false, example: 'newest', description: 'Sắp xếp: newest, price-asc, price-desc' })
+  @ApiQuery({ name: 'category_slug', required: false, example: 'ao-so-mi', description: 'Slug danh mục' })
+  @ApiQuery({ name: 'colors', required: false, example: '1,2', description: 'Lọc theo màu (color_id), có thể nhiều' })
+  @ApiQuery({ name: 'sizes', required: false, example: '1,2', description: 'Lọc theo size (size_id), có thể nhiều' })
+  @ApiQuery({ name: 'min_price', required: false, example: 100000, description: 'Giá tối thiểu' })
+  @ApiQuery({ name: 'max_price', required: false, example: 500000, description: 'Giá tối đa' })
+  @ApiQuery({ name: 'search', required: false, example: 'Áo sơ mi', description: 'Tìm kiếm theo tên hoặc mô tả' })
+  @ApiQuery({ name: 'sort_by', required: false, example: 'newest', description: 'Sắp xếp: newest | price_asc | price_desc | rating' })
   @ApiResponse({ status: 200, description: 'Danh sách sản phẩm với metadata phân trang' })
   findAll(@Query() query: any) {
     return this.productsService.findAll(query);
@@ -30,47 +34,49 @@ export class ProductsController {
   @Get('new-arrivals')
   @Public()
   @ApiOperation({ 
-    summary: 'Sản phẩm mới',
-    description: 'Lấy 12 sản phẩm mới nhất dựa theo ngày tạo (created_at).'
+    summary: '[UC-C6] Sản phẩm mới (New Arrivals)',
+    description: 'Lấy sản phẩm mới trong vòng 30 ngày qua, sắp xếp theo mới nhất.'
   })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 12 })
   @ApiResponse({ status: 200, description: 'Danh sách sản phẩm mới' })
-  newArrivals() {
-    return this.productsService.findAll({ sort: 'newest', limit: 12 });
+  newArrivals(@Query() query: any) {
+    return this.productsService.findAll({ 
+      ...query,
+      is_new_arrival: true, 
+      sort_by: 'newest',
+      limit: query.limit || 12,
+    });
   }
 
   @Get('on-sale')
   @Public()
   @ApiOperation({ 
-    summary: 'Sản phẩm giảm giá',
-    description: 'Lấy 12 sản phẩm đang giảm giá (có original_price khác price).'
+    summary: '[UC-C7] Sản phẩm khuyến mãi (Flash Sale)',
+    description: 'Lấy sản phẩm đang có chương trình flash sale (promotion active), sắp xếp theo discount giảm dần.'
   })
-  @ApiResponse({ status: 200, description: 'Danh sách sản phẩm giảm giá' })
-  onSale() {
-    return this.productsService.findAll({ limit: 12 });
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 12 })
+  @ApiResponse({ status: 200, description: 'Danh sách sản phẩm khuyến mãi' })
+  onSale(@Query() query: any) {
+    return this.productsService.findAll({ 
+      ...query,
+      is_on_sale: true,
+      limit: query.limit || 12,
+    });
   }
 
-  @Get(':id')
+  @Get(':slug')
   @Public()
   @ApiOperation({ 
-    summary: 'Chi tiết sản phẩm',
-    description: 'Lấy thông tin chi tiết sản phẩm bao gồm: ảnh, biến thể (size, color, stock), đánh giá và sản phẩm liên quan.'
+    summary: '[UC-C8] Chi tiết sản phẩm',
+    description: 'Lấy thông tin chi tiết sản phẩm bao gồm: thông tin cơ bản, variants (size + color + stock), available_options (màu/size còn hàng), promotion, và sản phẩm liên quan.'
   })
-  @ApiResponse({ status: 200, description: 'Chi tiết sản phẩm và sản phẩm liên quan' })
+  @ApiResponse({ status: 200, description: 'Chi tiết sản phẩm đầy đủ' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy sản phẩm' })
-  findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
+  findOne(@Param('slug') slug: string) {
+    return this.productsService.findOne(slug);
   }
 
-  @Post(':id/reviews')
-  @ApiBearerAuth('JWT-auth')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ 
-    summary: 'Đánh giá sản phẩm',
-    description: 'Tạo đánh giá cho sản phẩm với điểm số (1-5 sao), tiêu đề và nội dung. Hệ thống tự động cập nhật rating trung bình của sản phẩm.'
-  })
-  @ApiResponse({ status: 201, description: 'Đánh giá thành công' })
-  @ApiResponse({ status: 404, description: 'Không tìm thấy sản phẩm' })
-  createReview(@Param('id') id: string, @CurrentUser() user: any, @Body() body: CreateReviewDto) {
-    return this.productsService.createReview(id, user.userId, body);
-  }
+  // Review API will be implemented separately in reviews module
 }

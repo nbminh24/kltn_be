@@ -3,48 +3,46 @@ import {
   Column,
   PrimaryGeneratedColumn,
   CreateDateColumn,
-  UpdateDateColumn,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { Product } from './product.entity';
-import { User } from './user.entity';
+import { ProductVariant } from './product-variant.entity';
+import { Customer } from './customer.entity';
+import { Order } from './order.entity';
 
-@Entity('reviews')
+@Entity('product_reviews')
 export class Review {
-  @PrimaryGeneratedColumn('identity')
+  @PrimaryGeneratedColumn('identity', { type: 'bigint', generatedIdentity: 'ALWAYS' })
   id: number;
 
   @Column({ type: 'bigint' })
-  product_id: number;
+  variant_id: number;
 
   @Column({ type: 'bigint' })
-  user_id: number;
+  customer_id: number;
+
+  @Column({ type: 'bigint' })
+  order_id: number;
 
   @Column({ type: 'int' })
   rating: number; // 1-5
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  title: string;
-
-  @Column({ type: 'text' })
+  @Column({ type: 'text', nullable: true })
   comment: string;
 
-  @Column({ type: 'boolean', default: false })
-  verified_purchase: boolean;
-
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamp with time zone' })
   created_at: Date;
 
-  @UpdateDateColumn()
-  updated_at: Date;
-
   // Relations
-  @ManyToOne(() => Product, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'product_id' })
-  product: Product;
+  @ManyToOne(() => ProductVariant, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'variant_id' })
+  variant: ProductVariant;
 
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id' })
-  user: User;
+  @ManyToOne(() => Customer, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'customer_id' })
+  customer: Customer;
+
+  @ManyToOne(() => Order, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'order_id' })
+  order: Order;
 }

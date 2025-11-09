@@ -1,40 +1,41 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  OneToMany,
+} from 'typeorm';
+import { PromotionProduct } from './promotion-product.entity';
 
 @Entity('promotions')
 export class Promotion {
-  @PrimaryColumn({ type: 'varchar', length: 50 })
-  id: string;
+  @PrimaryGeneratedColumn('identity', { type: 'bigint', generatedIdentity: 'ALWAYS' })
+  id: number;
 
-  @Column({ type: 'varchar', length: 50, unique: true })
-  code: string;
+  @Column({ type: 'varchar' })
+  name: string;
 
-  @Column({ type: 'varchar', length: 20 })
-  type: string; // 'percentage' hoặc 'fixed'
+  @Column({ type: 'varchar' }) // 'flash_sale' | 'coupon'
+  type: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'numeric' })
   discount_value: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
-  min_order_value: number;
-
-  @Column({ type: 'int', default: 0 })
-  usage_count: number;
+  @Column({ type: 'varchar' }) // 'percentage' | 'fixed'
+  discount_type: string;
 
   @Column({ type: 'int', nullable: true })
-  usage_limit: number;
+  number_limited: number;
 
-  @Column({ type: 'date', nullable: true })
+  @Column({ type: 'timestamp with time zone' })
   start_date: Date;
 
-  @Column({ type: 'date', nullable: true })
-  expiry_date: Date;
+  @Column({ type: 'timestamp with time zone' })
+  end_date: Date;
 
-  @Column({ type: 'varchar', length: 20, default: 'Active' })
-  status: string;
+  @Column({ type: 'varchar', default: 'scheduled' })
+  status: string; // 'scheduled' | 'active' | 'expired'
 
-  @CreateDateColumn()
-  created_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
+  // Relations
+  @OneToMany(() => PromotionProduct, pp => pp.promotion)
+  promotion_products: PromotionProduct[];
 }

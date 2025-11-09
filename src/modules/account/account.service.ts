@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, UnauthorizedExcepti
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from '../../entities/customer.entity';
-import { Address } from '../../entities/address.entity';
+import { CustomerAddress } from '../../entities/customer-address.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateAddressDto } from './dto/create-address.dto';
@@ -14,8 +14,8 @@ export class AccountService {
   constructor(
     @InjectRepository(Customer)
     private customerRepository: Repository<Customer>,
-    @InjectRepository(Address)
-    private addressRepository: Repository<Address>,
+    @InjectRepository(CustomerAddress)
+    private addressRepository: Repository<CustomerAddress>,
   ) {}
 
   async getProfile(userId: number) {
@@ -82,8 +82,8 @@ export class AccountService {
   // ==================== ADDRESSES ====================
   async getAddresses(userId: number) {
     const addresses = await this.addressRepository.find({
-      where: { user_id: userId.toString() },
-      order: { is_default: 'DESC', created_at: 'DESC' },
+      where: { customer_id: userId },
+      order: { is_default: 'DESC' },
     });
 
     return { data: addresses };
@@ -93,74 +93,63 @@ export class AccountService {
     // If this is marked as default, unset other defaults
     if (createAddressDto.is_default) {
       await this.addressRepository.update(
-        { user_id: userId.toString(), is_default: true },
+        { customer_id: userId, is_default: true },
         { is_default: false },
       );
     }
 
     const address = this.addressRepository.create({
-      id: `addr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      user_id: userId.toString(),
-      name: createAddressDto.recipient_name,
-      address: createAddressDto.address_line,
-      city: createAddressDto.city,
-      state: createAddressDto.district,
-      postal_code: createAddressDto.postal_code || '',
-      phone: createAddressDto.recipient_phone,
+      customer_id: userId,
+      detailed_address: createAddressDto.detailed_address,
+      phone_number: createAddressDto.phone_number,
+      address_type: createAddressDto.address_type || 'Home',
       is_default: createAddressDto.is_default || false,
     });
 
     await this.addressRepository.save(address);
 
     return {
-      message: 'Address created successfully',
+      message: 'Địa chỉ đã được thêm',
       data: address,
     };
   }
 
   async updateAddress(userId: number, addressId: string, updateAddressDto: UpdateAddressDto) {
     const address = await this.addressRepository.findOne({
-      where: { id: addressId, user_id: userId.toString() },
+      where: { id: parseInt(addressId), customer_id: userId },
     });
 
     if (!address) {
-      throw new NotFoundException('Address not found');
+      throw new NotFoundException('Không tìm thấy địa chỉ');
     }
 
     // If setting as default, unset other defaults
     if (updateAddressDto.is_default) {
       await this.addressRepository.update(
-        { user_id: userId.toString(), is_default: true },
+        { customer_id: userId, is_default: true },
         { is_default: false },
       );
     }
 
-    if (updateAddressDto.recipient_name) address.name = updateAddressDto.recipient_name;
-    if (updateAddressDto.address_line) address.address = updateAddressDto.address_line;
-    if (updateAddressDto.city) address.city = updateAddressDto.city;
-    if (updateAddressDto.district) address.state = updateAddressDto.district;
-    if (updateAddressDto.postal_code) address.postal_code = updateAddressDto.postal_code;
-    if (updateAddressDto.recipient_phone) address.phone = updateAddressDto.recipient_phone;
-    if (updateAddressDto.is_default !== undefined) address.is_default = updateAddressDto.is_default;
-
+    Object.assign(address, updateAddressDto);
     await this.addressRepository.save(address);
 
     return {
-      message: 'Address updated successfully',
+      message: 'Cập nhật địa chỉ thành công',
       data: address,
     };
   }
 
   async deleteAddress(userId: number, addressId: string) {
     const result = await this.addressRepository.delete({
-      id: addressId,
-      user_id: userId.toString(),
+      id: parseInt(addressId),
+      customer_id: userId,
     });
 
     if (result.affected === 0) {
-      throw new NotFoundException('Address not found');
+      throw new NotFoundException('Không tìm thấy địa chỉ');
     }
 
-    return { message: 'Address deleted successfully' };
+    return { message: 'Xóa địa chỉ thành công' };
   }
 }
