@@ -6,7 +6,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { UpdateProductStatusDto } from './dto/update-product-status.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
-@ApiTags('Admin - Products')
+@ApiTags('⚙️ Admin - Products')
 @Controller('api/v1/admin/products')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()

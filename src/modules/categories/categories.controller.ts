@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
 import { Public } from '../../common/decorators/public.decorator';
 
-@ApiTags('Categories')
+@ApiTags('🛍️ Customer - Categories')
 @Controller('categories')
 @Public()
 export class CategoriesController {

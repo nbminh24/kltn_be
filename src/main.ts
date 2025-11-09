@@ -28,8 +28,35 @@ async function bootstrap() {
 
   // Swagger configuration
   const config = new DocumentBuilder()
-    .setTitle('KLTN E-commerce API')
-    .setDescription('Backend API cho hệ thống E-commerce với tích hợp AI (Chatbot + Image Search)')
+    .setTitle('🛍️ KLTN E-commerce API')
+    .setDescription(`
+      <h2>Backend API Documentation</h2>
+      <p>Hệ thống E-commerce với tích hợp AI (Chatbot + Image Search)</p>
+      
+      <h3>📱 Authentication</h3>
+      <ul>
+        <li><strong>Customer Auth:</strong> Login/Register cho khách hàng</li>
+        <li><strong>Admin Auth:</strong> Login cho quản trị viên</li>
+      </ul>
+      
+      <h3>🛒 Customer APIs</h3>
+      <ul>
+        <li><strong>Public:</strong> Products, Categories (không cần token)</li>
+        <li><strong>Protected:</strong> Cart, Orders, Wishlist, Account (cần JWT token)</li>
+      </ul>
+      
+      <h3>⚙️ Admin APIs</h3>
+      <ul>
+        <li><strong>🔒 Requires JWT token + Admin role</strong></li>
+        <li>Products, Variants, Images, Categories, Sizes, Colors, Orders, Customers</li>
+      </ul>
+      
+      <h3>🤖 AI & Internal</h3>
+      <ul>
+        <li><strong>AI:</strong> Chatbot, Image Search</li>
+        <li><strong>Internal:</strong> APIs cho Rasa Action Server (x-api-key required)</li>
+      </ul>
+    `)
     .setVersion('1.0')
     .addBearerAuth(
       {
@@ -37,7 +64,7 @@ async function bootstrap() {
         scheme: 'bearer',
         bearerFormat: 'JWT',
         name: 'JWT',
-        description: 'Enter JWT token',
+        description: 'Enter JWT token (from login response)',
         in: 'header',
       },
       'JWT-auth',
@@ -51,18 +78,34 @@ async function bootstrap() {
       },
       'api-key',
     )
-    .addTag('Authentication', 'APIs xác thực người dùng')
-    .addTag('Users', 'Quản lý thông tin người dùng')
-    .addTag('Products', 'Quản lý sản phẩm')
-    .addTag('Categories', 'Quản lý danh mục')
-    .addTag('Cart', 'Giỏ hàng')
-    .addTag('Orders', 'Đơn hàng')
-    .addTag('Wishlist', 'Danh sách yêu thích')
-    .addTag('Addresses', 'Sổ địa chỉ')
-    .addTag('Support', 'Hỗ trợ khách hàng')
-    .addTag('Admin', 'Quản trị hệ thống')
-    .addTag('AI', 'Tích hợp AI (Chatbot + Image Search)')
-    .addTag('Internal', 'APIs nội bộ (cho Rasa)')
+    // === AUTHENTICATION ===
+    .addTag('🔐 Auth - Customer', 'Đăng nhập / Đăng ký cho khách hàng')
+    .addTag('🔐 Auth - Admin', 'Đăng nhập cho quản trị viên')
+    
+    // === CUSTOMER - PUBLIC ===
+    .addTag('🛍️ Customer - Products', '[PUBLIC] Danh sách sản phẩm, chi tiết sản phẩm')
+    .addTag('🛍️ Customer - Categories', '[PUBLIC] Danh mục sản phẩm')
+    
+    // === CUSTOMER - PROTECTED ===
+    .addTag('🛒 Customer - Cart', '[PROTECTED] Giỏ hàng - Yêu cầu JWT token')
+    .addTag('📦 Customer - Orders', '[PROTECTED] Đơn hàng - Yêu cầu JWT token')
+    .addTag('❤️ Customer - Wishlist', '[PROTECTED] Danh sách yêu thích - Yêu cầu JWT token')
+    .addTag('👤 Customer - Account', '[PROTECTED] Quản lý tài khoản - Yêu cầu JWT token')
+    
+    // === ADMIN ===
+    .addTag('⚙️ Admin - Products', '[ADMIN] Quản lý sản phẩm - Yêu cầu JWT + Admin role')
+    .addTag('⚙️ Admin - Variants', '[ADMIN] Quản lý biến thể sản phẩm (Size/Color)')
+    .addTag('⚙️ Admin - Images', '[ADMIN] Upload/Delete ảnh sản phẩm')
+    .addTag('⚙️ Admin - Categories', '[ADMIN] Quản lý danh mục')
+    .addTag('⚙️ Admin - Sizes', '[ADMIN] Quản lý kích cỡ')
+    .addTag('⚙️ Admin - Colors', '[ADMIN] Quản lý màu sắc')
+    .addTag('⚙️ Admin - Orders', '[ADMIN] Quản lý đơn hàng')
+    .addTag('⚙️ Admin - Customers', '[ADMIN] Quản lý khách hàng')
+    
+    // === AI & INTERNAL ===
+    .addTag('🤖 AI - Chatbot', 'Chatbot integration (Rasa)')
+    .addTag('🖼️ AI - Image Search', 'Tìm kiếm sản phẩm bằng hình ảnh')
+    .addTag('🔧 Internal APIs', '[INTERNAL] APIs cho Rasa Action Server - Yêu cầu x-api-key')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

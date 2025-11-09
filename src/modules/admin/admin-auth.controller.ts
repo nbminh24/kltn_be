@@ -4,7 +4,7 @@ import { AdminAuthService } from './admin-auth.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { Public } from '../../common/decorators/public.decorator';
 
-@ApiTags('Admin Authentication')
+@ApiTags('🔐 Auth - Admin')
 @Controller('api/v1/admin/auth')
 @Public()
 export class AdminAuthController {

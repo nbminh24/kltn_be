@@ -5,7 +5,7 @@ import { CreateSizeDto } from './dto/create-size.dto';
 import { UpdateSizeDto } from './dto/update-size.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
-@ApiTags('Admin - Sizes')
+@ApiTags('⚙️ Admin - Sizes')
 @Controller('api/v1/admin/sizes')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()

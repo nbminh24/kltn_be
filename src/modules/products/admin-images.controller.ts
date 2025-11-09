@@ -15,7 +15,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody
 import { ProductImagesService } from './product-images.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
-@ApiTags('Admin - Images')
+@ApiTags('⚙️ Admin - Images')
 @Controller('api/v1/admin')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
