@@ -17,6 +17,7 @@ export class AiController {
 
   @Post('chatbot')
   @Public()
+  @ApiTags('AI - Chatbot')
   @ApiOperation({
     summary: 'Chatbot AI (Proxy đến Rasa Server)',
     description: 'Gửi tin nhắn đến Rasa chatbot. API này hoạt động như proxy.',
@@ -28,6 +29,7 @@ export class AiController {
 
   @Post('search/image')
   @Public()
+  @ApiTags('AI - Image Search')
   @UseInterceptors(FileInterceptor('image'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({

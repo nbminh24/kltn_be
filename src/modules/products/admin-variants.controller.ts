@@ -4,7 +4,7 @@ import { ProductVariantsService } from './product-variants.service';
 import { UpdateVariantDto } from './dto/update-variant.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
-@ApiTags('⚙️ Admin - Variants')
+@ApiTags('Admin - Variants')
 @Controller('api/v1/admin')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()

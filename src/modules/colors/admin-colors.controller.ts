@@ -5,7 +5,7 @@ import { CreateColorDto } from './dto/create-color.dto';
 import { UpdateColorDto } from './dto/update-color.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
-@ApiTags('⚙️ Admin - Colors')
+@ApiTags('Admin - Products')
 @Controller('api/v1/admin/colors')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()

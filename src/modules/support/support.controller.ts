@@ -4,7 +4,7 @@ import { SupportService } from './support.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 
-@ApiTags('📞 Customer - Support')
+@ApiTags('Support')
 @Controller()
 export class SupportController {
   constructor(private readonly supportService: SupportService) {}

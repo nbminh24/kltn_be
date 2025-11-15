@@ -5,7 +5,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 
-@ApiTags('💳 Customer - Payment')
+@ApiTags('Checkout')
 @Controller('api/v1/payment')
 @Public()
 export class PaymentController {

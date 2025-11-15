@@ -108,10 +108,22 @@ import { PagesModule } from './modules/pages/pages.module';
           logging: false,
           // Only use SSL for Supabase
           ssl: isSupabase ? { rejectUnauthorized: false } : false,
+          // Connection pool & timeout settings
           extra: isSupabase ? {
+            max: 10, // Max connections
+            min: 2,  // Min connections
+            connectionTimeoutMillis: 30000, // 30s timeout (tăng từ 10s)
+            idleTimeoutMillis: 30000,
+            keepAlive: true, // Keep connection alive
+            keepAliveInitialDelayMillis: 10000,
+          } : {
             max: 10,
-            connectionTimeoutMillis: 10000,
-          } : {},
+            min: 2,
+            keepAlive: true,
+          },
+          // Retry on failure
+          retryAttempts: 3,
+          retryDelay: 3000,
         };
       },
       inject: [ConfigService],

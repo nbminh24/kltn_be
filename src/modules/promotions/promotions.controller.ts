@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { PromotionsService } from './promotions.service';
 import { Public } from '../../common/decorators/public.decorator';
 
-@ApiTags('Promotions')
+@ApiTags('Checkout')
 @Controller('promotions')
 @Public()
 export class PromotionsController {

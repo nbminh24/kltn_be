@@ -5,7 +5,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
-@ApiTags('⚙️ Admin - Categories')
+@ApiTags('Admin - Categories')
 @Controller('api/v1/admin/categories')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()

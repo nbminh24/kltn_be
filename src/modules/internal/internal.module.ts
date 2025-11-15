@@ -4,13 +4,32 @@ import { InternalController } from './internal.controller';
 import { InternalService } from './internal.service';
 import { Order } from '../../entities/order.entity';
 import { Product } from '../../entities/product.entity';
-import { StaticPage } from '../../entities/static-page.entity';
+import { Customer } from '../../entities/customer.entity';
+import { Page } from '../../entities/page.entity';
+import { ProductVariant } from '../../entities/product-variant.entity';
+import { Promotion } from '../../entities/promotion.entity';
+import { SupportTicket } from '../../entities/support-ticket.entity';
+import { ProductNotification } from '../../entities/product-notification.entity';
 import { User } from '../../entities/user.entity';
+import { Size } from '../../entities/size.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Order, Product, StaticPage, User])],
+  imports: [
+    TypeOrmModule.forFeature([
+      Order,
+      Product,
+      Page,
+      ProductVariant,
+      Customer,
+      Promotion,
+      SupportTicket,
+      ProductNotification,
+      User,
+      Size,
+    ]),
+  ],
   controllers: [InternalController],
   providers: [InternalService],
   exports: [InternalService],
 })
-export class InternalModule {}
+export class InternalModule { }

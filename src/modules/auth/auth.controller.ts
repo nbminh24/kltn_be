@@ -13,7 +13,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
-@ApiTags('🔐 Auth - Customer')
+@ApiTags('Auth')
 @Controller('api/v1/auth')
 @Public()
 export class AuthController {

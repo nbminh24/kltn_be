@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AddToWishlistDto } from './dto/add-to-wishlist.dto';
 
-@ApiTags('❤️ Customer - Wishlist')
+@ApiTags('Wishlist')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('wishlist')

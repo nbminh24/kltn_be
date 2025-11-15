@@ -28,43 +28,56 @@ async function bootstrap() {
 
   // Swagger configuration
   const config = new DocumentBuilder()
-    .setTitle('🛍️ KLTN E-commerce API')
+    .setTitle('🛍️ LeCas Fashion - E-commerce API')
     .setDescription(`
-      <h2>Backend API Documentation</h2>
-      <p>Hệ thống E-commerce với tích hợp AI (Chatbot + Image Search)</p>
+      <h2>📚 Backend API Documentation - LeCas Fashion</h2>
+      <p><strong>Version:</strong> 1.0 | <strong>Updated:</strong> November 2024</p>
+      <p>Hệ thống E-commerce hoàn chỉnh với tích hợp AI (Chatbot + Image Search)</p>
       
-      <h3>📱 Authentication</h3>
+      <hr/>
+      
+      <h3>🔐 Authentication & Authorization</h3>
       <ul>
-        <li><strong>Customer Auth:</strong> Login/Register cho khách hàng</li>
-        <li><strong>Admin Auth:</strong> Login cho quản trị viên</li>
+        <li><strong>Customer:</strong> JWT token từ đăng nhập/đăng ký</li>
+        <li><strong>Admin:</strong> JWT token + Admin role</li>
+        <li><strong>Internal:</strong> API Key (x-api-key header) cho Rasa Action Server</li>
       </ul>
       
-      <h3>🛒 Customer APIs</h3>
+      <h3>📱 Customer Features (Khách hàng)</h3>
       <ul>
-        <li><strong>Public:</strong> Products, Categories (không cần token)</li>
-        <li><strong>Protected:</strong> Cart, Orders, Wishlist, Account (cần JWT token)</li>
+        <li>✅ Public: Products, Categories, Pages (CMS)</li>
+        <li>🔒 Protected: Cart, Checkout, Orders, Reviews, Wishlist, Account, Support</li>
       </ul>
       
-      <h3>⚙️ Admin APIs</h3>
+      <h3>⚙️ Admin Features (Quản trị viên)</h3>
       <ul>
-        <li><strong>🔒 Requires JWT token + Admin role</strong></li>
-        <li>Products, Variants, Images, Categories, Sizes, Colors, Orders, Customers</li>
+        <li>📊 Dashboard & Analytics - KPIs, Charts, Statistics</li>
+        <li>🛍️ Product Management - Products, Variants, Images, Categories</li>
+        <li>📦 Order Management - View, Update Status, Email Notifications</li>
+        <li>👥 Customer Management - View, Activate/Deactivate Accounts</li>
+        <li>📝 Review Management - Approve/Reject Reviews</li>
+        <li>📦 Inventory Management - Stock, Restock (Manual + Excel)</li>
+        <li>🎁 Promotion Management - Flash Sales, Discounts</li>
+        <li>💬 Support Management - Tickets, Replies (với Email Notifications)</li>
+        <li>📄 CMS - Static Pages (About Us, Policies, Terms)</li>
+        <li>🤖 AI Management - Chatbot, Image Search, Recommendations</li>
       </ul>
       
-      <h3>🤖 AI & Internal</h3>
+      <h3>🤖 AI Features</h3>
       <ul>
-        <li><strong>AI:</strong> Chatbot, Image Search</li>
-        <li><strong>Internal:</strong> APIs cho Rasa Action Server (x-api-key required)</li>
+        <li>💬 AI Chatbot - Tích hợp Rasa NLU</li>
+        <li>🖼️ AI Image Search - Tìm kiếm sản phẩm bằng hình ảnh</li>
+        <li>🎯 AI Recommendations - Gợi ý sản phẩm thông minh</li>
       </ul>
     `)
-    .setVersion('1.0')
+    .setVersion('1.0.0')
     .addBearerAuth(
       {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
-        name: 'JWT',
-        description: 'Enter JWT token (from login response)',
+        name: 'Authorization',
+        description: '🔑 JWT Token từ API đăng nhập (Customer hoặc Admin)',
         in: 'header',
       },
       'JWT-auth',
@@ -74,38 +87,61 @@ async function bootstrap() {
         type: 'apiKey',
         name: 'x-api-key',
         in: 'header',
-        description: 'API Key cho Internal APIs (dùng cho Rasa Action Server)',
+        description: '🔐 API Key cho Internal APIs (Rasa Action Server)',
       },
       'api-key',
     )
-    // === AUTHENTICATION ===
-    .addTag('🔐 Auth - Customer', 'Đăng nhập / Đăng ký cho khách hàng')
-    .addTag('🔐 Auth - Admin', 'Đăng nhập cho quản trị viên')
     
-    // === CUSTOMER - PUBLIC ===
-    .addTag('🛍️ Customer - Products', '[PUBLIC] Danh sách sản phẩm, chi tiết sản phẩm')
-    .addTag('🛍️ Customer - Categories', '[PUBLIC] Danh mục sản phẩm')
+    // ==================== AUTHENTICATION ====================
+    .addTag('Auth', '🔐 Authentication - Đăng nhập & Đăng ký')
+    .addTag('Auth - Admin', '🔐 Admin Authentication - Đăng nhập quản trị viên')
     
-    // === CUSTOMER - PROTECTED ===
-    .addTag('🛒 Customer - Cart', '[PROTECTED] Giỏ hàng - Yêu cầu JWT token')
-    .addTag('📦 Customer - Orders', '[PROTECTED] Đơn hàng - Yêu cầu JWT token')
-    .addTag('❤️ Customer - Wishlist', '[PROTECTED] Danh sách yêu thích - Yêu cầu JWT token')
-    .addTag('👤 Customer - Account', '[PROTECTED] Quản lý tài khoản - Yêu cầu JWT token')
+    // ==================== CUSTOMER - PUBLIC ====================
+    .addTag('Products', '🛍️ Products - Sản phẩm [PUBLIC]')
+    .addTag('Categories', '📂 Categories - Danh mục [PUBLIC]')
+    .addTag('Sizes', '📏 Sizes - Kích cỡ [PUBLIC]')
+    .addTag('Colors', '🎨 Colors - Màu sắc [PUBLIC]')
+    .addTag('Pages (Public)', '📄 Pages - Trang tĩnh [PUBLIC]')
     
-    // === ADMIN ===
-    .addTag('⚙️ Admin - Products', '[ADMIN] Quản lý sản phẩm - Yêu cầu JWT + Admin role')
-    .addTag('⚙️ Admin - Variants', '[ADMIN] Quản lý biến thể sản phẩm (Size/Color)')
-    .addTag('⚙️ Admin - Images', '[ADMIN] Upload/Delete ảnh sản phẩm')
-    .addTag('⚙️ Admin - Categories', '[ADMIN] Quản lý danh mục')
-    .addTag('⚙️ Admin - Sizes', '[ADMIN] Quản lý kích cỡ')
-    .addTag('⚙️ Admin - Colors', '[ADMIN] Quản lý màu sắc')
-    .addTag('⚙️ Admin - Orders', '[ADMIN] Quản lý đơn hàng')
-    .addTag('⚙️ Admin - Customers', '[ADMIN] Quản lý khách hàng')
+    // ==================== CUSTOMER - PROTECTED ====================
+    .addTag('Cart', '🛒 Cart - Giỏ hàng [PROTECTED]')
+    .addTag('Checkout', '💳 Checkout & Payment - Thanh toán [PROTECTED]')
+    .addTag('Orders', '📦 Orders - Đơn hàng [PROTECTED]')
+    .addTag('Reviews', '⭐ Reviews - Đánh giá sản phẩm [PROTECTED]')
+    .addTag('Wishlist', '❤️ Wishlist - Yêu thích [PROTECTED]')
+    .addTag('Account', '👤 Account - Tài khoản & Địa chỉ [PROTECTED]')
+    .addTag('Support', '💬 Support - Hỗ trợ khách hàng [PROTECTED]')
     
-    // === AI & INTERNAL ===
-    .addTag('🤖 AI - Chatbot', 'Chatbot integration (Rasa)')
-    .addTag('🖼️ AI - Image Search', 'Tìm kiếm sản phẩm bằng hình ảnh')
-    .addTag('🔧 Internal APIs', '[INTERNAL] APIs cho Rasa Action Server - Yêu cầu x-api-key')
+    // ==================== ADMIN - DASHBOARD & ANALYTICS ====================
+    .addTag('Admin - Analytics', '📊 Analytics - Dashboard & Thống kê [ADMIN]')
+    
+    // ==================== ADMIN - PRODUCTS ====================
+    .addTag('Admin - Products', '🛍️ Admin Products - Quản lý sản phẩm [ADMIN]')
+    .addTag('Admin - Variants', '🔀 Admin Variants - Quản lý biến thể [ADMIN]')
+    .addTag('Admin - Images', '🖼️ Admin Images - Quản lý ảnh sản phẩm [ADMIN]')
+    .addTag('Admin - Categories', '📂 Admin Categories - Quản lý danh mục [ADMIN]')
+    
+    // ==================== ADMIN - OPERATIONS ====================
+    .addTag('Admin - Orders', '📦 Admin Orders - Quản lý đơn hàng [ADMIN]')
+    .addTag('Admin - Reviews', '⭐ Admin Reviews - Quản lý đánh giá [ADMIN]')
+    .addTag('Admin - Customers', '👥 Admin Customers - Quản lý khách hàng [ADMIN]')
+    .addTag('Admin - Inventory', '📦 Admin Inventory - Quản lý tồn kho [ADMIN]')
+    .addTag('Admin - Promotions', '🎁 Admin Promotions - Quản lý khuyến mãi [ADMIN]')
+    .addTag('Admin - Support', '💬 Admin Support - Quản lý hỗ trợ [ADMIN]')
+    
+    // ==================== ADMIN - CMS & CONTENT ====================
+    .addTag('Admin - CMS Pages', '📄 Admin CMS - Quản lý trang tĩnh [ADMIN]')
+    
+    // ==================== ADMIN - AI & CHATBOT ====================
+    .addTag('Admin - AI', '🤖 Admin AI - Quản lý AI & Chatbot [ADMIN]')
+    
+    // ==================== AI PUBLIC ====================
+    .addTag('AI - Chatbot', '🤖 AI Chatbot - Trò chuyện với AI')
+    .addTag('AI - Image Search', '🖼️ AI Image Search - Tìm kiếm bằng ảnh')
+    
+    // ==================== INTERNAL APIS ====================
+    .addTag('Internal APIs', '🔧 Internal - APIs cho Rasa Action Server [INTERNAL]')
+    
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

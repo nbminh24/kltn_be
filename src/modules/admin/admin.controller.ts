@@ -27,6 +27,7 @@ export class AdminController {
 
   // ==================== DASHBOARD ====================
   @Get('dashboard/stats')
+  @ApiTags('Admin - Analytics')
   @ApiOperation({
     summary: '[Admin] Dashboard - Thống kê tổng quan',
     description:
@@ -228,6 +229,7 @@ export class AdminController {
 
   // ==================== PROMOTIONS MANAGEMENT ====================
   @Get('promotions')
+  @ApiTags('Admin - Promotions')
   @ApiOperation({
     summary: '[Admin] Quản lý mã giảm giá - Danh sách',
     description:
@@ -259,6 +261,7 @@ export class AdminController {
   }
 
   @Get('promotions/:id')
+  @ApiTags('Admin - Promotions')
   @ApiOperation({
     summary: '[Admin] Quản lý mã giảm giá - Chi tiết',
     description: 'Lấy thông tin chi tiết một mã giảm giá',
@@ -270,6 +273,7 @@ export class AdminController {
   }
 
   @Post('promotions')
+  @ApiTags('Admin - Promotions')
   @ApiOperation({
     summary: '[Admin] Quản lý mã giảm giá - Tạo mới',
     description:
@@ -282,6 +286,7 @@ export class AdminController {
   }
 
   @Put('promotions/:id')
+  @ApiTags('Admin - Promotions')
   @ApiOperation({
     summary: '[Admin] Quản lý mã giảm giá - Cập nhật',
     description: 'Cập nhật thông tin mã giảm giá. Không được thay đổi code.',
@@ -293,6 +298,7 @@ export class AdminController {
   }
 
   @Delete('promotions/:id')
+  @ApiTags('Admin - Promotions')
   @ApiOperation({
     summary: '[Admin] Quản lý mã giảm giá - Xóa',
     description: 'Xóa mã giảm giá khỏi hệ thống',
@@ -304,6 +310,7 @@ export class AdminController {
   }
 
   @Post('promotions/:id/toggle')
+  @ApiTags('Admin - Promotions')
   @ApiOperation({
     summary: '[Admin] Quản lý mã giảm giá - Bật/Tắt',
     description: 'Chuyển đổi trạng thái Active/Inactive của mã giảm giá',
@@ -315,6 +322,7 @@ export class AdminController {
   }
 
   @Get('promotions/:code/usage')
+  @ApiTags('Admin - Promotions')
   @ApiOperation({
     summary: '[Admin] Quản lý mã giảm giá - Thống kê sử dụng',
     description:
@@ -328,6 +336,7 @@ export class AdminController {
 
   // ==================== ORDERS MANAGEMENT ====================
   @Get('orders')
+  @ApiTags('Admin - Orders')
   @ApiOperation({
     summary: '[Admin] Quản lý đơn hàng - Danh sách',
     description:
@@ -353,6 +362,7 @@ export class AdminController {
   }
 
   @Put('orders/:id/status')
+  @ApiTags('Admin - Orders')
   @ApiOperation({
     summary: '[Admin] Quản lý đơn hàng - Cập nhật trạng thái',
     description:
@@ -366,6 +376,7 @@ export class AdminController {
 
   // ==================== CUSTOMERS MANAGEMENT ====================
   @Get('customers')
+  @ApiTags('Admin - Customers')
   @ApiOperation({
     summary: '[Admin] Quản lý khách hàng - Danh sách',
     description:
@@ -385,6 +396,7 @@ export class AdminController {
   }
 
   @Get('customers/:id')
+  @ApiTags('Admin - Customers')
   @ApiOperation({
     summary: '[Admin] Quản lý khách hàng - Chi tiết',
     description:
@@ -398,6 +410,7 @@ export class AdminController {
 
   // ==================== SUPPORT & CONTENT MANAGEMENT ====================
   @Put('support/tickets/:id')
+  @ApiTags('Admin - Support')
   @ApiOperation({
     summary: '[Admin] Hỗ trợ - Cập nhật trạng thái ticket',
     description:
@@ -410,6 +423,7 @@ export class AdminController {
   }
 
   @Put('pages/:slug')
+  @ApiTags('Admin - CMS Pages')
   @ApiOperation({
     summary: '[Admin] Nội dung - Cập nhật trang tĩnh',
     description:
@@ -423,6 +437,7 @@ export class AdminController {
 
   // ==================== CHATBOT ANALYTICS ====================
   @Get('chatbot/conversations')
+  @ApiTags('Admin - AI')
   @ApiOperation({
     summary: '[Admin] Chatbot - Danh sách conversations',
     description:
@@ -448,6 +463,7 @@ export class AdminController {
   }
 
   @Get('chatbot/conversations/:id')
+  @ApiTags('Admin - AI')
   @ApiOperation({
     summary: '[Admin] Chatbot - Chi tiết conversation',
     description: 'Xem chi tiết một conversation với tất cả messages',
@@ -459,6 +475,7 @@ export class AdminController {
   }
 
   @Get('chatbot/analytics')
+  @ApiTags('Admin - AI')
   @ApiOperation({
     summary: '[Admin] Chatbot - Analytics',
     description:
@@ -470,6 +487,7 @@ export class AdminController {
   }
 
   @Get('chatbot/unanswered')
+  @ApiTags('Admin - AI')
   @ApiOperation({
     summary: '[Admin] Chatbot - Câu hỏi chưa trả lời',
     description:
@@ -482,6 +500,7 @@ export class AdminController {
 
   // ==================== AI RECOMMENDATIONS ADMIN ====================
   @Get('ai/recommendations')
+  @ApiTags('Admin - AI')
   @ApiOperation({
     summary: '[Admin] AI - Danh sách recommendations',
     description: 'Xem tất cả AI recommendations với filter theo user_id, product_id, phân trang',
@@ -496,6 +515,7 @@ export class AdminController {
   }
 
   @Get('ai/recommendations/stats')
+  @ApiTags('Admin - AI')
   @ApiOperation({
     summary: '[Admin] AI - Thống kê recommendations',
     description:
@@ -508,6 +528,7 @@ export class AdminController {
 
   // ==================== INVENTORY MANAGEMENT ====================
   @Get('inventory')
+  @ApiTags('Admin - Inventory')
   @ApiOperation({
     summary: '[Admin] Quản lý tồn kho',
     description:
@@ -525,6 +546,7 @@ export class AdminController {
   }
 
   @Post('inventory/restock')
+  @ApiTags('Admin - Inventory')
   @ApiOperation({
     summary: '[UC-A04] Nhập kho thủ công',
     description: 'Nhập hàng vào kho (tạo phiếu nhập kho) với danh sách variants và số lượng',
@@ -535,6 +557,7 @@ export class AdminController {
   }
 
   @Post('inventory/restock-batch')
+  @ApiTags('Admin - Inventory')
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
     summary: '[UC-A04] Nhập kho qua Excel',
@@ -547,6 +570,7 @@ export class AdminController {
 
   // ==================== SUPPORT TICKETS MANAGEMENT ====================
   @Get('support-tickets')
+  @ApiTags('Admin - Support')
   @ApiOperation({
     summary: '[UC-A05] Danh sách phiếu hỗ trợ',
     description: 'Lấy danh sách các phiếu hỗ trợ do khách gửi với filter theo status',
@@ -560,6 +584,7 @@ export class AdminController {
   }
 
   @Get('support-tickets/:id')
+  @ApiTags('Admin - Support')
   @ApiOperation({
     summary: '[UC-A05] Chi tiết phiếu hỗ trợ',
     description: 'Lấy chi tiết một phiếu hỗ trợ bao gồm lịch sử chat/replies',
@@ -570,6 +595,7 @@ export class AdminController {
   }
 
   @Post('support-tickets/:id/reply')
+  @ApiTags('Admin - Support')
   @ApiOperation({
     summary: '[UC-A05] Admin trả lời ticket',
     description: 'Admin gửi trả lời cho khách hàng. Email sẽ được gửi tự động.',
@@ -581,6 +607,7 @@ export class AdminController {
 
   // ==================== CUSTOMER MANAGEMENT ENHANCEMENTS ====================
   @Patch('customers/:id/status')
+  @ApiTags('Admin - Customers')
   @ApiOperation({
     summary: '[UC-A06] Khóa/Mở khóa tài khoản khách hàng',
     description: 'Admin cập nhật trạng thái tài khoản (active/inactive)',

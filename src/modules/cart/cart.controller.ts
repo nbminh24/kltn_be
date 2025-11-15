@@ -7,7 +7,7 @@ import { AddToCartDto } from './dto/add-to-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { ApplyCouponDto } from './dto/apply-coupon.dto';
 
-@ApiTags('🛒 Customer - Cart')
+@ApiTags('Cart')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('cart')

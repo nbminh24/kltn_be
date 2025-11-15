@@ -7,7 +7,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentUrlDto } from './dto/create-payment-url.dto';
 
-@ApiTags('💳 Customer - Checkout')
+@ApiTags('Checkout')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('api/v1/checkout')
