@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Body, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ColorsService } from './colors.service';
 import { CreateColorDto } from './dto/create-color.dto';
@@ -10,7 +10,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AdminColorsController {
-  constructor(private readonly colorsService: ColorsService) {}
+  constructor(private readonly colorsService: ColorsService) { }
 
   @Get()
   @ApiOperation({
@@ -62,6 +62,10 @@ export class AdminColorsController {
   @ApiResponse({ status: 404, description: 'Màu không tồn tại' })
   @ApiResponse({ status: 409, description: 'Tên màu đã tồn tại' })
   update(@Param('id') id: string, @Body() updateColorDto: UpdateColorDto) {
-    return this.colorsService.update(parseInt(id), updateColorDto);
+    const colorId = parseInt(id, 10);
+    if (isNaN(colorId)) {
+      throw new BadRequestException('ID color không hợp lệ');
+    }
+    return this.colorsService.update(colorId, updateColorDto);
   }
 }

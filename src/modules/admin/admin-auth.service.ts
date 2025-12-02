@@ -14,7 +14,7 @@ export class AdminAuthService {
     private adminRepository: Repository<Admin>,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {}
+  ) { }
 
   async login(loginDto: AdminLoginDto) {
     // Tìm admin bằng email
@@ -74,6 +74,32 @@ export class AdminAuthService {
       id: admin.id,
       email: admin.email,
       role: admin.role,
+    };
+  }
+
+  async getProfile(adminId: number) {
+    const admin = await this.adminRepository.findOne({
+      where: { id: adminId },
+      select: ['id', 'name', 'email', 'role'],
+    });
+
+    if (!admin) {
+      throw new UnauthorizedException('Admin không tồn tại');
+    }
+
+    return {
+      id: admin.id,
+      name: admin.name,
+      email: admin.email,
+      role: admin.role,
+    };
+  }
+
+  async logout() {
+    // Admin logout: Token is stateless (8h JWT), client should clear token
+    // No server-side invalidation needed
+    return {
+      message: 'Admin logout successful. Please clear access token on client.',
     };
   }
 }

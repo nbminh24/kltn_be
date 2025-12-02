@@ -28,6 +28,15 @@ export class Order {
   @Column({ type: 'varchar' })
   shipping_phone: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  shipping_city: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  shipping_district: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  shipping_ward: string;
+
   @Column({ type: 'varchar', default: 'pending' })
   fulfillment_status: string;
 

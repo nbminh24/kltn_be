@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Param, Query, Body, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ReviewsService } from './reviews.service';
 import { UpdateReviewStatusDto } from './dto/update-review-status.dto';
@@ -10,7 +10,7 @@ import { AdminGuard } from '../../common/guards/admin.guard';
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/reviews')
 export class AdminReviewsController {
-  constructor(private readonly reviewsService: ReviewsService) {}
+  constructor(private readonly reviewsService: ReviewsService) { }
 
   @Get()
   @ApiOperation({
@@ -35,7 +35,11 @@ export class AdminReviewsController {
   @ApiResponse({ status: 200, description: 'Cập nhật trạng thái thành công' })
   @ApiResponse({ status: 404, description: 'Review không tồn tại' })
   updateReviewStatus(@Param('id') id: string, @Body() updateStatusDto: UpdateReviewStatusDto) {
-    return this.reviewsService.updateReviewStatus(parseInt(id), updateStatusDto);
+    const reviewId = parseInt(id, 10);
+    if (isNaN(reviewId)) {
+      throw new BadRequestException('ID review không hợp lệ');
+    }
+    return this.reviewsService.updateReviewStatus(reviewId, updateStatusDto);
   }
 
   @Delete(':id')
@@ -46,6 +50,10 @@ export class AdminReviewsController {
   @ApiResponse({ status: 200, description: 'Xóa review thành công' })
   @ApiResponse({ status: 404, description: 'Review không tồn tại' })
   deleteReview(@Param('id') id: string) {
-    return this.reviewsService.deleteReview(parseInt(id));
+    const reviewId = parseInt(id, 10);
+    if (isNaN(reviewId)) {
+      throw new BadRequestException('ID review không hợp lệ');
+    }
+    return this.reviewsService.deleteReview(reviewId);
   }
 }

@@ -2,22 +2,22 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Order } from '../../entities/order.entity';
-import { User } from '../../entities/user.entity';
 import { Product } from '../../entities/product.entity';
 import { Category } from '../../entities/category.entity';
 import { SupportTicket } from '../../entities/support-ticket.entity';
-import { StaticPage } from '../../entities/static-page.entity';
+import { Page } from '../../entities/page.entity';
 import { ProductVariant } from '../../entities/product-variant.entity';
 import { ProductImage } from '../../entities/product-image.entity';
 import { Promotion } from '../../entities/promotion.entity';
-import { ChatbotConversation } from '../../entities/chatbot-conversation.entity';
-import { ChatbotMessage } from '../../entities/chatbot-message.entity';
+import { ChatSession } from '../../entities/chat-session.entity';
+import { ChatMessage } from '../../entities/chat-message.entity';
 import { AiRecommendation } from '../../entities/ai-recommendation.entity';
 import { Customer } from '../../entities/customer.entity';
 import { SupportTicketReply } from '../../entities/support-ticket-reply.entity';
 import { RestockBatch } from '../../entities/restock-batch.entity';
 import { RestockItem } from '../../entities/restock-item.entity';
 import { OrderStatusHistory } from '../../entities/order-status-history.entity';
+import { Payment } from '../../entities/payment.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { IdGenerator } from '../../common/utils/id-generator';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -36,26 +36,24 @@ export class AdminService {
   constructor(
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
     @InjectRepository(SupportTicket)
     private ticketRepository: Repository<SupportTicket>,
-    @InjectRepository(StaticPage)
-    private pageRepository: Repository<StaticPage>,
+    @InjectRepository(Page)
+    private pageRepository: Repository<Page>,
     @InjectRepository(ProductVariant)
     private variantRepository: Repository<ProductVariant>,
     @InjectRepository(ProductImage)
     private imageRepository: Repository<ProductImage>,
     @InjectRepository(Promotion)
     private promotionRepository: Repository<Promotion>,
-    @InjectRepository(ChatbotConversation)
-    private conversationRepository: Repository<ChatbotConversation>,
-    @InjectRepository(ChatbotMessage)
-    private messageRepository: Repository<ChatbotMessage>,
+    @InjectRepository(ChatSession)
+    private sessionRepository: Repository<ChatSession>,
+    @InjectRepository(ChatMessage)
+    private messageRepository: Repository<ChatMessage>,
     @InjectRepository(AiRecommendation)
     private recommendationRepository: Repository<AiRecommendation>,
     @InjectRepository(Customer)
@@ -68,19 +66,20 @@ export class AdminService {
     private restockItemRepository: Repository<RestockItem>,
     @InjectRepository(OrderStatusHistory)
     private statusHistoryRepository: Repository<OrderStatusHistory>,
+    @InjectRepository(Payment)
+    private paymentRepository: Repository<Payment>,
     private emailService: EmailService,
-  ) {}
+  ) { }
 
   // ==================== DASHBOARD ====================
   async getDashboardStats() {
     const totalOrders = await this.orderRepository.count();
-    const totalUsers = await this.userRepository.count();
+    const totalCustomers = await this.customerRepository.count();
     const totalProducts = await this.productRepository.count();
 
     const orders = await this.orderRepository.find({
       order: { created_at: 'DESC' },
       take: 10,
-      relations: ['user'],
     });
 
     const totalRevenue = await this.orderRepository
@@ -92,11 +91,109 @@ export class AdminService {
     return {
       stats: {
         totalOrders,
-        totalUsers,
+        totalCustomers,
         totalProducts,
         totalRevenue: parseFloat(totalRevenue?.total || 0),
       },
       recentOrders: orders,
+    };
+  }
+
+  async getRecentOrders(limit: number = 10) {
+    const orders = await this.orderRepository.find({
+      order: { created_at: 'DESC' },
+      take: limit,
+      relations: ['customer', 'items', 'items.variant', 'items.variant.product'],
+    });
+
+    return orders.map(order => ({
+      id: order.id,
+      customer_name: order.customer?.name || 'Guest',
+      customer_email: order.customer?.email || order.customer_email,
+      total_amount: order.total_amount,
+      status: order.fulfillment_status,
+      payment_status: order.payment_status,
+      created_at: order.created_at,
+      items_count: order.items?.length || 0,
+    }));
+  }
+
+  async getTopProducts(limit: number = 10) {
+    const topProducts = await this.orderRepository
+      .createQueryBuilder('order')
+      .innerJoin('order.items', 'item')
+      .innerJoin('item.variant', 'variant')
+      .innerJoin('variant.product', 'product')
+      .select('product.id', 'product_id')
+      .addSelect('product.name', 'product_name')
+      .addSelect('product.thumbnail_url', 'thumbnail_url')
+      .addSelect('SUM(item.quantity)', 'total_sold')
+      .addSelect('SUM(item.quantity * item.price)', 'revenue')
+      .where('order.fulfillment_status != :status', { status: 'cancelled' })
+      .groupBy('product.id')
+      .addGroupBy('product.name')
+      .addGroupBy('product.thumbnail_url')
+      .orderBy('total_sold', 'DESC')
+      .limit(limit)
+      .getRawMany();
+
+    return topProducts.map(p => ({
+      product_id: p.product_id,
+      product_name: p.product_name,
+      thumbnail_url: p.thumbnail_url,
+      total_sold: parseInt(p.total_sold),
+      revenue: parseFloat(p.revenue),
+    }));
+  }
+
+  async getRevenueChart(period: string = '7d') {
+    let daysBack = 7;
+    if (period === '30d') daysBack = 30;
+    else if (period === '90d') daysBack = 90;
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    const revenueData = await this.orderRepository
+      .createQueryBuilder('order')
+      .select("DATE(order.created_at)", 'date')
+      .addSelect('COUNT(order.id)', 'orders')
+      .addSelect('SUM(order.total_amount)', 'revenue')
+      .where('order.created_at >= :startDate', { startDate })
+      .andWhere('order.fulfillment_status != :status', { status: 'cancelled' })
+      .groupBy('DATE(order.created_at)')
+      .orderBy('date', 'ASC')
+      .getRawMany();
+
+    const chartData = revenueData.map(d => ({
+      date: d.date,
+      orders: parseInt(d.orders),
+      revenue: parseFloat(d.revenue),
+    }));
+
+    const totalRevenue = chartData.reduce((sum, d) => sum + d.revenue, 0);
+
+    // Calculate growth percentage (compare with previous period)
+    const prevStartDate = new Date(startDate);
+    prevStartDate.setDate(prevStartDate.getDate() - daysBack);
+
+    const prevRevenue = await this.orderRepository
+      .createQueryBuilder('order')
+      .select('SUM(order.total_amount)', 'total')
+      .where('order.created_at >= :prevStart', { prevStart: prevStartDate })
+      .andWhere('order.created_at < :startDate', { startDate })
+      .andWhere('order.fulfillment_status != :status', { status: 'cancelled' })
+      .getRawOne();
+
+    const previousTotal = parseFloat(prevRevenue?.total || 0);
+    const growthPercentage = previousTotal > 0
+      ? ((totalRevenue - previousTotal) / previousTotal) * 100
+      : 0;
+
+    return {
+      chart_data: chartData,
+      total_revenue: totalRevenue,
+      growth_percentage: parseFloat(growthPercentage.toFixed(2)),
     };
   }
 
@@ -269,28 +366,94 @@ export class AdminService {
     };
   }
 
+  async getOrderById(orderId: number) {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: ['customer', 'items', 'items.variant', 'items.variant.product', 'items.variant.size', 'items.variant.color'],
+    });
+
+    if (!order) {
+      throw new NotFoundException('Không tìm thấy đơn hàng');
+    }
+
+    // Get status history if available
+    const statusHistory = await this.statusHistoryRepository.find({
+      where: { order_id: orderId },
+      order: { created_at: 'ASC' },
+    });
+
+    return {
+      ...order,
+      status_history: statusHistory,
+    };
+  }
+
+  async getOrderStatistics() {
+    const totalOrders = await this.orderRepository.count();
+
+    const pendingOrders = await this.orderRepository.count({
+      where: { fulfillment_status: 'pending' },
+    });
+
+    const confirmedOrders = await this.orderRepository.count({
+      where: { fulfillment_status: 'confirmed' },
+    });
+
+    const shippedOrders = await this.orderRepository.count({
+      where: { fulfillment_status: 'shipped' },
+    });
+
+    const deliveredOrders = await this.orderRepository.count({
+      where: { fulfillment_status: 'delivered' },
+    });
+
+    const cancelledOrders = await this.orderRepository.count({
+      where: { fulfillment_status: 'cancelled' },
+    });
+
+    const totalRevenue = await this.orderRepository
+      .createQueryBuilder('order')
+      .select('SUM(order.total_amount)', 'total')
+      .where('order.fulfillment_status != :status', { status: 'cancelled' })
+      .getRawOne();
+
+    const avgOrderValue = await this.orderRepository
+      .createQueryBuilder('order')
+      .select('AVG(order.total_amount)', 'avg')
+      .where('order.fulfillment_status != :status', { status: 'cancelled' })
+      .getRawOne();
+
+    return {
+      total_orders: totalOrders,
+      pending_orders: pendingOrders,
+      confirmed_orders: confirmedOrders,
+      shipped_orders: shippedOrders,
+      delivered_orders: deliveredOrders,
+      cancelled_orders: cancelledOrders,
+      total_revenue: parseFloat(totalRevenue?.total || 0),
+      avg_order_value: parseFloat(avgOrderValue?.avg || 0),
+    };
+  }
+
   // ==================== CUSTOMERS MANAGEMENT ====================
   async getCustomers(query: any) {
     const page = parseInt(query.page) || 1;
     const limit = parseInt(query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const queryBuilder = this.userRepository
-      .createQueryBuilder('user')
-      .leftJoin('user.orders', 'orders')
-      .addSelect('COUNT(orders.id)', 'ordersCount')
-      .addSelect('COALESCE(SUM(orders.total), 0)', 'totalSpent')
-      .groupBy('user.id');
+    const queryBuilder = this.customerRepository
+      .createQueryBuilder('customer')
+      .select(['customer.id', 'customer.name', 'customer.email', 'customer.status', 'customer.created_at']);
 
     // Search
     if (query.search) {
-      queryBuilder.andWhere('(user.name ILIKE :search OR user.email ILIKE :search)', {
+      queryBuilder.andWhere('(customer.name ILIKE :search OR customer.email ILIKE :search)', {
         search: `%${query.search}%`,
       });
     }
 
     const [customers, total] = await queryBuilder
-      .orderBy('user.created_at', 'DESC')
+      .orderBy('customer.created_at', 'DESC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
@@ -306,8 +469,8 @@ export class AdminService {
     };
   }
 
-  async getCustomerById(id: string) {
-    const customer = await this.userRepository.findOne({
+  async getCustomerById(id: number) {
+    const customer = await this.customerRepository.findOne({
       where: { id },
     });
 
@@ -333,9 +496,65 @@ export class AdminService {
     };
   }
 
-  // ==================== SUPPORT & CONTENT MANAGEMENT ====================
+  async getCustomerStatistics() {
+    const totalCustomers = await this.customerRepository.count();
+
+    const activeCustomers = await this.customerRepository.count({
+      where: { status: 'active' },
+    });
+
+    const inactiveCustomers = await this.customerRepository.count({
+      where: { status: 'inactive' },
+    });
+
+    // Count new customers this month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const newCustomersThisMonth = await this.customerRepository.count({
+      where: {
+        created_at: {
+          $gte: startOfMonth,
+        } as any,
+      },
+    });
+
+    // Get top customers by spending
+    const topCustomers = await this.orderRepository
+      .createQueryBuilder('order')
+      .select('order.customer_id', 'customer_id')
+      .addSelect('customer.name', 'customer_name')
+      .addSelect('customer.email', 'customer_email')
+      .addSelect('COUNT(order.id)', 'total_orders')
+      .addSelect('SUM(order.total_amount)', 'total_spent')
+      .innerJoin('order.customer', 'customer')
+      .where('order.fulfillment_status != :status', { status: 'cancelled' })
+      .groupBy('order.customer_id')
+      .addGroupBy('customer.name')
+      .addGroupBy('customer.email')
+      .orderBy('total_spent', 'DESC')
+      .limit(10)
+      .getRawMany();
+
+    return {
+      total_customers: totalCustomers,
+      active_customers: activeCustomers,
+      inactive_customers: inactiveCustomers,
+      new_customers_this_month: newCustomersThisMonth,
+      top_customers: topCustomers.map(c => ({
+        customer_id: c.customer_id,
+        customer_name: c.customer_name,
+        customer_email: c.customer_email,
+        total_orders: parseInt(c.total_orders),
+        total_spent: parseFloat(c.total_spent),
+      })),
+    };
+  }
+
+  // ==================== SUPPORT TICKETS MANAGEMENT ====================
   async updateTicket(id: number, updateTicketDto: UpdateTicketDto) {
-    const ticket = await this.ticketRepository.findOne({ where: { id } });
+    const ticket = await this.ticketRepository.findOne({ where: { id } as any });
 
     if (!ticket) {
       throw new NotFoundException('Không tìm thấy ticket');
@@ -359,7 +578,7 @@ export class AdminService {
     }
 
     Object.assign(page, updatePageDto);
-    page.last_modified = new Date();
+    // updated_at will be automatically set by @UpdateDateColumn
     await this.pageRepository.save(page);
 
     return {
@@ -516,32 +735,30 @@ export class AdminService {
     const limit = parseInt(query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const queryBuilder = this.conversationRepository
-      .createQueryBuilder('conv')
-      .leftJoinAndSelect('conv.user', 'user')
-      .orderBy('conv.updated_at', 'DESC');
+    const queryBuilder = this.sessionRepository
+      .createQueryBuilder('session')
+      .leftJoinAndSelect('session.customer', 'customer')
+      .leftJoin('session.messages', 'messages')
+      .addSelect('COUNT(messages.id)', 'message_count')
+      .groupBy('session.id')
+      .addGroupBy('customer.id')
+      .orderBy('session.updated_at', 'DESC');
 
-    // Filter by resolved status
-    if (query.resolved !== undefined) {
-      queryBuilder.andWhere('conv.resolved = :resolved', { 
-        resolved: query.resolved === 'true' 
-      });
-    }
-
-    // Search in last_message
+    // Search by customer email or visitor_id
     if (query.search) {
-      queryBuilder.andWhere('conv.last_message ILIKE :search', {
-        search: `%${query.search}%`,
-      });
+      queryBuilder.andWhere(
+        '(customer.email ILIKE :search OR session.visitor_id ILIKE :search)',
+        { search: `%${query.search}%` }
+      );
     }
 
-    const [conversations, total] = await queryBuilder
+    const [sessions, total] = await queryBuilder
       .skip(skip)
       .take(limit)
       .getManyAndCount();
 
     return {
-      conversations,
+      conversations: sessions,
       pagination: {
         page,
         limit,
@@ -551,116 +768,92 @@ export class AdminService {
     };
   }
 
-  async getChatbotConversationDetail(id: string) {
-    const conversation = await this.conversationRepository.findOne({
+  async getChatbotConversationDetail(id: number) {
+    const session = await this.sessionRepository.findOne({
       where: { id },
-      relations: ['user'],
+      relations: ['customer'],
     });
 
-    if (!conversation) {
-      throw new NotFoundException('Không tìm thấy conversation');
+    if (!session) {
+      throw new NotFoundException('Không tìm thấy chat session');
     }
 
     // Get all messages
     const messages = await this.messageRepository.find({
-      where: { conversation_id: id },
-      order: { timestamp: 'ASC' },
+      where: { session_id: id },
+      order: { created_at: 'ASC' },
     });
 
     return {
-      conversation,
+      session,
       messages,
       message_count: messages.length,
     };
   }
 
   async getChatbotAnalytics() {
-    // Total conversations
-    const totalConversations = await this.conversationRepository.count();
-
-    // Resolved vs Unresolved
-    const resolvedCount = await this.conversationRepository.count({
-      where: { resolved: true },
-    });
-
-    const unresolvedCount = totalConversations - resolvedCount;
-    const resolvedRate = totalConversations > 0 
-      ? parseFloat(((resolvedCount / totalConversations) * 100).toFixed(2))
-      : 0;
+    // Total sessions
+    const totalSessions = await this.sessionRepository.count();
 
     // Total messages
     const totalMessages = await this.messageRepository.count();
 
-    // Average messages per conversation
-    const avgMessagesPerConv = totalConversations > 0
-      ? parseFloat((totalMessages / totalConversations).toFixed(2))
+    // Average messages per session
+    const avgMessagesPerSession = totalSessions > 0
+      ? parseFloat((totalMessages / totalSessions).toFixed(2))
       : 0;
 
-    // Fallback rate (messages without intent or with fallback intent)
-    const fallbackMessages = await this.messageRepository
-      .createQueryBuilder('msg')
-      .leftJoin('msg.conversation', 'conv')
-      .where('conv.intent IS NULL OR conv.intent = :fallback', { fallback: 'fallback' })
-      .getCount();
+    // Count by sender type
+    const customerMessages = await this.messageRepository.count({
+      where: { sender: 'customer' },
+    });
 
-    const fallbackRate = totalMessages > 0
-      ? parseFloat(((fallbackMessages / totalMessages) * 100).toFixed(2))
-      : 0;
-
-    // Top intents
-    const topIntents = await this.conversationRepository
-      .createQueryBuilder('conv')
-      .select('conv.intent', 'intent')
-      .addSelect('COUNT(*)', 'count')
-      .where('conv.intent IS NOT NULL')
-      .andWhere('conv.intent != :fallback', { fallback: 'fallback' })
-      .groupBy('conv.intent')
-      .orderBy('count', 'DESC')
-      .limit(10)
-      .getRawMany();
+    const botMessages = await this.messageRepository.count({
+      where: { sender: 'bot' },
+    });
 
     // Daily activity (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const dailyActivity = await this.conversationRepository
-      .createQueryBuilder('conv')
-      .select('DATE(conv.created_at)', 'date')
-      .addSelect('COUNT(*)', 'conversations')
-      .where('conv.created_at >= :startDate', { startDate: thirtyDaysAgo })
-      .groupBy('DATE(conv.created_at)')
+    const dailyActivity = await this.sessionRepository
+      .createQueryBuilder('session')
+      .select('DATE(session.created_at)', 'date')
+      .addSelect('COUNT(*)', 'sessions')
+      .where('session.created_at >= :startDate', { startDate: thirtyDaysAgo })
+      .groupBy('DATE(session.created_at)')
       .orderBy('date', 'ASC')
       .getRawMany();
 
     return {
       overview: {
-        total_conversations: totalConversations,
+        total_sessions: totalSessions,
         total_messages: totalMessages,
-        avg_messages_per_conversation: avgMessagesPerConv,
-        resolved_count: resolvedCount,
-        unresolved_count: unresolvedCount,
-        resolved_rate: resolvedRate,
-        fallback_rate: fallbackRate,
+        avg_messages_per_session: avgMessagesPerSession,
+        customer_messages: customerMessages,
+        bot_messages: botMessages,
       },
-      top_intents: topIntents,
       daily_activity: dailyActivity,
     };
   }
 
   async getChatbotUnanswered() {
-    // Get unresolved conversations with high message count (user struggling)
-    const conversations = await this.conversationRepository
-      .createQueryBuilder('conv')
-      .leftJoinAndSelect('conv.user', 'user')
-      .where('conv.resolved = :resolved', { resolved: false })
-      .andWhere('conv.message_count >= :minMessages', { minMessages: 3 })
-      .orderBy('conv.message_count', 'DESC')
+    // Get sessions with high message count from customers (potential issues)
+    const sessions = await this.sessionRepository
+      .createQueryBuilder('session')
+      .leftJoinAndSelect('session.customer', 'customer')
+      .leftJoin('session.messages', 'messages')
+      .addSelect('COUNT(messages.id)', 'message_count')
+      .groupBy('session.id')
+      .addGroupBy('customer.id')
+      .having('COUNT(messages.id) >= :minMessages', { minMessages: 5 })
+      .orderBy('COUNT(messages.id)', 'DESC')
       .take(50)
       .getMany();
 
     return {
-      unanswered_conversations: conversations,
-      count: conversations.length,
+      unanswered_sessions: sessions,
+      count: sessions.length,
     };
   }
 
@@ -826,9 +1019,9 @@ export class AdminService {
       // Process each row
       for (const row of data) {
         const sku = row.sku || row.SKU;
-        const quantity = parseInt(row.quantity || row.Quantity);
+        const quantity = parseInt(row.quantity || row.Quantity, 10);
 
-        if (!sku || !quantity || quantity <= 0) {
+        if (!sku || isNaN(quantity) || quantity <= 0) {
           failedSkus.push(sku || 'Unknown SKU');
           continue;
         }
@@ -977,7 +1170,7 @@ export class AdminService {
   // ==================== CUSTOMER MANAGEMENT ====================
   async updateCustomerStatus(customerId: number, updateStatusDto: UpdateCustomerStatusDto) {
     const customer = await this.customerRepository.findOne({
-      where: { id: customerId },
+      where: { id: customerId, deleted_at: null },
     });
 
     if (!customer) {
@@ -1057,5 +1250,91 @@ export class AdminService {
       .trim()
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-');
+  }
+
+  // ==================== CHAT MANAGEMENT ====================
+  async replyChat(sessionId: number, message: string) {
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Không tìm thấy chat session');
+    }
+
+    // Save admin message
+    const adminMessage = this.messageRepository.create({
+      session_id: sessionId,
+      sender: 'admin',
+      message: message,
+      is_read: false,
+    });
+
+    await this.messageRepository.save(adminMessage);
+
+    // Update session timestamp
+    session.updated_at = new Date();
+    await this.sessionRepository.save(session);
+
+    return {
+      message: 'Tin nhắn đã được gửi',
+      chat_message: adminMessage,
+    };
+  }
+
+  // ==================== PAYMENT TRANSACTIONS ====================
+  async getTransactions(query: any = {}) {
+    const { start_date, end_date, status, page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.paymentRepository
+      .createQueryBuilder('payment')
+      .leftJoinAndSelect('payment.order', 'order')
+      .orderBy('payment.created_at', 'DESC');
+
+    // Filter by date range
+    if (start_date) {
+      queryBuilder.andWhere('payment.created_at >= :startDate', {
+        startDate: new Date(start_date),
+      });
+    }
+
+    if (end_date) {
+      const endDateTime = new Date(end_date);
+      endDateTime.setHours(23, 59, 59, 999);
+      queryBuilder.andWhere('payment.created_at <= :endDate', {
+        endDate: endDateTime,
+      });
+    }
+
+    // Filter by status
+    if (status) {
+      queryBuilder.andWhere('payment.status = :status', { status });
+    }
+
+    const [transactions, total] = await queryBuilder
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    // Calculate summary
+    const summary = await this.paymentRepository
+      .createQueryBuilder('payment')
+      .select('SUM(payment.amount)', 'total_amount')
+      .addSelect('COUNT(*)', 'total_count')
+      .addSelect('payment.status', 'status')
+      .groupBy('payment.status')
+      .getRawMany();
+
+    return {
+      transactions,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+      summary,
+    };
   }
 }

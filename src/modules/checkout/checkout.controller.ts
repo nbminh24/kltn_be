@@ -7,7 +7,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentUrlDto } from './dto/create-payment-url.dto';
 
-@ApiTags('Checkout')
+@ApiTags('🛒 Cart & Checkout')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('api/v1/checkout')
@@ -15,7 +15,7 @@ export class CheckoutController {
   constructor(
     private readonly checkoutService: CheckoutService,
     private readonly paymentService: PaymentService,
-  ) {}
+  ) { }
 
   @Post()
   @ApiOperation({

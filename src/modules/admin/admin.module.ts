@@ -10,20 +10,20 @@ import { Admin } from '../../entities/admin.entity';
 import { Product } from '../../entities/product.entity';
 import { Category } from '../../entities/category.entity';
 import { Order } from '../../entities/order.entity';
-import { User } from '../../entities/user.entity';
 import { SupportTicket } from '../../entities/support-ticket.entity';
-import { StaticPage } from '../../entities/static-page.entity';
+import { Page } from '../../entities/page.entity';
 import { ProductVariant } from '../../entities/product-variant.entity';
 import { ProductImage } from '../../entities/product-image.entity';
 import { Promotion } from '../../entities/promotion.entity';
-import { ChatbotConversation } from '../../entities/chatbot-conversation.entity';
-import { ChatbotMessage } from '../../entities/chatbot-message.entity';
+import { ChatSession } from '../../entities/chat-session.entity';
+import { ChatMessage } from '../../entities/chat-message.entity';
 import { AiRecommendation } from '../../entities/ai-recommendation.entity';
 import { Customer } from '../../entities/customer.entity';
 import { SupportTicketReply } from '../../entities/support-ticket-reply.entity';
 import { RestockBatch } from '../../entities/restock-batch.entity';
 import { RestockItem } from '../../entities/restock-item.entity';
 import { OrderStatusHistory } from '../../entities/order-status-history.entity';
+import { Payment } from '../../entities/payment.entity';
 import { EmailModule } from '../email/email.module';
 
 @Module({
@@ -33,20 +33,20 @@ import { EmailModule } from '../email/email.module';
       Product,
       Category,
       Order,
-      User,
       SupportTicket,
-      StaticPage,
+      Page,
       ProductVariant,
       ProductImage,
       Promotion,
-      ChatbotConversation,
-      ChatbotMessage,
+      ChatSession,
+      ChatMessage,
       AiRecommendation,
       Customer,
       SupportTicketReply,
       RestockBatch,
       RestockItem,
       OrderStatusHistory,
+      Payment,
     ]),
     EmailModule,
     JwtModule.registerAsync({
@@ -62,4 +62,4 @@ import { EmailModule } from '../email/email.module';
   providers: [AdminService, AdminAuthService],
   exports: [AdminService, AdminAuthService],
 })
-export class AdminModule {}
+export class AdminModule { }

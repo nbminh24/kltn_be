@@ -5,16 +5,16 @@ import { AiController } from './ai.controller';
 import { AiService } from './ai.service';
 import { ProductImage } from '../../entities/product-image.entity';
 import { Product } from '../../entities/product.entity';
-import { ChatbotConversation } from '../../entities/chatbot-conversation.entity';
-import { ChatbotMessage } from '../../entities/chatbot-message.entity';
+import { ChatSession } from '../../entities/chat-session.entity';
+import { ChatMessage } from '../../entities/chat-message.entity';
 
 @Module({
   imports: [
     HttpModule,
-    TypeOrmModule.forFeature([ProductImage, Product, ChatbotConversation, ChatbotMessage]),
+    TypeOrmModule.forFeature([ProductImage, Product, ChatSession, ChatMessage]),
   ],
   controllers: [AiController],
   providers: [AiService],
   exports: [AiService],
 })
-export class AiModule {}
+export class AiModule { }

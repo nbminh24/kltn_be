@@ -23,9 +23,6 @@ export class SupportTicket {
   @Column({ type: 'varchar', nullable: true })
   customer_email: string;
 
-  @Column({ type: 'bigint', nullable: true })
-  user_id: number;
-
   @Column({ type: 'varchar' })
   subject: string;
 

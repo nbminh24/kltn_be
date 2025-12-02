@@ -10,7 +10,6 @@ import { ProductVariant } from '../../entities/product-variant.entity';
 import { Promotion } from '../../entities/promotion.entity';
 import { SupportTicket } from '../../entities/support-ticket.entity';
 import { ProductNotification } from '../../entities/product-notification.entity';
-import { User } from '../../entities/user.entity';
 import { Size } from '../../entities/size.entity';
 
 @Module({
@@ -24,7 +23,6 @@ import { Size } from '../../entities/size.entity';
       Promotion,
       SupportTicket,
       ProductNotification,
-      User,
       Size,
     ]),
   ],

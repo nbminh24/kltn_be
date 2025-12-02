@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -9,7 +9,7 @@ import { AdminGuard } from '../../common/guards/admin.guard';
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/analytics')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(private readonly analyticsService: AnalyticsService) { }
 
   @Get('stats')
   @ApiOperation({
@@ -39,7 +39,7 @@ export class AnalyticsController {
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/products')
 export class ProductAnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(private readonly analyticsService: AnalyticsService) { }
 
   @Get(':id/analytics')
   @ApiOperation({
@@ -48,7 +48,11 @@ export class ProductAnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Product analytics' })
   getProductAnalytics(@Param('id') id: string) {
-    return this.analyticsService.getProductAnalytics(parseInt(id));
+    const productId = parseInt(id, 10);
+    if (isNaN(productId)) {
+      throw new BadRequestException('ID sản phẩm không hợp lệ');
+    }
+    return this.analyticsService.getProductAnalytics(productId);
   }
 
   @Get(':id/variant-sales')
@@ -58,7 +62,11 @@ export class ProductAnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Variant sales distribution' })
   getVariantSales(@Param('id') id: string) {
-    return this.analyticsService.getVariantSales(parseInt(id));
+    const productId = parseInt(id, 10);
+    if (isNaN(productId)) {
+      throw new BadRequestException('ID sản phẩm không hợp lệ');
+    }
+    return this.analyticsService.getVariantSales(productId);
   }
 
   @Get(':id/rating-distribution')
@@ -68,7 +76,11 @@ export class ProductAnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Rating distribution' })
   getRatingDistribution(@Param('id') id: string) {
-    return this.analyticsService.getRatingDistribution(parseInt(id));
+    const productId = parseInt(id, 10);
+    if (isNaN(productId)) {
+      throw new BadRequestException('ID sản phẩm không hợp lệ');
+    }
+    return this.analyticsService.getRatingDistribution(productId);
   }
 }
 
@@ -77,7 +89,7 @@ export class ProductAnalyticsController {
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin')
 export class OperationsAnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(private readonly analyticsService: AnalyticsService) { }
 
   @Get('orders/status-counts')
   @ApiOperation({

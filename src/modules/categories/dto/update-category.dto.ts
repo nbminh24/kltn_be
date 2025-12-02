@@ -1,23 +1,28 @@
-import { IsOptional, IsString, IsIn } from 'class-validator';
+import { IsString, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateCategoryDto {
-  @ApiProperty({
-    example: 'Quần Shorts Nam',
-    description: 'Tên category mới (optional)',
-    required: false,
-  })
+  @ApiProperty({ description: 'Tên danh mục', example: 'Điện thoại', required: false })
   @IsOptional()
   @IsString()
   name?: string;
 
   @ApiProperty({
-    example: 'active',
-    description: 'Trạng thái category (optional)',
-    enum: ['active', 'inactive'],
+    description: 'Mô tả danh mục',
+    example: 'Các sản phẩm điện thoại thông minh',
     required: false,
   })
   @IsOptional()
-  @IsIn(['active', 'inactive'], { message: 'Status phải là "active" hoặc "inactive"' })
+  @IsString()
+  description?: string;
+
+  @ApiProperty({
+    description: 'Trạng thái',
+    example: 'Active',
+    enum: ['Active', 'Inactive'],
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
   status?: string;
 }

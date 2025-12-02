@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Patch, Param, Query, Body, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Patch, Param, Query, Body, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminService } from './admin.service';
@@ -23,7 +23,7 @@ import { UpdatePageDto } from './dto/update-page.dto';
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(private readonly adminService: AdminService) { }
 
   // ==================== DASHBOARD ====================
   @Get('dashboard/stats')
@@ -36,6 +36,92 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Trả về thống kê dashboard' })
   getDashboardStats() {
     return this.adminService.getDashboardStats();
+  }
+
+  @Get('dashboard/recent-orders')
+  @ApiTags('Admin - Analytics')
+  @ApiOperation({
+    summary: '[Admin] Dashboard - Đơn hàng gần đây',
+    description: 'Lấy danh sách đơn hàng gần nhất (mặc định 10 đơn)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Danh sách đơn hàng gần đây',
+    schema: {
+      example: {
+        recent_orders: [
+          {
+            id: 123,
+            customer_name: 'John Doe',
+            customer_email: 'john@example.com',
+            total_amount: 930000,
+            status: 'pending',
+            payment_status: 'unpaid',
+            created_at: '2024-11-26T10:00:00Z',
+            items_count: 3,
+          },
+        ],
+      },
+    },
+  })
+  getRecentOrders(@Query('limit') limit?: string) {
+    const parsedLimit = limit ? parseInt(limit, 10) : 10;
+    return this.adminService.getRecentOrders(parsedLimit);
+  }
+
+  @Get('dashboard/top-products')
+  @ApiTags('Admin - Analytics')
+  @ApiOperation({
+    summary: '[Admin] Dashboard - Sản phẩm bán chạy',
+    description: 'Lấy danh sách sản phẩm bán chạy nhất (mặc định 10 sản phẩm)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Danh sách sản phẩm bán chạy',
+    schema: {
+      example: {
+        top_products: [
+          {
+            product_id: 1,
+            product_name: 'T-Shirt Premium',
+            thumbnail_url: 'https://...',
+            total_sold: 150,
+            revenue: 22500000,
+          },
+        ],
+      },
+    },
+  })
+  getTopProducts(@Query('limit') limit?: string) {
+    const parsedLimit = limit ? parseInt(limit, 10) : 10;
+    return this.adminService.getTopProducts(parsedLimit);
+  }
+
+  @Get('dashboard/revenue-chart')
+  @ApiTags('Admin - Analytics')
+  @ApiOperation({
+    summary: '[Admin] Dashboard - Biểu đồ doanh thu',
+    description: 'Lấy dữ liệu biểu đồ doanh thu theo ngày. Hỗ trợ: 7d, 30d, 90d',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Dữ liệu biểu đồ doanh thu',
+    schema: {
+      example: {
+        chart_data: [
+          {
+            date: '2024-11-25',
+            orders: 25,
+            revenue: 5000000,
+          },
+        ],
+        total_revenue: 150000000,
+        growth_percentage: 12.5,
+      },
+    },
+  })
+  getRevenueChart(@Query('period') period?: string) {
+    return this.adminService.getRevenueChart(period || '7d');
   }
 
   // ==================== PRODUCTS MANAGEMENT ====================
@@ -361,6 +447,51 @@ export class AdminController {
     return this.adminService.getOrders(query);
   }
 
+  @Get('orders/statistics')
+  @ApiTags('Admin - Orders')
+  @ApiOperation({
+    summary: '[Admin] Quản lý đơn hàng - Thống kê',
+    description: 'Lấy thống kê tổng quan về đơn hàng: tổng số, theo trạng thái, doanh thu, giá trị trung bình',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Thống kê đơn hàng',
+    schema: {
+      example: {
+        total_orders: 1250,
+        pending_orders: 45,
+        confirmed_orders: 30,
+        shipped_orders: 25,
+        delivered_orders: 1100,
+        cancelled_orders: 50,
+        total_revenue: 250000000,
+        avg_order_value: 850000,
+      },
+    },
+  })
+  getOrderStatistics() {
+    return this.adminService.getOrderStatistics();
+  }
+
+  @Get('orders/:id')
+  @ApiTags('Admin - Orders')
+  @ApiOperation({
+    summary: '[Admin] Quản lý đơn hàng - Chi tiết',
+    description: 'Lấy thông tin chi tiết đơn hàng bao gồm: items, customer, địa chỉ, lịch sử trạng thái',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Chi tiết đơn hàng',
+  })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
+  getOrderById(@Param('id') id: string) {
+    const orderId = parseInt(id, 10);
+    if (isNaN(orderId)) {
+      throw new BadRequestException('ID đơn hàng không hợp lệ');
+    }
+    return this.adminService.getOrderById(orderId);
+  }
+
   @Put('orders/:id/status')
   @ApiTags('Admin - Orders')
   @ApiOperation({
@@ -371,7 +502,11 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Cập nhật trạng thái thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
   updateOrderStatus(@CurrentUser() user: any, @Param('id') id: string, @Body() updateStatusDto: UpdateOrderStatusDto) {
-    return this.adminService.updateOrderStatusWithEmail(parseInt(id), updateStatusDto.status, user.sub);
+    const orderId = parseInt(id, 10);
+    if (isNaN(orderId)) {
+      throw new BadRequestException('ID đơn hàng không hợp lệ');
+    }
+    return this.adminService.updateOrderStatusWithEmail(orderId, updateStatusDto.status, user.sub);
   }
 
   // ==================== CUSTOMERS MANAGEMENT ====================
@@ -395,6 +530,37 @@ export class AdminController {
     return this.adminService.getCustomers(query);
   }
 
+  @Get('customers/statistics')
+  @ApiTags('Admin - Customers')
+  @ApiOperation({
+    summary: '[Admin] Quản lý khách hàng - Thống kê',
+    description: 'Lấy thống kê tổng quan về khách hàng: tổng số, active/inactive, mới trong tháng, top khách hàng',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Thống kê khách hàng',
+    schema: {
+      example: {
+        total_customers: 500,
+        active_customers: 450,
+        inactive_customers: 50,
+        new_customers_this_month: 25,
+        top_customers: [
+          {
+            customer_id: 123,
+            customer_name: 'John Doe',
+            customer_email: 'john@example.com',
+            total_orders: 15,
+            total_spent: 25000000,
+          },
+        ],
+      },
+    },
+  })
+  getCustomerStatistics() {
+    return this.adminService.getCustomerStatistics();
+  }
+
   @Get('customers/:id')
   @ApiTags('Admin - Customers')
   @ApiOperation({
@@ -405,7 +571,7 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Chi tiết khách hàng' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy khách hàng' })
   getCustomerById(@Param('id') id: string) {
-    return this.adminService.getCustomerById(id);
+    return this.adminService.getCustomerById(parseInt(id, 10));
   }
 
   // ==================== SUPPORT & CONTENT MANAGEMENT ====================
@@ -419,7 +585,11 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Cập nhật ticket thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy ticket' })
   updateTicket(@Param('id') id: string, @Body() updateTicketDto: UpdateTicketDto) {
-    return this.adminService.updateTicket(parseInt(id), updateTicketDto);
+    const ticketId = parseInt(id, 10);
+    if (isNaN(ticketId)) {
+      throw new BadRequestException('ID ticket không hợp lệ');
+    }
+    return this.adminService.updateTicket(ticketId, updateTicketDto);
   }
 
   @Put('pages/:slug')
@@ -445,17 +615,17 @@ export class AdminController {
   })
   @ApiQuery({ name: 'page', required: false, example: 1, description: 'Trang hiện tại' })
   @ApiQuery({ name: 'limit', required: false, example: 20, description: 'Số conversations mỗi trang' })
-  @ApiQuery({ 
-    name: 'resolved', 
-    required: false, 
-    example: 'false', 
-    description: 'Filter theo resolved (true/false)' 
+  @ApiQuery({
+    name: 'resolved',
+    required: false,
+    example: 'false',
+    description: 'Filter theo resolved (true/false)'
   })
-  @ApiQuery({ 
-    name: 'search', 
-    required: false, 
-    example: 'order tracking', 
-    description: 'Tìm trong last_message' 
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    example: 'order tracking',
+    description: 'Tìm trong last_message'
   })
   @ApiResponse({ status: 200, description: 'Danh sách conversations' })
   getChatbotConversations(@Query() query: any) {
@@ -465,13 +635,25 @@ export class AdminController {
   @Get('chatbot/conversations/:id')
   @ApiTags('Admin - AI')
   @ApiOperation({
-    summary: '[Admin] Chatbot - Chi tiết conversation',
-    description: 'Xem chi tiết một conversation với tất cả messages',
+    summary: '[Admin] Chatbot - Chi tiết session',
+    description: 'Xem chi tiết một chat session với tất cả messages',
   })
-  @ApiResponse({ status: 200, description: 'Chi tiết conversation và messages' })
-  @ApiResponse({ status: 404, description: 'Không tìm thấy conversation' })
+  @ApiResponse({ status: 200, description: 'Chi tiết session và messages' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy session' })
   getChatbotConversationDetail(@Param('id') id: string) {
-    return this.adminService.getChatbotConversationDetail(id);
+    return this.adminService.getChatbotConversationDetail(parseInt(id));
+  }
+
+  @Post('chat/:id/reply')
+  @ApiTags('Admin - Chat')
+  @ApiOperation({
+    summary: '[Admin] Reply chat trực tiếp',
+    description: 'Admin gửi tin nhắn trực tiếp đến customer trong chat session',
+  })
+  @ApiResponse({ status: 201, description: 'Tin nhắn đã gửi' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy session' })
+  replyChat(@Param('id') id: string, @Body() body: { message: string }) {
+    return this.adminService.replyChat(parseInt(id), body.message);
   }
 
   @Get('chatbot/analytics')
@@ -524,6 +706,23 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Thống kê AI recommendations' })
   getAiRecommendationStats() {
     return this.adminService.getAiRecommendationStats();
+  }
+
+  // ==================== PAYMENT TRANSACTIONS ====================
+  @Get('transactions')
+  @ApiTags('Admin - Payment')
+  @ApiOperation({
+    summary: '[Admin] Danh sách giao dịch thanh toán',
+    description: 'Query bảng payments để đối soát. Lọc theo ngày và trạng thái.',
+  })
+  @ApiQuery({ name: 'start_date', required: false, example: '2024-01-01', description: 'Ngày bắt đầu (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'end_date', required: false, example: '2024-12-31', description: 'Ngày kết thúc (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'status', required: false, example: 'success', description: 'Trạng thái: pending | success | failed' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiResponse({ status: 200, description: 'Danh sách transactions' })
+  getTransactions(@Query() query: any) {
+    return this.adminService.getTransactions(query);
   }
 
   // ==================== INVENTORY MANAGEMENT ====================
@@ -591,7 +790,11 @@ export class AdminController {
   })
   @ApiResponse({ status: 200, description: 'Chi tiết ticket và replies' })
   getSupportTicketDetail(@Param('id') id: string) {
-    return this.adminService.getSupportTicketDetail(parseInt(id));
+    const ticketId = parseInt(id, 10);
+    if (isNaN(ticketId)) {
+      throw new BadRequestException('ID ticket không hợp lệ');
+    }
+    return this.adminService.getSupportTicketDetail(ticketId);
   }
 
   @Post('support-tickets/:id/reply')
@@ -602,7 +805,11 @@ export class AdminController {
   })
   @ApiResponse({ status: 201, description: 'Gửi reply thành công' })
   replyToTicket(@CurrentUser() user: any, @Param('id') id: string, @Body() replyDto: any) {
-    return this.adminService.replyToTicket(parseInt(id), user.sub, replyDto);
+    const ticketId = parseInt(id, 10);
+    if (isNaN(ticketId)) {
+      throw new BadRequestException('ID ticket không hợp lệ');
+    }
+    return this.adminService.replyToTicket(ticketId, user.sub, replyDto);
   }
 
   // ==================== CUSTOMER MANAGEMENT ENHANCEMENTS ====================
@@ -614,6 +821,10 @@ export class AdminController {
   })
   @ApiResponse({ status: 200, description: 'Cập nhật trạng thái thành công' })
   updateCustomerStatus(@Param('id') id: string, @Body() updateStatusDto: any) {
-    return this.adminService.updateCustomerStatus(parseInt(id), updateStatusDto);
+    const customerId = parseInt(id, 10);
+    if (isNaN(customerId)) {
+      throw new BadRequestException('ID khách hàng không hợp lệ');
+    }
+    return this.adminService.updateCustomerStatus(customerId, updateStatusDto);
   }
 }

@@ -5,15 +5,15 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AddToWishlistDto } from './dto/add-to-wishlist.dto';
 
-@ApiTags('Wishlist')
+@ApiTags('❤️ Wishlist')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('wishlist')
 export class WishlistController {
-  constructor(private readonly wishlistService: WishlistService) {}
+  constructor(private readonly wishlistService: WishlistService) { }
 
   @Get()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: '[UC-C9] Danh sách sản phẩm yêu thích',
     description: 'Lấy tất cả variants trong danh sách yêu thích của khách hàng. Bao gồm thông tin sản phẩm, size, color, ảnh và danh mục.'
   })
@@ -23,7 +23,7 @@ export class WishlistController {
   }
 
   @Post('toggle')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: '[UC-C9] Toggle wishlist (Thêm/Xóa)',
     description: 'Nếu variant chưa có trong wishlist thì thêm vào, nếu đã có thì xóa khỏi. Trả về trạng thái mới (added/removed).'
   })
@@ -34,7 +34,7 @@ export class WishlistController {
   }
 
   @Delete(':variantId')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: '[UC-C9] Xóa variant khỏi wishlist',
     description: 'Xóa một variant khỏi danh sách yêu thích của khách hàng.'
   })

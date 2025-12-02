@@ -1,22 +1,27 @@
-import { IsNotEmpty, IsString, IsOptional, IsIn } from 'class-validator';
+import { IsString, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateCategoryDto {
-  @ApiProperty({
-    example: 'Hoodies',
-    description: 'Tên category',
-  })
-  @IsNotEmpty({ message: 'Tên category không được để trống' })
+  @ApiProperty({ description: 'Tên danh mục', example: 'Điện thoại' })
   @IsString()
   name: string;
 
   @ApiProperty({
-    example: 'active',
-    description: 'Trạng thái category',
-    enum: ['active', 'inactive'],
-    default: 'active',
+    description: 'Mô tả danh mục',
+    example: 'Các sản phẩm điện thoại thông minh',
+    required: false,
   })
   @IsOptional()
-  @IsIn(['active', 'inactive'], { message: 'Status phải là "active" hoặc "inactive"' })
+  @IsString()
+  description?: string;
+
+  @ApiProperty({
+    description: 'Trạng thái',
+    example: 'Active',
+    enum: ['Active', 'Inactive'],
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
   status?: string;
 }

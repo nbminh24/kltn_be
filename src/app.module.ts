@@ -6,7 +6,7 @@ import { HttpModule } from '@nestjs/axios';
 // Entities
 import { Admin } from './entities/admin.entity';
 import { Customer } from './entities/customer.entity';
-import { User } from './entities/user.entity';
+
 import { Product } from './entities/product.entity';
 import { Size } from './entities/size.entity';
 import { Color } from './entities/color.entity';
@@ -25,13 +25,16 @@ import { Promotion } from './entities/promotion.entity';
 import { PromotionProduct } from './entities/promotion-product.entity';
 import { SupportTicket } from './entities/support-ticket.entity';
 import { SupportTicketReply } from './entities/support-ticket-reply.entity';
-import { StaticPage } from './entities/static-page.entity';
+
 import { Page } from './entities/page.entity';
 import { RestockBatch } from './entities/restock-batch.entity';
 import { RestockItem } from './entities/restock-item.entity';
-import { ChatbotConversation } from './entities/chatbot-conversation.entity';
-import { ChatbotMessage } from './entities/chatbot-message.entity';
+import { ChatSession } from './entities/chat-session.entity';
+import { ChatMessage } from './entities/chat-message.entity';
+import { Payment } from './entities/payment.entity';
+import { PromotionUsage } from './entities/promotion-usage.entity';
 import { AiRecommendation } from './entities/ai-recommendation.entity';
+import { ProductNotification } from './entities/product-notification.entity';
 
 // Modules
 import { CommonModule } from './common/common.module';
@@ -55,6 +58,9 @@ import { InternalModule } from './modules/internal/internal.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PagesModule } from './modules/pages/pages.module';
+import { ChatModule } from './modules/chat/chat.module';
+import { PaymentModule } from './modules/payment/payment.module';
+import { ConsultantModule } from './modules/consultant/consultant.module';
 
 @Module({
   imports: [
@@ -70,14 +76,13 @@ import { PagesModule } from './modules/pages/pages.module';
       useFactory: (configService: ConfigService) => {
         const databaseUrl = configService.get<string>('DATABASE_URL');
         const isSupabase = databaseUrl?.includes('supabase.co');
-        
+
         return {
           type: 'postgres',
           url: databaseUrl,
           entities: [
             Admin,
             Customer,
-            User,
             Product,
             Category,
             Size,
@@ -96,13 +101,15 @@ import { PagesModule } from './modules/pages/pages.module';
             PromotionProduct,
             SupportTicket,
             SupportTicketReply,
-            StaticPage,
             Page,
             RestockBatch,
             RestockItem,
-            ChatbotConversation,
-            ChatbotMessage,
+            ChatSession,
+            ChatMessage,
+            Payment,
+            PromotionUsage,
             AiRecommendation,
+            ProductNotification,
           ],
           synchronize: false,
           logging: false,
@@ -156,6 +163,10 @@ import { PagesModule } from './modules/pages/pages.module';
     ReviewsModule,
     AnalyticsModule,
     PagesModule,
+    ChatModule,
+    PaymentModule,
+    ConsultantModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
+

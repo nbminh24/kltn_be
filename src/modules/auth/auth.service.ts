@@ -38,7 +38,7 @@ export class AuthService {
   async register(registerDto: RegisterDto) {
     // Check if email exists
     const existingCustomer = await this.customerRepository.findOne({
-      where: { email: registerDto.email },
+      where: { email: registerDto.email, deleted_at: null },
     });
 
     if (existingCustomer) {
@@ -295,7 +295,7 @@ export class AuthService {
 
   async logout(customerId: number) {
     const customer = await this.customerRepository.findOne({
-      where: { id: customerId },
+      where: { id: customerId, deleted_at: null },
     });
 
     if (!customer) {
@@ -313,7 +313,7 @@ export class AuthService {
   }
 
   async forgotPassword(email: string) {
-    const customer = await this.customerRepository.findOne({ where: { email } });
+    const customer = await this.customerRepository.findOne({ where: { email, deleted_at: null } });
 
     // Security: Always return success message even if email doesn't exist
     // to prevent email enumeration attacks
@@ -366,27 +366,35 @@ export class AuthService {
 
   async resetPassword(token: string, newPassword: string) {
     try {
+      // Verify the reset token
       const payload = this.jwtService.verify(token);
 
       if (payload.purpose !== 'reset') {
         throw new UnauthorizedException('Token không hợp lệ');
       }
 
-      const customer = await this.customerRepository
-        .createQueryBuilder('customer')
-        .addSelect('customer.password_hash')
-        .where('customer.email = :email', { email: payload.email })
-        .getOne();
+      // Find customer by email
+      const customer = await this.customerRepository.findOne({
+        where: { email: payload.email, deleted_at: null },
+      });
 
       if (!customer) {
         throw new NotFoundException('Không tìm thấy tài khoản');
       }
 
-      // Hash new password
+      // CRITICAL: Hash the new password BEFORE saving
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-      customer.password_hash = hashedPassword;
 
-      await this.customerRepository.save(customer);
+      // Use .update() method to ensure direct database update
+      // This bypasses any potential entity lifecycle issues
+      await this.customerRepository.update(
+        { id: customer.id },
+        {
+          password_hash: hashedPassword,
+          refresh_token: null, // Clear refresh token for security
+          refresh_token_expires: null
+        }
+      );
 
       return {
         message: 'Đặt lại mật khẩu thành công. Bạn có thể đăng nhập ngay.',
@@ -394,6 +402,9 @@ export class AuthService {
     } catch (error) {
       if (error.name === 'TokenExpiredError') {
         throw new UnauthorizedException('Token đã hết hạn');
+      }
+      if (error instanceof NotFoundException || error instanceof UnauthorizedException) {
+        throw error;
       }
       throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
     }

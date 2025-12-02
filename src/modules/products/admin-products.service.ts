@@ -25,7 +25,7 @@ export class AdminProductsService {
     private dataSource: DataSource,
     private queryBuilderService: QueryBuilderService,
     private slugService: SlugService,
-  ) {}
+  ) { }
 
   // GET /api/v1/admin/products - Paginated list with filters
   async findAll(query: any) {
@@ -230,7 +230,7 @@ export class AdminProductsService {
           );
         }
       }
-      
+
       const skus = updateProductDto.variants.map(v => v.sku);
       await this.validateSKUs(skus, id);
     }
@@ -406,22 +406,69 @@ export class AdminProductsService {
 
     // Get color code (first 3 chars uppercase from name)
     const colorCode = color.name.substring(0, 3).toUpperCase();
-    
+
     // Get size code (name uppercase)
     const sizeCode = size.name.toUpperCase();
 
     // Generate base SKU
     let baseSku = `${normalizedName}-${colorCode}-${sizeCode}`;
-    
+
     // Check if SKU exists, if yes, append counter
     let sku = baseSku;
     let counter = 1;
-    
+
     while (await this.variantRepository.findOne({ where: { sku } })) {
       sku = `${baseSku}-${counter}`;
       counter++;
     }
 
     return sku;
+  }
+
+  // GET /api/v1/admin/products/low-stock - Products with low stock
+  async getLowStockProducts(threshold: number = 10) {
+    const lowStockVariants = await this.variantRepository
+      .createQueryBuilder('variant')
+      .leftJoinAndSelect('variant.product', 'product')
+      .leftJoinAndSelect('variant.size', 'size')
+      .leftJoinAndSelect('variant.color', 'color')
+      .where('variant.total_stock <= :threshold', { threshold })
+      .andWhere('product.status = :status', { status: 'active' })
+      .orderBy('variant.total_stock', 'ASC')
+      .getMany();
+
+    // Group by product
+    const productsMap = new Map();
+
+    for (const variant of lowStockVariants) {
+      if (!variant.product) continue;
+
+      const productId = variant.product.id;
+
+      if (!productsMap.has(productId)) {
+        productsMap.set(productId, {
+          product_id: variant.product.id,
+          product_name: variant.product.name,
+          thumbnail_url: variant.product.thumbnail_url || null,
+          low_stock_variants: [],
+        });
+      }
+
+      productsMap.get(productId).low_stock_variants.push({
+        variant_id: variant.id,
+        sku: variant.sku,
+        size: variant.size?.name || 'N/A',
+        color: variant.color?.name || 'N/A',
+        current_stock: variant.total_stock,
+        reorder_point: threshold,
+      });
+    }
+
+    return {
+      threshold,
+      total_products: productsMap.size,
+      total_variants: lowStockVariants.length,
+      products: Array.from(productsMap.values()),
+    };
   }
 }

@@ -156,6 +156,68 @@ export class InternalController {
     return this.internalService.getCustomerOrders({ email });
   }
 
+  @Get('variants')
+  @ApiOperation({
+    summary: '[Chatbot] Tìm kiếm Product Variants',
+    description: `API tìm kiếm variants với nhiều filter options.
+    Query params:
+    - product_id: Lọc theo product ID
+    - sku: Tìm theo SKU (partial match)
+    - size: Lọc theo size (vd: ?size=L)
+    - color: Lọc theo màu (vd: ?color=Đen)
+    - in_stock: true/false - Chỉ lấy variants còn hàng
+    - limit: Số lượng kết quả (default: 20)
+    
+    Trả về: variant_id, product_name, sku, size, color, stock, price, images`,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Trả về danh sách variants',
+    schema: {
+      example: {
+        variants: [
+          {
+            variant_id: 1,
+            product_id: 1,
+            product_name: 'Áo Khoác Denim Oversize',
+            product_slug: 'ao-khoac-denim-oversize',
+            variant_name: 'Áo Khoác Denim - L - Xanh',
+            sku: 'AKD-L-XANH',
+            size: 'L',
+            color: 'Xanh Denim',
+            color_hex: '#4682B4',
+            total_stock: 25,
+            reserved_stock: 3,
+            available_stock: 22,
+            status: 'active',
+            price: 450000,
+            category: 'Áo Khoác',
+            images: ['https://image1.jpg', 'https://image2.jpg'],
+            main_image: 'https://image1.jpg'
+          }
+        ],
+        count: 1
+      }
+    }
+  })
+  searchVariants(
+    @Query('product_id') product_id?: number,
+    @Query('sku') sku?: string,
+    @Query('size') size?: string,
+    @Query('color') color?: string,
+    @Query('in_stock') in_stock?: boolean,
+    @Query('limit') limit?: number,
+  ) {
+    return this.internalService.searchVariants({
+      product_id: product_id ? Number(product_id) : undefined,
+      sku,
+      size,
+      color,
+      in_stock: in_stock === true || in_stock === 'true' as any,
+      limit: limit ? Number(limit) : 20,
+    });
+  }
+
   // ==================== CHATBOT INTERNAL APIs ====================
 
   @Post('products/sizing-advice')

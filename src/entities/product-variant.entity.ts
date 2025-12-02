@@ -43,6 +43,12 @@ export class ProductVariant {
   @Column({ type: 'varchar', default: 'active' })
   status: string;
 
+  @Column({ type: 'int', default: 1 })
+  version: number;
+
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  deleted_at: Date;
+
   // Relations
   @ManyToOne(() => Product, product => product.variants)
   @JoinColumn({ name: 'product_id' })

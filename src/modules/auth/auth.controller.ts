@@ -13,14 +13,14 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
-@ApiTags('Auth')
+@ApiTags('🔐 Authentication')
 @Controller('api/v1/auth')
 @Public()
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('register')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Đăng ký tài khoản bằng email/password',
     description: 'Tạo tài khoản mới với status=inactive. Gửi email kích hoạt cho user.'
   })
@@ -31,7 +31,7 @@ export class AuthController {
   }
 
   @Get('activate')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Kích hoạt tài khoản (GET - click link trong email)',
     description: 'User click link trong email → Backend kích hoạt → Redirect về frontend với tokens'
   })
@@ -40,11 +40,11 @@ export class AuthController {
   async activateByLink(@Query('token') token: string, @Res() res) {
     try {
       const result = await this.authService.activate(token);
-      
+
       // Redirect về frontend với tokens trong URL
       const frontendUrl = this.authService.getFrontendUrl();
       const redirectUrl = `${frontendUrl}/auth/success?access_token=${result.access_token}&refresh_token=${result.refresh_token}`;
-      
+
       return res.redirect(redirectUrl);
     } catch (error) {
       // Nếu lỗi, redirect về trang lỗi
@@ -54,7 +54,7 @@ export class AuthController {
   }
 
   @Post('activate')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Kích hoạt tài khoản (POST - dùng cho API call)',
     description: 'Kích hoạt tài khoản khi user click link trong email. Tự động đăng nhập và trả về Access/Refresh Token.'
   })
@@ -65,7 +65,7 @@ export class AuthController {
   }
 
   @Post('login')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Đăng nhập bằng email/password',
     description: 'Đăng nhập và trả về Access Token (15 phút) và Refresh Token (30 ngày)'
   })
@@ -76,7 +76,7 @@ export class AuthController {
   }
 
   @Post('google')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Đăng nhập/Đăng ký bằng Google',
     description: 'Backend nhận auth_code từ Frontend, gọi Google API để lấy thông tin user. Tự động đăng ký nếu chưa có tài khoản.'
   })
@@ -87,7 +87,7 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Làm mới Access Token',
     description: 'API chạy ngầm để duy trì đăng nhập. Nhận refresh_token (30 ngày) và trả về access_token mới (15 phút).'
   })
@@ -100,7 +100,7 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Đăng xuất',
     description: 'Vô hiệu hóa refresh_token trong DB để không thể dùng lại.'
   })
@@ -111,7 +111,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Gửi yêu cầu đặt lại mật khẩu',
     description: 'Gửi email chứa link đặt lại mật khẩu. Luôn trả về success để tránh email enumeration attack.'
   })
@@ -121,7 +121,7 @@ export class AuthController {
   }
 
   @Post('verify-reset-token')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Xác thực token đặt lại mật khẩu',
     description: 'API phụ trợ để Frontend kiểm tra token có hợp lệ không trước khi hiển thị form đặt mật khẩu mới.'
   })
@@ -131,7 +131,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Đặt mật khẩu mới',
     description: 'Hoàn tất việc đặt lại mật khẩu với token hợp lệ và mật khẩu mới.'
   })

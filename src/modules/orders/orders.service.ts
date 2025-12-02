@@ -26,7 +26,7 @@ export class OrdersService {
     private variantRepository: Repository<ProductVariant>,
     @InjectRepository(OrderStatusHistory)
     private statusHistoryRepository: Repository<OrderStatusHistory>,
-  ) {}
+  ) { }
 
   async createOrder(customerId: number, orderData: any) {
     // Get customer's cart
@@ -162,5 +162,53 @@ export class OrdersService {
     await this.orderRepository.save(order);
 
     return { message: 'Order cancelled successfully' };
+  }
+
+  async trackOrder(query: any) {
+    const { order_id, phone, email } = query;
+
+    if (!order_id && (!phone || !email)) {
+      throw new BadRequestException('Phải cung cấp order_id hoặc (phone + email)');
+    }
+
+    let order: Order | null = null;
+
+    if (order_id) {
+      // Track by order_id
+      order = await this.orderRepository.findOne({
+        where: { id: parseInt(order_id) },
+        relations: ['items', 'items.variant', 'items.variant.product'],
+      });
+    } else {
+      // Track by phone + email
+      order = await this.orderRepository.findOne({
+        where: {
+          shipping_phone: phone,
+          customer_email: email,
+        },
+        relations: ['items', 'items.variant', 'items.variant.product'],
+        order: { created_at: 'DESC' }, // Get latest order
+      });
+    }
+
+    if (!order) {
+      throw new NotFoundException('Không tìm thấy đơn hàng');
+    }
+
+    return {
+      order_id: order.id,
+      fulfillment_status: order.fulfillment_status,
+      payment_status: order.payment_status,
+      total_amount: order.total_amount,
+      shipping_fee: order.shipping_fee,
+      shipping_address: order.shipping_address,
+      shipping_phone: order.shipping_phone,
+      created_at: order.created_at,
+      items: order.items.map(item => ({
+        product_name: item.variant?.product?.name || 'N/A',
+        quantity: item.quantity,
+        price: item.price_at_purchase,
+      })),
+    };
   }
 }

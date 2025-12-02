@@ -20,6 +20,9 @@ export class Category {
   @Column({ type: 'varchar', default: 'active' })
   status: string;
 
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  deleted_at: Date;
+
   // Relations
   @OneToMany(() => Product, product => product.category)
   products: Product[];

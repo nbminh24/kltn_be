@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Param, Body, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminProductsService } from './admin-products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -11,7 +11,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AdminProductsController {
-  constructor(private readonly adminProductsService: AdminProductsService) {}
+  constructor(private readonly adminProductsService: AdminProductsService) { }
 
   @Get()
   @ApiOperation({
@@ -21,6 +21,45 @@ export class AdminProductsController {
   @ApiResponse({ status: 200, description: 'Danh sách sản phẩm' })
   findAll(@Query() query: any) {
     return this.adminProductsService.findAll(query);
+  }
+
+  @Get('low-stock')
+  @ApiOperation({
+    summary: 'Lấy danh sách sản phẩm tồn kho thấp',
+    description: 'Lấy các sản phẩm có variants với số lượng tồn kho <= threshold (default: 10)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Danh sách sản phẩm low stock',
+    schema: {
+      example: {
+        threshold: 10,
+        total_products: 5,
+        total_variants: 12,
+        products: [
+          {
+            product_id: 1,
+            product_name: 'T-Shirt Premium',
+            product_sku: 'TSH-001',
+            thumbnail_url: 'https://...',
+            low_stock_variants: [
+              {
+                variant_id: 15,
+                sku: 'TSH-001-BLU-M',
+                size: 'M',
+                color: 'Blue',
+                current_stock: 5,
+                reorder_point: 10,
+              },
+            ],
+          },
+        ],
+      },
+    },
+  })
+  getLowStockProducts(@Query('threshold') threshold?: string) {
+    const parsedThreshold = threshold ? parseInt(threshold, 10) : 10;
+    return this.adminProductsService.getLowStockProducts(parsedThreshold);
   }
 
   @Get(':id')
@@ -55,7 +94,11 @@ export class AdminProductsController {
   @ApiResponse({ status: 404, description: 'Sản phẩm không tồn tại' })
   @ApiResponse({ status: 409, description: 'SKU đã tồn tại' })
   update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-    return this.adminProductsService.update(parseInt(id), updateProductDto);
+    const productId = parseInt(id, 10);
+    if (isNaN(productId)) {
+      throw new BadRequestException('ID sản phẩm không hợp lệ');
+    }
+    return this.adminProductsService.update(productId, updateProductDto);
   }
 
   @Patch(':id/status')
@@ -69,6 +112,10 @@ export class AdminProductsController {
     @Param('id') id: string,
     @Body() updateStatusDto: UpdateProductStatusDto,
   ) {
-    return this.adminProductsService.updateStatus(parseInt(id), updateStatusDto);
+    const productId = parseInt(id, 10);
+    if (isNaN(productId)) {
+      throw new BadRequestException('ID sản phẩm không hợp lệ');
+    }
+    return this.adminProductsService.updateStatus(productId, updateStatusDto);
   }
 }

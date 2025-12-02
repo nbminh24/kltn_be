@@ -1,6 +1,6 @@
 import { Entity, Column, PrimaryColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Product } from './product.entity';
-import { User } from './user.entity';
+import { Customer } from './customer.entity';
 
 @Entity('product_notifications')
 export class ProductNotification {
@@ -28,9 +28,9 @@ export class ProductNotification {
     @Column({ type: 'timestamp', nullable: true })
     notified_at: Date;
 
-    @ManyToOne(() => User)
+    @ManyToOne(() => Customer)
     @JoinColumn({ name: 'user_id' })
-    user: User;
+    customer: Customer;
 
     @ManyToOne(() => Product)
     @JoinColumn({ name: 'product_id' })

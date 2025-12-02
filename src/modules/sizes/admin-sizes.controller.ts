@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Body, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SizesService } from './sizes.service';
 import { CreateSizeDto } from './dto/create-size.dto';
@@ -10,7 +10,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AdminSizesController {
-  constructor(private readonly sizesService: SizesService) {}
+  constructor(private readonly sizesService: SizesService) { }
 
   @Get()
   @ApiOperation({
@@ -62,6 +62,10 @@ export class AdminSizesController {
   @ApiResponse({ status: 404, description: 'Size không tồn tại' })
   @ApiResponse({ status: 409, description: 'Tên size đã tồn tại' })
   update(@Param('id') id: string, @Body() updateSizeDto: UpdateSizeDto) {
-    return this.sizesService.update(parseInt(id), updateSizeDto);
+    const sizeId = parseInt(id, 10);
+    if (isNaN(sizeId)) {
+      throw new BadRequestException('ID size không hợp lệ');
+    }
+    return this.sizesService.update(sizeId, updateSizeDto);
   }
 }

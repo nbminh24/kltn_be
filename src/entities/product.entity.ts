@@ -49,11 +49,17 @@ export class Product {
   @Column({ type: 'int', default: 0 })
   total_reviews: number;
 
+  @Column({ type: 'jsonb', default: '{}' })
+  attributes: any;
+
   @CreateDateColumn({ type: 'timestamp with time zone' })
   created_at: Date;
 
   @UpdateDateColumn({ type: 'timestamp with time zone' })
   updated_at: Date;
+
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  deleted_at: Date;
 
   // Relations
   @ManyToOne(() => Category, category => category.products, { onDelete: 'SET NULL' })

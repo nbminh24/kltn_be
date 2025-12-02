@@ -9,6 +9,7 @@ import {
   Body,
   ParseBoolPipe,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
@@ -20,7 +21,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AdminImagesController {
-  constructor(private readonly imagesService: ProductImagesService) {}
+  constructor(private readonly imagesService: ProductImagesService) { }
 
   @Post('variants/:id/images')
   @ApiOperation({
@@ -66,8 +67,12 @@ export class AdminImagesController {
     @UploadedFiles() files: Express.Multer.File[],
     @Query('is_main') isMain?: string,
   ) {
+    const variantId = parseInt(id, 10);
+    if (isNaN(variantId)) {
+      throw new BadRequestException('ID variant không hợp lệ');
+    }
     const isMainBool = isMain === 'true';
-    return this.imagesService.uploadImages(parseInt(id), files, isMainBool);
+    return this.imagesService.uploadImages(variantId, files, isMainBool);
   }
 
   @Delete('images/:id')
@@ -81,6 +86,10 @@ export class AdminImagesController {
   })
   @ApiResponse({ status: 404, description: 'Image không tồn tại' })
   deleteImage(@Param('id') id: string) {
-    return this.imagesService.deleteImage(parseInt(id));
+    const imageId = parseInt(id, 10);
+    if (isNaN(imageId)) {
+      throw new BadRequestException('ID image không hợp lệ');
+    }
+    return this.imagesService.deleteImage(imageId);
   }
 }

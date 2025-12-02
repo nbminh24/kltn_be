@@ -13,7 +13,7 @@ class ChatbotRequestDto {
 @ApiTags('AI')
 @Controller('ai')
 export class AiController {
-  constructor(private readonly aiService: AiService) {}
+  constructor(private readonly aiService: AiService) { }
 
   @Post('chatbot')
   @Public()
@@ -24,7 +24,9 @@ export class AiController {
   })
   @ApiResponse({ status: 200, description: 'Nhận được phản hồi từ chatbot' })
   async chatbot(@Body() body: ChatbotRequestDto, @CurrentUser() user?: any) {
-    return this.aiService.chatbot(body.message, body.session_id, user?.userId);
+    // customerId is number from JWT, or undefined if not logged in
+    const customerId = user?.customerId ? parseInt(user.customerId) : undefined;
+    return this.aiService.chatbot(body.message, body.session_id, customerId);
   }
 
   @Post('search/image')

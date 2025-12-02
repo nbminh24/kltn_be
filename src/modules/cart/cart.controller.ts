@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { CartService } from './cart.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -7,15 +7,15 @@ import { AddToCartDto } from './dto/add-to-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { ApplyCouponDto } from './dto/apply-coupon.dto';
 
-@ApiTags('Cart')
+@ApiTags('🛒 Cart & Checkout')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('cart')
 export class CartController {
-  constructor(private readonly cartService: CartService) {}
+  constructor(private readonly cartService: CartService) { }
 
   @Get()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: '[UC-C10] Xem giỏ hàng',
     description: 'Lấy danh sách tất cả variants trong giỏ hàng của khách hàng. Bao gồm thông tin sản phẩm, size, color, số lượng và tổng tiền.'
   })
@@ -25,7 +25,7 @@ export class CartController {
   }
 
   @Post('items')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: '[UC-C10] Thêm vào giỏ hàng',
     description: 'Thêm variant vào giỏ hàng. Nếu variant đã tồn tại, tăng số lượng (cộng dồn). Kiểm tra tồn kho trước khi thêm.'
   })
@@ -40,7 +40,7 @@ export class CartController {
   }
 
   @Put('items/:id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: '[UC-C10] Cập nhật số lượng',
     description: 'Thay đổi số lượng của một cart item. Kiểm tra tồn kho khả dụng trước khi cập nhật.'
   })
@@ -48,22 +48,30 @@ export class CartController {
   @ApiResponse({ status: 400, description: 'Không đủ hàng' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy cart item' })
   updateItem(@CurrentUser() user: any, @Param('id') id: string, @Body() body: UpdateCartItemDto) {
-    return this.cartService.updateItem(user.sub, parseInt(id), body.quantity);
+    const cartItemId = parseInt(id, 10);
+    if (isNaN(cartItemId)) {
+      throw new BadRequestException('ID giỏ hàng không hợp lệ');
+    }
+    return this.cartService.updateItem(user.sub, cartItemId, body.quantity);
   }
 
   @Delete('items/:id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: '[UC-C10] Xóa khỏi giỏ hàng',
     description: 'Xóa một cart item khỏi giỏ hàng của khách hàng.'
   })
   @ApiResponse({ status: 200, description: 'Xóa thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy cart item' })
   removeItem(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.cartService.removeItem(user.sub, parseInt(id));
+    const cartItemId = parseInt(id, 10);
+    if (isNaN(cartItemId)) {
+      throw new BadRequestException('ID giỏ hàng không hợp lệ');
+    }
+    return this.cartService.removeItem(user.sub, cartItemId);
   }
 
   @Post('apply-coupon')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Áp dụng mã giảm giá (Coming soon)',
     description: 'Kiểm tra và áp dụng mã giảm giá (coupon) cho giỏ hàng. Tính năng đang phát triển.'
   })
@@ -71,5 +79,25 @@ export class CartController {
   @ApiResponse({ status: 400, description: 'Mã giảm giá không hợp lệ hoặc đã hết hạn' })
   applyCoupon(@CurrentUser() user: any, @Body() body: ApplyCouponDto) {
     return this.cartService.applyCoupon(user.sub, body.code);
+  }
+
+  @Delete('clear')
+  @ApiOperation({
+    summary: '[UC-C10] Xóa toàn bộ giỏ hàng',
+    description: 'Xóa tất cả cart items của khách hàng.',
+  })
+  @ApiResponse({ status: 200, description: 'Đã xóa toàn bộ giỏ hàng' })
+  clearCart(@CurrentUser() user: any) {
+    return this.cartService.clearCart(user.sub);
+  }
+
+  @Post('merge')
+  @ApiOperation({
+    summary: 'Merge cart session vào customer cart',
+    description: 'Gộp cart từ session (guest) vào cart của customer sau khi login.',
+  })
+  @ApiResponse({ status: 200, description: 'Merge cart thành công' })
+  mergeCart(@CurrentUser() user: any, @Body() body: any) {
+    return this.cartService.mergeCart(user.sub, body.session_id);
   }
 }

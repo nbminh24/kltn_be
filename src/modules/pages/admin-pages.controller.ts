@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { PagesService } from './pages.service';
 import { CreatePageDto } from './dto/create-page.dto';
@@ -11,7 +11,7 @@ import { AdminGuard } from '../../common/guards/admin.guard';
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/pages')
 export class AdminPagesController {
-  constructor(private readonly pagesService: PagesService) {}
+  constructor(private readonly pagesService: PagesService) { }
 
   @Post()
   @ApiOperation({
@@ -42,7 +42,11 @@ export class AdminPagesController {
   @ApiResponse({ status: 200, description: 'Chi tiết trang' })
   @ApiResponse({ status: 404, description: 'Trang không tồn tại' })
   getPageById(@Param('id') id: string) {
-    return this.pagesService.getPageById(parseInt(id));
+    const pageId = parseInt(id, 10);
+    if (isNaN(pageId)) {
+      throw new BadRequestException('ID trang không hợp lệ');
+    }
+    return this.pagesService.getPageById(pageId);
   }
 
   @Put(':id')
@@ -54,7 +58,11 @@ export class AdminPagesController {
   @ApiResponse({ status: 404, description: 'Trang không tồn tại' })
   @ApiResponse({ status: 409, description: 'Slug đã tồn tại' })
   updatePage(@Param('id') id: string, @Body() updatePageDto: UpdatePageDto) {
-    return this.pagesService.updatePage(parseInt(id), updatePageDto);
+    const pageId = parseInt(id, 10);
+    if (isNaN(pageId)) {
+      throw new BadRequestException('ID trang không hợp lệ');
+    }
+    return this.pagesService.updatePage(pageId, updatePageDto);
   }
 
   @Delete(':id')
@@ -65,6 +73,10 @@ export class AdminPagesController {
   @ApiResponse({ status: 200, description: 'Xóa thành công' })
   @ApiResponse({ status: 404, description: 'Trang không tồn tại' })
   deletePage(@Param('id') id: string) {
-    return this.pagesService.deletePage(parseInt(id));
+    const pageId = parseInt(id, 10);
+    if (isNaN(pageId)) {
+      throw new BadRequestException('ID trang không hợp lệ');
+    }
+    return this.pagesService.deletePage(pageId);
   }
 }

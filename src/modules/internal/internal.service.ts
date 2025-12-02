@@ -9,7 +9,6 @@ import { Customer } from '../../entities/customer.entity';
 import { Promotion } from '../../entities/promotion.entity';
 import { SupportTicket } from '../../entities/support-ticket.entity';
 import { ProductNotification } from '../../entities/product-notification.entity';
-import { User } from '../../entities/user.entity';
 import { IdGenerator } from '../../common/utils/id-generator';
 import { SizingAdviceDto } from './dto/sizing-advice.dto';
 import { ValidateDiscountDto } from './dto/validate-discount.dto';
@@ -35,8 +34,6 @@ export class InternalService {
     private ticketRepository: Repository<SupportTicket>,
     @InjectRepository(ProductNotification)
     private notificationRepository: Repository<ProductNotification>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
   ) { }
 
   async getOrderById(orderId: string) {
@@ -189,6 +186,75 @@ export class InternalService {
         })) || [],
       })),
       total_orders: orders.length,
+    };
+  }
+
+  /**
+   * Search Variants
+   */
+  async searchVariants(params: {
+    product_id?: number;
+    sku?: string;
+    size?: string;
+    color?: string;
+    in_stock?: boolean;
+    limit?: number;
+  }) {
+    const { product_id, sku, size, color, in_stock, limit = 20 } = params;
+
+    const queryBuilder = this.variantRepository
+      .createQueryBuilder('v')
+      .leftJoinAndSelect('v.product', 'p')
+      .leftJoinAndSelect('v.size', 's')
+      .leftJoinAndSelect('v.color', 'c')
+      .leftJoinAndSelect('v.images', 'img')
+      .leftJoinAndSelect('p.category', 'cat')
+      .where('v.status = :status', { status: 'active' })
+      .andWhere('p.status = :pStatus', { pStatus: 'active' });
+
+    if (product_id) {
+      queryBuilder.andWhere('v.product_id = :product_id', { product_id });
+    }
+
+    if (sku) {
+      queryBuilder.andWhere('v.sku ILIKE :sku', { sku: `%${sku}%` });
+    }
+
+    if (size) {
+      queryBuilder.andWhere('s.name ILIKE :size', { size: `%${size}%` });
+    }
+
+    if (color) {
+      queryBuilder.andWhere('c.name ILIKE :color', { color: `%${color}%` });
+    }
+
+    if (in_stock === true) {
+      queryBuilder.andWhere('v.total_stock > v.reserved_stock');
+    }
+
+    const variants = await queryBuilder.limit(limit).getMany();
+
+    return {
+      variants: variants.map(v => ({
+        variant_id: v.id,
+        product_id: v.product_id,
+        product_name: v.product?.name,
+        product_slug: v.product?.slug,
+        variant_name: v.name,
+        sku: v.sku,
+        size: v.size?.name || null,
+        color: v.color?.name || null,
+        color_hex: v.color?.hex_code || null,
+        total_stock: v.total_stock,
+        reserved_stock: v.reserved_stock,
+        available_stock: v.total_stock - v.reserved_stock,
+        status: v.status,
+        price: v.product?.selling_price,
+        category: v.product?.category?.name,
+        images: v.images?.map(img => img.image_url) || [],
+        main_image: v.images?.find(img => img.is_main)?.image_url || v.images?.[0]?.image_url || null,
+      })),
+      count: variants.length,
     };
   }
 
@@ -438,8 +504,9 @@ export class InternalService {
     const product = await this.productRepository.findOne({ where: { id: product_id } });
     if (!product) throw new NotFoundException('Không tìm thấy sản phẩm');
 
-    const user = await this.userRepository.findOne({ where: { id: user_id.toString() } });
-    if (!user) throw new NotFoundException('Không tìm thấy người dùng');
+    // Check customer exists (dùng customer thay vì user)
+    const customer = await this.customerRepository.findOne({ where: { id: user_id } });
+    if (!customer) throw new NotFoundException('Không tìm thấy người dùng');
 
     const existing = await this.notificationRepository.findOne({
       where: {
@@ -488,8 +555,9 @@ export class InternalService {
   async createTicketInternal(dto: CreateTicketInternalDto) {
     const { order_id, user_id, issue_type, product_sku, description } = dto;
 
-    const user = await this.userRepository.findOne({ where: { id: user_id.toString() } });
-    if (!user) throw new NotFoundException('Không tìm thấy người dùng');
+    // Check customer exists (dùng customer thay vì user)
+    const customer = await this.customerRepository.findOne({ where: { id: user_id } });
+    if (!customer) throw new NotFoundException('Không tìm thấy người dùng');
 
     const subjectMap: Record<string, string> = {
       missing_item: 'Thiếu sản phẩm',
@@ -506,12 +574,17 @@ export class InternalService {
     if (product_sku) message += `SKU: ${product_sku}\n`;
     message += `\n(Ticket từ chatbot)`;
 
+    // Generate unique ticket_code
+    const ticketCode = `TICKET-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
     const ticket = this.ticketRepository.create({
-      user_id,
+      ticket_code: ticketCode,
+      customer_id: user_id,
       subject,
       message,
       status: 'pending',
       priority: ['damaged_item', 'wrong_item'].includes(issue_type) ? 'high' : 'medium',
+      source: 'chatbot',
     });
 
     await this.ticketRepository.save(ticket);

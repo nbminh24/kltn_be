@@ -5,10 +5,10 @@ import { CreateReviewDto } from './dto/create-review.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
-@ApiTags('Reviews')
+@ApiTags('⭐ Reviews')
 @Controller('reviews')
 export class ReviewsController {
-  constructor(private readonly reviewsService: ReviewsService) {}
+  constructor(private readonly reviewsService: ReviewsService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -34,5 +34,17 @@ export class ReviewsController {
   @ApiResponse({ status: 200, description: 'Danh sách sản phẩm có thể đánh giá' })
   getReviewableItems(@CurrentUser() user: any) {
     return this.reviewsService.getReviewableItems(user.sub);
+  }
+
+  @Get('customers/me/reviews')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Lấy reviews đã viết',
+    description: 'Lấy danh sách tất cả reviews mà khách hàng đã viết.',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách reviews' })
+  getMyReviews(@CurrentUser() user: any) {
+    return this.reviewsService.getMyReviews(user.sub);
   }
 }

@@ -14,7 +14,7 @@ export class CartService {
     private cartItemRepository: Repository<CartItem>,
     @InjectRepository(ProductVariant)
     private variantRepository: Repository<ProductVariant>,
-  ) {}
+  ) { }
 
   async getOrCreateCart(customerId: number): Promise<Cart> {
     let cart = await this.cartRepository.findOne({
@@ -32,7 +32,7 @@ export class CartService {
 
   async getCart(customerId: number) {
     const cart = await this.getOrCreateCart(customerId);
-    
+
     const items = await this.cartItemRepository.find({
       where: { cart_id: cart.id },
       relations: ['variant', 'variant.product', 'variant.size', 'variant.color'],
@@ -58,7 +58,7 @@ export class CartService {
     const cart = await this.getOrCreateCart(customerId);
 
     // Check if variant exists and is active
-    const variant = await this.variantRepository.findOne({ 
+    const variant = await this.variantRepository.findOne({
       where: { id: data.variant_id, status: 'active' },
     });
     if (!variant) {
@@ -103,7 +103,7 @@ export class CartService {
 
   async updateItem(customerId: number, itemId: number, quantity: number) {
     const cart = await this.getOrCreateCart(customerId);
-    
+
     const item = await this.cartItemRepository.findOne({
       where: { id: itemId, cart_id: cart.id },
       relations: ['variant'],
@@ -143,5 +143,72 @@ export class CartService {
   async applyCoupon(customerId: number, code: string) {
     // TODO: Implement promotion logic
     throw new BadRequestException('Coupon feature not yet implemented');
+  }
+
+  async clearCart(customerId: number) {
+    const cart = await this.getOrCreateCart(customerId);
+
+    // Delete all cart items
+    await this.cartItemRepository.delete({ cart_id: cart.id });
+
+    return {
+      message: 'Giỏ hàng đã được xóa',
+      cart_id: cart.id,
+    };
+  }
+
+  async mergeCart(customerId: number, sessionId: string) {
+    // Get session cart
+    const sessionCart = await this.cartRepository.findOne({
+      where: { session_id: sessionId },
+      relations: ['items'],
+    });
+
+    if (!sessionCart || sessionCart.items.length === 0) {
+      return {
+        message: 'Không có giỏ hàng session để merge',
+        merged_count: 0,
+      };
+    }
+
+    // Get or create customer cart
+    const customerCart = await this.getOrCreateCart(customerId);
+
+    // Merge items
+    let mergedCount = 0;
+    for (const item of sessionCart.items) {
+      // Check if variant already exists in customer cart
+      const existingItem = await this.cartItemRepository.findOne({
+        where: {
+          cart_id: customerCart.id,
+          variant_id: item.variant_id,
+        },
+      });
+
+      if (existingItem) {
+        // Update quantity
+        existingItem.quantity += item.quantity;
+        await this.cartItemRepository.save(existingItem);
+      } else {
+        // Create new item
+        const newItem = this.cartItemRepository.create({
+          cart_id: customerCart.id,
+          variant_id: item.variant_id,
+          quantity: item.quantity,
+        });
+        await this.cartItemRepository.save(newItem);
+      }
+      mergedCount++;
+    }
+
+    // Delete session cart
+    await this.cartItemRepository.delete({ cart_id: sessionCart.id });
+    await this.cartRepository.delete({ id: sessionCart.id });
+
+    return {
+      message: 'Merge cart thành công',
+      merged_count: mergedCount,
+      customer_cart_id: customerCart.id,
+    };
   }
 }

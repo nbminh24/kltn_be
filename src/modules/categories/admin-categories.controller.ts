@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -10,7 +10,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AdminCategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) {}
+  constructor(private readonly categoriesService: CategoriesService) { }
 
   @Get('stats')
   @ApiOperation({
@@ -62,6 +62,33 @@ export class AdminCategoriesController {
     return this.categoriesService.findAllForAdmin();
   }
 
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Lấy thông tin chi tiết category',
+    description: 'Lấy thông tin chi tiết một category theo ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Chi tiết category',
+    schema: {
+      example: {
+        id: 1,
+        name: 'T-Shirts',
+        slug: 't-shirts',
+        status: 'active',
+        product_count: 45,
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Category không tồn tại' })
+  findOne(@Param('id') id: string) {
+    const categoryId = parseInt(id, 10);
+    if (isNaN(categoryId)) {
+      throw new BadRequestException('ID category không hợp lệ');
+    }
+    return this.categoriesService.findOne(categoryId);
+  }
+
   @Post()
   @ApiOperation({
     summary: 'Tạo category mới',
@@ -106,6 +133,34 @@ export class AdminCategoriesController {
   @ApiResponse({ status: 404, description: 'Category không tồn tại' })
   @ApiResponse({ status: 409, description: 'Tên category đã tồn tại' })
   update(@Param('id') id: string, @Body() updateCategoryDto: UpdateCategoryDto) {
-    return this.categoriesService.update(parseInt(id), updateCategoryDto);
+    const categoryId = parseInt(id, 10);
+    if (isNaN(categoryId)) {
+      throw new BadRequestException('ID category không hợp lệ');
+    }
+    return this.categoriesService.update(categoryId, updateCategoryDto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({
+    summary: 'Xóa category',
+    description: 'Xóa category. Không thể xóa nếu còn sản phẩm.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Xóa thành công',
+    schema: {
+      example: {
+        message: 'Xóa category thành công',
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Category không tồn tại' })
+  @ApiResponse({ status: 409, description: 'Không thể xóa vì còn sản phẩm' })
+  delete(@Param('id') id: string) {
+    const categoryId = parseInt(id, 10);
+    if (isNaN(categoryId)) {
+      throw new BadRequestException('ID category không hợp lệ');
+    }
+    return this.categoriesService.delete(categoryId);
   }
 }

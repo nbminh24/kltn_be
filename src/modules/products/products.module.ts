@@ -19,6 +19,7 @@ import { Order } from '../../entities/order.entity';
 import { OrderItem } from '../../entities/order-item.entity';
 import { Promotion } from '../../entities/promotion.entity';
 import { PromotionProduct } from '../../entities/promotion-product.entity';
+import { ProductNotification } from '../../entities/product-notification.entity';
 import { CommonModule } from '../../common/common.module';
 
 @Module({
@@ -35,6 +36,7 @@ import { CommonModule } from '../../common/common.module';
       OrderItem,
       Promotion,
       PromotionProduct,
+      ProductNotification,
     ]),
     CommonModule,
   ],
@@ -57,4 +59,4 @@ import { CommonModule } from '../../common/common.module';
     ProductImagesService,
   ],
 })
-export class ProductsModule {}
+export class ProductsModule { }

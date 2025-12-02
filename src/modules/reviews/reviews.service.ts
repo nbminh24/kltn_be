@@ -22,7 +22,7 @@ export class ReviewsService {
     private variantRepository: Repository<ProductVariant>,
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
-  ) {}
+  ) { }
 
   // Customer creates a review
   async createReview(customerId: number, createReviewDto: CreateReviewDto) {
@@ -99,6 +99,34 @@ export class ReviewsService {
       .getRawMany();
 
     return { data: items };
+  }
+
+  // Customer get their reviews
+  async getMyReviews(customerId: number) {
+    const reviews = await this.reviewRepository.find({
+      where: { customer_id: customerId },
+      relations: ['variant', 'variant.product', 'variant.size', 'variant.color'],
+      order: { created_at: 'DESC' },
+    });
+
+    return {
+      reviews: reviews.map(r => ({
+        id: r.id,
+        rating: r.rating,
+        comment: r.comment,
+        status: r.status,
+        created_at: r.created_at,
+        product: {
+          id: r.variant.product.id,
+          name: r.variant.product.name,
+          thumbnail: r.variant.product.thumbnail_url,
+        },
+        variant: {
+          size: r.variant.size?.name,
+          color: r.variant.color?.name,
+        },
+      })),
+    };
   }
 
   // Admin get all reviews

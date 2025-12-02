@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Patch, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Patch, Param, Body, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ProductVariantsService } from './product-variants.service';
 import { UpdateVariantDto } from './dto/update-variant.dto';
@@ -9,7 +9,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AdminVariantsController {
-  constructor(private readonly variantsService: ProductVariantsService) {}
+  constructor(private readonly variantsService: ProductVariantsService) { }
 
   @Get('products/:id/variants')
   @ApiOperation({
@@ -40,7 +40,11 @@ export class AdminVariantsController {
     },
   })
   findVariantsByProduct(@Param('id') id: string) {
-    return this.variantsService.findByProduct(parseInt(id));
+    const productId = parseInt(id, 10);
+    if (isNaN(productId)) {
+      throw new BadRequestException('ID sản phẩm không hợp lệ');
+    }
+    return this.variantsService.findByProduct(productId);
   }
 
   @Put('variants/:id')
@@ -59,6 +63,10 @@ export class AdminVariantsController {
     @Param('id') id: string,
     @Body() updateVariantDto: UpdateVariantDto,
   ) {
-    return this.variantsService.update(parseInt(id), updateVariantDto);
+    const variantId = parseInt(id, 10);
+    if (isNaN(variantId)) {
+      throw new BadRequestException('ID variant không hợp lệ');
+    }
+    return this.variantsService.update(variantId, updateVariantDto);
   }
 }

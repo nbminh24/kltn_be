@@ -6,8 +6,8 @@ import { Repository } from 'typeorm';
 import { firstValueFrom } from 'rxjs';
 import { ProductImage } from '../../entities/product-image.entity';
 import { Product } from '../../entities/product.entity';
-import { ChatbotConversation } from '../../entities/chatbot-conversation.entity';
-import { ChatbotMessage } from '../../entities/chatbot-message.entity';
+import { ChatSession } from '../../entities/chat-session.entity';
+import { ChatMessage } from '../../entities/chat-message.entity';
 import { IdGenerator } from '../../common/utils/id-generator';
 
 @Injectable()
@@ -19,13 +19,13 @@ export class AiService {
     private productImageRepository: Repository<ProductImage>,
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
-    @InjectRepository(ChatbotConversation)
-    private conversationRepository: Repository<ChatbotConversation>,
-    @InjectRepository(ChatbotMessage)
-    private messageRepository: Repository<ChatbotMessage>,
-  ) {}
+    @InjectRepository(ChatSession)
+    private sessionRepository: Repository<ChatSession>,
+    @InjectRepository(ChatMessage)
+    private messageRepository: Repository<ChatMessage>,
+  ) { }
 
-  async chatbot(message: string, sessionId: string, userId?: string) {
+  async chatbot(message: string, sessionId: string, customerId?: number) {
     const rasaUrl = this.configService.get<string>('RASA_SERVER_URL');
 
     try {
@@ -37,41 +37,35 @@ export class AiService {
         }),
       );
 
-      // Save conversation to database
-      let conversation = await this.conversationRepository.findOne({
-        where: { session_id: sessionId },
+      // Find or create chat session
+      let session = await this.sessionRepository.findOne({
+        where: customerId ? { customer_id: customerId } : { visitor_id: sessionId },
       });
 
-      if (!conversation) {
-        conversation = this.conversationRepository.create({
-          id: IdGenerator.generate('conv'),
-          user_id: userId || null,
-          session_id: sessionId,
-          message_count: 0,
+      if (!session) {
+        session = this.sessionRepository.create({
+          customer_id: customerId || null,
+          visitor_id: customerId ? null : sessionId,
         });
+        await this.sessionRepository.save(session);
       }
-
-      conversation.last_message = message;
-      conversation.message_count += 1;
-      await this.conversationRepository.save(conversation);
 
       // Save user message
       await this.messageRepository.save({
-        id: IdGenerator.generate('msg'),
-        conversation_id: conversation.id,
-        sender: 'user',
+        session_id: session.id,
+        sender: 'customer',
         message: message,
+        is_read: false,
       });
 
       // Save bot responses
       const botResponses = response.data || [];
       for (const botMsg of botResponses) {
         await this.messageRepository.save({
-          id: IdGenerator.generate('msg'),
-          conversation_id: conversation.id,
+          session_id: session.id,
           sender: 'bot',
           message: botMsg.text || '',
-          image_url: botMsg.image || null,
+          is_read: false,
         });
       }
 

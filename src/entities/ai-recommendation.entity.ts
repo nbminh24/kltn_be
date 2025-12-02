@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { User } from './user.entity';
+import { Customer } from './customer.entity';
 import { Product } from './product.entity';
 
 @Entity('ai_recommendations')
@@ -26,9 +26,9 @@ export class AiRecommendation {
   expires_at: Date;
 
   // Relations
-  @ManyToOne(() => User, user => user.recommendations, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Customer, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
-  user: User;
+  customer: Customer;
 
   @ManyToOne(() => Product, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'product_id' })
