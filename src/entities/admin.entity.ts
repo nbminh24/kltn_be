@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  CreateDateColumn,
 } from 'typeorm';
 
 @Entity('admins')
@@ -18,6 +19,9 @@ export class Admin {
   @Column({ type: 'text' })
   password_hash: string;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: 'varchar', default: 'admin' })
   role: string;
+
+  @CreateDateColumn({ type: 'timestamp with time zone', default: () => 'CURRENT_TIMESTAMP' })
+  created_at: Date;
 }

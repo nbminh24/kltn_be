@@ -14,7 +14,9 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "typeorm": "typeorm-ts-node-commonjs",
-    "migration:run": "ts-node scripts/run-migration.ts"
+    "migration:run": "ts-node scripts/run-migration.ts",
+    "admin:reset-password": "ts-node scripts/reset-admin-password.ts",
+    "admin:quick-reset": "ts-node scripts/quick-reset-admin.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^3.0.2",
