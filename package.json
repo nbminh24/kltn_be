@@ -16,7 +16,9 @@
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:run": "ts-node scripts/run-migration.ts",
     "admin:reset-password": "ts-node scripts/reset-admin-password.ts",
-    "admin:quick-reset": "ts-node scripts/quick-reset-admin.ts"
+    "admin:quick-reset": "ts-node scripts/quick-reset-admin.ts",
+    "seed": "ts-node scripts/seed-data.ts",
+    "clear-data": "ts-node scripts/clear-data.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^3.0.2",

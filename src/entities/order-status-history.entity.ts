@@ -26,6 +26,9 @@ export class OrderStatusHistory {
   @CreateDateColumn({ type: 'timestamp with time zone' })
   created_at: Date;
 
+  @Column({ type: 'text', nullable: true })
+  note: string;
+
   // Relations
   @ManyToOne(() => Order)
   @JoinColumn({ name: 'order_id' })

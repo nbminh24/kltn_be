@@ -5,6 +5,7 @@ import { Order } from '../../entities/order.entity';
 import { OrderItem } from '../../entities/order-item.entity';
 import { Cart } from '../../entities/cart.entity';
 import { CartItem } from '../../entities/cart-item.entity';
+import { Customer } from '../../entities/customer.entity';
 import { CustomerAddress } from '../../entities/customer-address.entity';
 import { ProductVariant } from '../../entities/product-variant.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -20,12 +21,14 @@ export class CheckoutService {
     private cartRepository: Repository<Cart>,
     @InjectRepository(CartItem)
     private cartItemRepository: Repository<CartItem>,
+    @InjectRepository(Customer)
+    private customerRepository: Repository<Customer>,
     @InjectRepository(CustomerAddress)
     private addressRepository: Repository<CustomerAddress>,
     @InjectRepository(ProductVariant)
     private variantRepository: Repository<ProductVariant>,
     private dataSource: DataSource,
-  ) {}
+  ) { }
 
   /**
    * UC-C11: Create order from cart with transaction
@@ -54,7 +57,16 @@ export class CheckoutService {
         throw new BadRequestException('Giỏ hàng trống');
       }
 
-      // 2. Get shipping address
+      // 2. Get customer info for email
+      const customer = await queryRunner.manager.findOne(Customer, {
+        where: { id: customerId },
+      });
+
+      if (!customer) {
+        throw new NotFoundException('Không tìm thấy thông tin khách hàng');
+      }
+
+      // 3. Get shipping address
       const address = await queryRunner.manager.findOne(CustomerAddress, {
         where: { id: dto.customer_address_id, customer_id: customerId },
       });
@@ -63,7 +75,7 @@ export class CheckoutService {
         throw new NotFoundException('Không tìm thấy địa chỉ giao hàng');
       }
 
-      // 3. Check stock for all items
+      // 4. Check stock for all items
       for (const item of cartItems) {
         const variant = await queryRunner.manager.findOne(ProductVariant, {
           where: { id: item.variant_id },
@@ -77,7 +89,7 @@ export class CheckoutService {
         }
       }
 
-      // 4. Calculate total amount
+      // 5. Calculate total amount
       let subtotal = 0;
       for (const item of cartItems) {
         const price = parseFloat(item.variant.product.selling_price?.toString() || '0');
@@ -87,9 +99,10 @@ export class CheckoutService {
       const shippingFee = dto.shipping_fee || 0;
       const totalAmount = subtotal + shippingFee;
 
-      // 5. Create order
+      // 6. Create order
       const order = queryRunner.manager.create(Order, {
         customer_id: customerId,
+        customer_email: customer.email,
         shipping_address: address.detailed_address,
         shipping_phone: address.phone_number,
         total_amount: totalAmount,
@@ -101,7 +114,7 @@ export class CheckoutService {
 
       const savedOrder = await queryRunner.manager.save(Order, order);
 
-      // 6. Create order items and update stock
+      // 7. Create order items and update stock
       for (const item of cartItems) {
         const variant = item.variant;
         const sellingPrice = parseFloat(variant.product.selling_price?.toString() || '0');
@@ -126,7 +139,7 @@ export class CheckoutService {
         );
       }
 
-      // 7. Clear cart
+      // 8. Clear cart
       await queryRunner.manager.delete(CartItem, { cart_id: cart.id });
 
       // Commit transaction

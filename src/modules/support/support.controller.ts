@@ -4,6 +4,7 @@ import { SupportService } from './support.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 
 @ApiTags('🤖 Chatbot & Support')
@@ -12,14 +13,16 @@ export class SupportController {
   constructor(private readonly supportService: SupportService) { }
 
   @Post('support/tickets')
-  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
     summary: '[Chatbot Fallback] Gửi yêu cầu hỗ trợ',
-    description: 'Khách hàng gửi form liên hệ/hỗ trợ. Tạo ticket mới với status=pending và source=contact_form. Không cần đăng nhập.'
+    description: 'Khách hàng gửi form liên hệ/hỗ trợ. Tạo ticket mới với status=pending và source=contact_form. Nếu đã đăng nhập, tự động lấy email và customer_id từ account. Guest user cần nhập email.'
   })
   @ApiResponse({ status: 201, description: 'Yêu cầu hỗ trợ đã được gửi. Chúng tôi sẽ phản hồi sớm nhất.' })
-  createTicket(@Body() body: CreateTicketDto) {
-    return this.supportService.createTicket(body);
+  createTicket(@CurrentUser() user: any, @Body() body: CreateTicketDto) {
+    const customerId = user?.sub || null;
+    console.log('🎫 Support Ticket - Customer ID:', customerId);
+    return this.supportService.createTicket(body, customerId);
   }
 
   @Get('customers/me/tickets')

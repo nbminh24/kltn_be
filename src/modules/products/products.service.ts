@@ -305,11 +305,41 @@ export class ProductsService {
         ...product,
         flash_sale_price: promotion?.flash_sale_price || null,
         promotion: promotion?.promotion || null,
-      },
-      variants: variantsWithStock,
-      available_options: {
-        colors: availableColors,
-        sizes: availableSizes,
+        variants: variantsWithStock.map(variant => ({
+          id: variant.id,
+          sku: variant.sku,
+          size: variant.size ? {
+            id: variant.size.id,
+            name: variant.size.name,
+          } : null,
+          color: variant.color ? {
+            id: variant.color.id,
+            name: variant.color.name,
+            hex_code: variant.color.hex_code,
+          } : null,
+          total_stock: variant.total_stock,
+          reserved_stock: variant.reserved_stock,
+          available_stock: variant.available_stock,
+          status: variant.status,
+          images: variant.images?.map(img => ({
+            id: img.id,
+            image_url: img.image_url,
+            is_main: img.is_main,
+          })) || [],
+        })),
+        available_options: {
+          colors: availableColors.map(color => ({
+            id: color.id,
+            name: color.name,
+            hex_code: color.hex_code,
+            in_stock: true,
+          })),
+          sizes: availableSizes.map(size => ({
+            id: size.id,
+            name: size.name,
+            in_stock: true,
+          })),
+        },
       },
       related_products: relatedWithPromotions,
       reviews,

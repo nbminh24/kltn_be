@@ -506,7 +506,7 @@ export class AdminController {
     if (isNaN(orderId)) {
       throw new BadRequestException('ID đơn hàng không hợp lệ');
     }
-    return this.adminService.updateOrderStatusWithEmail(orderId, updateStatusDto.status, user.sub);
+    return this.adminService.updateOrderStatusWithEmail(orderId, updateStatusDto.status, user.sub, updateStatusDto.note);
   }
 
   // ==================== CUSTOMERS MANAGEMENT ====================

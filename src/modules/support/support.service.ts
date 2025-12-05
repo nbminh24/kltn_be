@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SupportTicket } from '../../entities/support-ticket.entity';
 import { SupportTicketReply } from '../../entities/support-ticket-reply.entity';
+import { Customer } from '../../entities/customer.entity';
 import { Page } from '../../entities/page.entity';
 import { IdGenerator } from '../../common/utils/id-generator';
 
@@ -13,19 +14,49 @@ export class SupportService {
     private ticketRepository: Repository<SupportTicket>,
     @InjectRepository(SupportTicketReply)
     private replyRepository: Repository<SupportTicketReply>,
+    @InjectRepository(Customer)
+    private customerRepository: Repository<Customer>,
     @InjectRepository(Page)
     private pageRepository: Repository<Page>,
   ) { }
 
-  async createTicket(data: any) {
+  async createTicket(data: any, customerId?: number) {
+    console.log('📋 CreateTicket - customerId from token:', customerId);
+    console.log('📋 CreateTicket - customer_email from body:', data.customer_email);
+
+    let customer_email = data.customer_email;
+    let customer_id = customerId || null;
+
+    // If authenticated, fetch customer info
+    if (customerId) {
+      const customer = await this.customerRepository.findOne({
+        where: { id: customerId },
+      });
+
+      if (customer) {
+        customer_id = customer.id;
+        customer_email = customer.email;
+        console.log('✅ Authenticated user - email auto-filled:', customer_email);
+      } else {
+        console.log('⚠️ Customer ID from token not found in database:', customerId);
+      }
+    }
+
+    // For guest users, require email
+    if (!customer_email) {
+      console.log('❌ No email available - guest user must provide email');
+      throw new BadRequestException('Email là bắt buộc đối với khách vãng lai');
+    }
+
     // Generate unique ticket code
     const ticket_code = `TKT-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 
     const ticket = this.ticketRepository.create({
       ticket_code,
-      customer_id: data.customer_id || null,
-      customer_email: data.customer_email,
+      customer_id,
+      customer_email,
       subject: data.subject,
+      message: data.message,
       source: 'contact_form',
       status: 'pending',
     });
@@ -35,6 +66,7 @@ export class SupportService {
     return {
       message: 'Yêu cầu hỗ trợ đã được gửi. Chúng tôi sẽ phản hồi sớm nhất qua email.',
       ticket_code: ticket.ticket_code,
+      ticket_id: ticket.id,
     };
   }
 

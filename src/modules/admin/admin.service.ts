@@ -376,15 +376,26 @@ export class AdminService {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
 
-    // Get status history if available
+    // Get status history with admin info
     const statusHistory = await this.statusHistoryRepository.find({
       where: { order_id: orderId },
+      relations: ['admin'],
       order: { created_at: 'ASC' },
     });
 
     return {
       ...order,
-      status_history: statusHistory,
+      status_history: statusHistory.map(h => ({
+        id: h.id,
+        status: h.status,
+        note: h.note,
+        created_at: h.created_at,
+        admin: h.admin ? {
+          id: h.admin.id,
+          name: h.admin.name,
+          email: h.admin.email,
+        } : null,
+      })),
     };
   }
 
@@ -1187,7 +1198,7 @@ export class AdminService {
   }
 
   // ==================== ORDER STATUS WITH EMAIL ====================
-  async updateOrderStatusWithEmail(orderId: number, status: string, adminId?: number) {
+  async updateOrderStatusWithEmail(orderId: number, status: string, adminId?: number, note?: string) {
     const order = await this.orderRepository.findOne({
       where: { id: orderId },
     });
@@ -1205,6 +1216,7 @@ export class AdminService {
       order_id: orderId,
       status,
       admin_id: adminId,
+      note: note || null,
     });
     await this.statusHistoryRepository.save(history);
 

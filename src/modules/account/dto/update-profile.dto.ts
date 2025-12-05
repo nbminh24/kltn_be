@@ -6,11 +6,8 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  full_name?: string;
+  name?: string;  // ✅ Changed from 'full_name' to 'name' to match entity
 
-  @ApiProperty({ example: '0901234567', required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  phone?: string;
+  // Note: Phone field removed - customers table has no phone column
+  // Phone is stored in customer_addresses table instead
 }

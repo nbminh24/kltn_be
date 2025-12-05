@@ -8,6 +8,7 @@ import { Order } from '../../entities/order.entity';
 import { OrderItem } from '../../entities/order-item.entity';
 import { Cart } from '../../entities/cart.entity';
 import { CartItem } from '../../entities/cart-item.entity';
+import { Customer } from '../../entities/customer.entity';
 import { CustomerAddress } from '../../entities/customer-address.entity';
 import { ProductVariant } from '../../entities/product-variant.entity';
 
@@ -18,6 +19,7 @@ import { ProductVariant } from '../../entities/product-variant.entity';
       OrderItem,
       Cart,
       CartItem,
+      Customer,
       CustomerAddress,
       ProductVariant,
     ]),
@@ -26,4 +28,4 @@ import { ProductVariant } from '../../entities/product-variant.entity';
   providers: [CheckoutService, PaymentService],
   exports: [CheckoutService, PaymentService],
 })
-export class CheckoutModule {}
+export class CheckoutModule { }

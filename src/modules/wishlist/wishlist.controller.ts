@@ -22,6 +22,18 @@ export class WishlistController {
     return this.wishlistService.getWishlist(user.sub);
   }
 
+  @Post()
+  @ApiOperation({
+    summary: '[UC-C9] Thêm vào wishlist',
+    description: 'Thêm variant vào danh sách yêu thích. Nếu đã có sẽ trả về lỗi 400.'
+  })
+  @ApiResponse({ status: 201, description: 'Thêm vào wishlist thành công' })
+  @ApiResponse({ status: 400, description: 'Variant đã có trong wishlist' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy variant' })
+  addToWishlist(@CurrentUser() user: any, @Body() body: AddToWishlistDto) {
+    return this.wishlistService.addToWishlist(user.sub, body.variant_id);
+  }
+
   @Post('toggle')
   @ApiOperation({
     summary: '[UC-C9] Toggle wishlist (Thêm/Xóa)',
@@ -31,6 +43,16 @@ export class WishlistController {
   @ApiResponse({ status: 404, description: 'Không tìm thấy variant' })
   toggleWishlist(@CurrentUser() user: any, @Body() body: AddToWishlistDto) {
     return this.wishlistService.toggleWishlist(user.sub, body.variant_id);
+  }
+
+  @Delete('clear')
+  @ApiOperation({
+    summary: '[UC-C9] Xóa toàn bộ wishlist',
+    description: 'Xóa tất cả items trong danh sách yêu thích của khách hàng.'
+  })
+  @ApiResponse({ status: 200, description: 'Xóa thành công' })
+  clearWishlist(@CurrentUser() user: any) {
+    return this.wishlistService.clearWishlist(user.sub);
   }
 
   @Delete(':variantId')
