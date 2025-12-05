@@ -83,9 +83,9 @@ export class AdminService {
     });
 
     const totalRevenue = await this.orderRepository
-      .createQueryBuilder('order')
-      .select('SUM(order.total)', 'total')
-      .where('order.status != :status', { status: 'Cancelled' })
+      .createQueryBuilder('o')
+      .select('SUM(o.total_amount)', 'total')
+      .where('o.fulfillment_status != :status', { status: 'cancelled' })
       .getRawOne();
 
     return {
@@ -120,16 +120,16 @@ export class AdminService {
 
   async getTopProducts(limit: number = 10) {
     const topProducts = await this.orderRepository
-      .createQueryBuilder('order')
-      .innerJoin('order.items', 'item')
+      .createQueryBuilder('o')
+      .innerJoin('o.items', 'item')
       .innerJoin('item.variant', 'variant')
       .innerJoin('variant.product', 'product')
       .select('product.id', 'product_id')
       .addSelect('product.name', 'product_name')
       .addSelect('product.thumbnail_url', 'thumbnail_url')
       .addSelect('SUM(item.quantity)', 'total_sold')
-      .addSelect('SUM(item.quantity * item.price)', 'revenue')
-      .where('order.fulfillment_status != :status', { status: 'cancelled' })
+      .addSelect('SUM(item.quantity * item.price_at_purchase)', 'revenue')
+      .where('o.fulfillment_status != :status', { status: 'cancelled' })
       .groupBy('product.id')
       .addGroupBy('product.name')
       .addGroupBy('product.thumbnail_url')
@@ -155,13 +155,13 @@ export class AdminService {
     startDate.setDate(startDate.getDate() - daysBack);
 
     const revenueData = await this.orderRepository
-      .createQueryBuilder('order')
-      .select("DATE(order.created_at)", 'date')
-      .addSelect('COUNT(order.id)', 'orders')
-      .addSelect('SUM(order.total_amount)', 'revenue')
-      .where('order.created_at >= :startDate', { startDate })
-      .andWhere('order.fulfillment_status != :status', { status: 'cancelled' })
-      .groupBy('DATE(order.created_at)')
+      .createQueryBuilder('o')
+      .select("DATE(o.created_at)", 'date')
+      .addSelect('COUNT(o.id)', 'orders')
+      .addSelect('SUM(o.total_amount)', 'revenue')
+      .where('o.created_at >= :startDate', { startDate })
+      .andWhere('o.fulfillment_status != :status', { status: 'cancelled' })
+      .groupBy('DATE(o.created_at)')
       .orderBy('date', 'ASC')
       .getRawMany();
 
@@ -178,11 +178,11 @@ export class AdminService {
     prevStartDate.setDate(prevStartDate.getDate() - daysBack);
 
     const prevRevenue = await this.orderRepository
-      .createQueryBuilder('order')
-      .select('SUM(order.total_amount)', 'total')
-      .where('order.created_at >= :prevStart', { prevStart: prevStartDate })
-      .andWhere('order.created_at < :startDate', { startDate })
-      .andWhere('order.fulfillment_status != :status', { status: 'cancelled' })
+      .createQueryBuilder('o')
+      .select('SUM(o.total_amount)', 'total')
+      .where('o.created_at >= :prevStart', { prevStart: prevStartDate })
+      .andWhere('o.created_at < :startDate', { startDate })
+      .andWhere('o.fulfillment_status != :status', { status: 'cancelled' })
       .getRawOne();
 
     const previousTotal = parseFloat(prevRevenue?.total || 0);
@@ -318,23 +318,24 @@ export class AdminService {
     const skip = (page - 1) * limit;
 
     const queryBuilder = this.orderRepository
-      .createQueryBuilder('order')
-      .leftJoinAndSelect('order.user', 'user')
-      .leftJoinAndSelect('order.items', 'items')
-      .leftJoinAndSelect('items.product', 'product');
+      .createQueryBuilder('o')
+      .leftJoinAndSelect('o.customer', 'customer')
+      .leftJoinAndSelect('o.items', 'items')
+      .leftJoinAndSelect('items.variant', 'variant')
+      .leftJoinAndSelect('variant.product', 'product');
 
     // Filter by status
     if (query.status) {
-      queryBuilder.andWhere('order.status = :status', { status: query.status });
+      queryBuilder.andWhere('o.fulfillment_status = :status', { status: query.status });
     }
 
     // Filter by customer email
     if (query.customer_email) {
-      queryBuilder.andWhere('user.email ILIKE :email', { email: `%${query.customer_email}%` });
+      queryBuilder.andWhere('(customer.email ILIKE :email OR o.customer_email ILIKE :email)', { email: `%${query.customer_email}%` });
     }
 
     const [orders, total] = await queryBuilder
-      .orderBy('order.created_at', 'DESC')
+      .orderBy('o.created_at', 'DESC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
@@ -423,15 +424,15 @@ export class AdminService {
     });
 
     const totalRevenue = await this.orderRepository
-      .createQueryBuilder('order')
-      .select('SUM(order.total_amount)', 'total')
-      .where('order.fulfillment_status != :status', { status: 'cancelled' })
+      .createQueryBuilder('o')
+      .select('SUM(o.total_amount)', 'total')
+      .where('o.fulfillment_status != :status', { status: 'cancelled' })
       .getRawOne();
 
     const avgOrderValue = await this.orderRepository
-      .createQueryBuilder('order')
-      .select('AVG(order.total_amount)', 'avg')
-      .where('order.fulfillment_status != :status', { status: 'cancelled' })
+      .createQueryBuilder('o')
+      .select('AVG(o.total_amount)', 'avg')
+      .where('o.fulfillment_status != :status', { status: 'cancelled' })
       .getRawOne();
 
     return {
@@ -491,11 +492,11 @@ export class AdminService {
 
     // Calculate total spent and orders count
     const totalSpentResult = await this.orderRepository
-      .createQueryBuilder('order')
-      .select('COALESCE(SUM(order.total_amount), 0)', 'total')
-      .addSelect('COUNT(order.id)', 'count')
-      .where('order.customer_id = :customerId', { customerId: id })
-      .andWhere('order.fulfillment_status != :status', { status: 'cancelled' })
+      .createQueryBuilder('o')
+      .select('COALESCE(SUM(o.total_amount), 0)', 'total')
+      .addSelect('COUNT(o.id)', 'count')
+      .where('o.customer_id = :customerId', { customerId: id })
+      .andWhere('o.fulfillment_status != :status', { status: 'cancelled' })
       .getRawOne();
 
     return {
@@ -533,15 +534,15 @@ export class AdminService {
 
     // Get top customers by spending
     const topCustomers = await this.orderRepository
-      .createQueryBuilder('order')
-      .select('order.customer_id', 'customer_id')
+      .createQueryBuilder('o')
+      .select('o.customer_id', 'customer_id')
       .addSelect('customer.name', 'customer_name')
       .addSelect('customer.email', 'customer_email')
-      .addSelect('COUNT(order.id)', 'total_orders')
-      .addSelect('SUM(order.total_amount)', 'total_spent')
-      .innerJoin('order.customer', 'customer')
-      .where('order.fulfillment_status != :status', { status: 'cancelled' })
-      .groupBy('order.customer_id')
+      .addSelect('COUNT(o.id)', 'total_orders')
+      .addSelect('SUM(o.total_amount)', 'total_spent')
+      .innerJoin('o.customer', 'customer')
+      .where('o.fulfillment_status != :status', { status: 'cancelled' })
+      .groupBy('o.customer_id')
       .addGroupBy('customer.name')
       .addGroupBy('customer.email')
       .orderBy('total_spent', 'DESC')

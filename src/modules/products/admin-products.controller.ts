@@ -62,6 +62,64 @@ export class AdminProductsController {
     return this.adminProductsService.getLowStockProducts(parsedThreshold);
   }
 
+  // ==================== ANALYTICS ENDPOINTS (Must be before :id route) ====================
+
+  @Get(':id/analytics')
+  @ApiOperation({
+    summary: 'Lấy analytics tổng quan của sản phẩm',
+    description: 'Sales data, inventory stats, và rating distribution',
+  })
+  @ApiResponse({ status: 200, description: 'Analytics overview' })
+  @ApiResponse({ status: 404, description: 'Sản phẩm không tồn tại' })
+  getProductAnalytics(@Param('id') id: string) {
+    return this.adminProductsService.getProductAnalytics(parseInt(id));
+  }
+
+  @Get(':id/analytics/sales')
+  @ApiOperation({
+    summary: 'Lấy sales trend của sản phẩm',
+    description: 'Daily sales data theo period',
+  })
+  @ApiResponse({ status: 200, description: 'Sales trend data' })
+  async getProductSalesTrend(
+    @Param('id') id: string,
+    @Query('period') period?: string,
+  ) {
+    try {
+      return await this.adminProductsService.getProductSalesTrend(parseInt(id), period);
+    } catch (error) {
+      console.error('Error in getProductSalesTrend:', error);
+      throw error;
+    }
+  }
+
+  @Get(':id/analytics/variants')
+  @ApiOperation({
+    summary: 'Lấy variants sales analytics',
+    description: 'Top selling variants với revenue và percentage',
+  })
+  @ApiResponse({ status: 200, description: 'Variants analytics' })
+  async getVariantsAnalytics(@Param('id') id: string) {
+    try {
+      return await this.adminProductsService.getVariantsAnalytics(parseInt(id));
+    } catch (error) {
+      console.error('Error in getVariantsAnalytics:', error);
+      throw error;
+    }
+  }
+
+  @Get(':id/reviews')
+  @ApiOperation({
+    summary: 'Lấy reviews của sản phẩm (Admin view)',
+    description: 'Paginated reviews với filters và summary stats',
+  })
+  @ApiResponse({ status: 200, description: 'Product reviews' })
+  getProductReviews(@Param('id') id: string, @Query() query: any) {
+    return this.adminProductsService.getProductReviews(parseInt(id), query);
+  }
+
+  // ==================== END ANALYTICS ====================
+
   @Get(':id')
   @ApiOperation({
     summary: 'Lấy chi tiết sản phẩm',

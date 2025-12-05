@@ -7,21 +7,13 @@ export class CreateProductVariantDto {
   @IsString()
   sku: string;
 
-  @ApiProperty({ description: 'Size ID', example: 1 })
+  @ApiProperty({ description: 'Size ID (Foreign Key to sizes table)', example: 1 })
   @IsNumber()
   size_id: number;
 
-  @ApiProperty({ description: 'Size', example: 'M' })
-  @IsString()
-  size: string;
-
-  @ApiProperty({ description: 'Color ID', example: 1 })
+  @ApiProperty({ description: 'Color ID (Foreign Key to colors table)', example: 1 })
   @IsNumber()
   color_id: number;
-
-  @ApiProperty({ description: 'Màu sắc', example: 'Đen' })
-  @IsString()
-  color: string;
 
   @ApiProperty({ description: 'Số lượng tồn kho', example: 100 })
   @IsNumber()
@@ -139,12 +131,12 @@ export class CreateProductDto {
   selected_color_ids?: number[];
 
   @ApiProperty({
-    description: 'Danh sách biến thể (size, color, stock)',
+    description: 'Danh sách biến thể (size_id, color_id, stock)',
     type: [CreateProductVariantDto],
     required: false,
     example: [
-      { sku: 'TEE-BASIC-BLK-M', size: 'M', color: 'Đen', stock: 100 },
-      { sku: 'TEE-BASIC-BLK-L', size: 'L', color: 'Đen', stock: 50 }
+      { sku: 'TEE-BASIC-BLK-M', size_id: 1, color_id: 2, stock: 100 },
+      { sku: 'TEE-BASIC-BLK-L', size_id: 2, color_id: 2, stock: 50 }
     ]
   })
   @IsOptional()

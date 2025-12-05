@@ -3,8 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In } from 'typeorm';
 import { Product } from '../../entities/product.entity';
 import { ProductVariant } from '../../entities/product-variant.entity';
+import { ProductImage } from '../../entities/product-image.entity';
 import { Size } from '../../entities/size.entity';
 import { Color } from '../../entities/color.entity';
+import { OrderItem } from '../../entities/order-item.entity';
+import { Review } from '../../entities/review.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UpdateProductStatusDto } from './dto/update-product-status.dto';
@@ -18,10 +21,16 @@ export class AdminProductsService {
     private productRepository: Repository<Product>,
     @InjectRepository(ProductVariant)
     private variantRepository: Repository<ProductVariant>,
+    @InjectRepository(ProductImage)
+    private imageRepository: Repository<ProductImage>,
     @InjectRepository(Size)
     private sizeRepository: Repository<Size>,
     @InjectRepository(Color)
     private colorRepository: Repository<Color>,
+    @InjectRepository(OrderItem)
+    private orderItemRepository: Repository<OrderItem>,
+    @InjectRepository(Review)
+    private reviewRepository: Repository<Review>,
     private dataSource: DataSource,
     private queryBuilderService: QueryBuilderService,
     private slugService: SlugService,
@@ -102,13 +111,78 @@ export class AdminProductsService {
       throw new NotFoundException('Sản phẩm không tồn tại');
     }
 
-    // Get selected size_ids and color_ids (derived from variants)
+    // Get variants with full relationships (size, color, images)
     const variants = await this.variantRepository.find({
       where: { product_id: product.id as any },
+      relations: ['size', 'color', 'images'],
+      order: {
+        size: { sort_order: 'ASC' },
+        color: { name: 'ASC' },
+      },
     });
 
     const selectedSizeIds = [...new Set(variants.map(v => v.size_id).filter(Boolean))];
     const selectedColorIds = [...new Set(variants.map(v => v.color_id).filter(Boolean))];
+
+    // Format variants for response
+    const formattedVariants = variants.map(v => ({
+      id: v.id,
+      product_id: v.product_id,
+      sku: v.sku,
+      size_id: v.size_id,
+      color_id: v.color_id,
+      total_stock: v.total_stock,
+      reserved_stock: v.reserved_stock,
+      reorder_point: v.reorder_point,
+      status: v.status,
+      version: v.version,
+      size: v.size ? {
+        id: v.size.id,
+        name: v.size.name,
+        sort_order: v.size.sort_order,
+      } : null,
+      color: v.color ? {
+        id: v.color.id,
+        name: v.color.name,
+        hex_code: v.color.hex_code,
+      } : null,
+      images: v.images ? v.images.map(img => ({
+        id: img.id,
+        variant_id: img.variant_id,
+        image_url: img.image_url,
+        is_main: img.is_main,
+      })) : [],
+    }));
+
+    const variantIds = variants.map(v => v.id);
+
+    // Calculate total sold from order_items
+    let totalSold = 0;
+    if (variantIds.length > 0) {
+      const soldResult = await this.orderItemRepository
+        .createQueryBuilder('oi')
+        .select('SUM(oi.quantity)', 'total')
+        .innerJoin('oi.order', 'o')
+        .where('oi.variant_id IN (:...variantIds)', { variantIds })
+        .andWhere('o.fulfillment_status = :status', { status: 'delivered' })
+        .getRawOne();
+      totalSold = parseInt(soldResult?.total || '0');
+    }
+
+    // Calculate reviews stats
+    let totalReviews = 0;
+    let averageRating = 0;
+    if (variantIds.length > 0) {
+      const reviewsResult = await this.reviewRepository
+        .createQueryBuilder('r')
+        .select('COUNT(*)', 'total')
+        .addSelect('AVG(r.rating)', 'avg_rating')
+        .where('r.variant_id IN (:...variantIds)', { variantIds })
+        .andWhere('r.status = :status', { status: 'approved' })
+        .getRawOne();
+      totalReviews = parseInt(reviewsResult?.total || '0');
+      averageRating = parseFloat(reviewsResult?.avg_rating || '0');
+    }
 
     return {
       id: product.id,
@@ -122,6 +196,10 @@ export class AdminProductsService {
       thumbnail_url: product.thumbnail_url,
       selected_size_ids: selectedSizeIds,
       selected_color_ids: selectedColorIds,
+      variants: formattedVariants,
+      total_sold: totalSold,
+      total_reviews: totalReviews,
+      average_rating: averageRating,
     };
   }
 
@@ -182,8 +260,8 @@ export class AdminProductsService {
           size_id: v.size_id,
           color_id: v.color_id,
           sku: v.sku,
-          status: v.status,
-          total_stock: 0,
+          status: v.status || 'active',
+          total_stock: v.stock || 0,
           reserved_stock: 0,
           reorder_point: 0,
         }),
@@ -469,6 +547,274 @@ export class AdminProductsService {
       total_products: productsMap.size,
       total_variants: lowStockVariants.length,
       products: Array.from(productsMap.values()),
+    };
+  }
+
+  // ==================== ANALYTICS ====================
+
+  // GET /api/v1/admin/products/:id/analytics - Overview analytics
+  async getProductAnalytics(productId: number) {
+    // Get all variant IDs for this product
+    const variants = await this.variantRepository.find({
+      where: { product_id: productId as any },
+      select: ['id', 'total_stock', 'reserved_stock', 'reorder_point'],
+    });
+
+    const variantIds = variants.map(v => v.id);
+
+    // Sales data from order_items
+    let salesResult = null;
+    if (variantIds.length > 0) {
+      salesResult = await this.orderItemRepository
+        .createQueryBuilder('oi')
+        .select('SUM(oi.quantity * oi.price_at_purchase)', 'total_revenue')
+        .addSelect('SUM(oi.quantity)', 'total_units_sold')
+        .addSelect('COUNT(DISTINCT oi.order_id)', 'total_orders')
+        .addSelect('AVG(oi.price_at_purchase)', 'average_order_value')
+        .innerJoin('oi.order', 'o')
+        .where('oi.variant_id IN (:...variantIds)', { variantIds })
+        .andWhere('o.fulfillment_status = :status', { status: 'delivered' })
+        .getRawOne();
+    }
+
+    // Inventory data
+    const inventory = {
+      total_stock: variants.reduce((sum, v) => sum + (v.total_stock || 0), 0),
+      available_stock: variants.reduce((sum, v) => sum + ((v.total_stock || 0) - (v.reserved_stock || 0)), 0),
+      reserved_stock: variants.reduce((sum, v) => sum + (v.reserved_stock || 0), 0),
+      variants_count: variants.length,
+      low_stock_variants: variants.filter(v => v.total_stock <= v.reorder_point).length,
+      out_of_stock_variants: variants.filter(v => v.total_stock === 0).length,
+    };
+
+    // Ratings data from reviews
+    let ratingsResult = null;
+    if (variantIds.length > 0) {
+      ratingsResult = await this.reviewRepository
+        .createQueryBuilder('r')
+        .select('AVG(r.rating)', 'average_rating')
+        .addSelect('COUNT(*)', 'total_reviews')
+        .addSelect('COUNT(CASE WHEN r.rating = 5 THEN 1 END)', 'rating_5')
+        .addSelect('COUNT(CASE WHEN r.rating = 4 THEN 1 END)', 'rating_4')
+        .addSelect('COUNT(CASE WHEN r.rating = 3 THEN 1 END)', 'rating_3')
+        .addSelect('COUNT(CASE WHEN r.rating = 2 THEN 1 END)', 'rating_2')
+        .addSelect('COUNT(CASE WHEN r.rating = 1 THEN 1 END)', 'rating_1')
+        .where('r.variant_id IN (:...variantIds)', { variantIds })
+        .andWhere('r.status = :status', { status: 'approved' })
+        .getRawOne();
+    }
+
+    const totalReviews = parseInt(ratingsResult?.total_reviews || '0');
+    const ratingDistribution = totalReviews > 0 ? {
+      5: {
+        count: parseInt(ratingsResult.rating_5 || '0'),
+        percentage: Math.round((parseInt(ratingsResult.rating_5 || '0') / totalReviews) * 100),
+      },
+      4: {
+        count: parseInt(ratingsResult.rating_4 || '0'),
+        percentage: Math.round((parseInt(ratingsResult.rating_4 || '0') / totalReviews) * 100),
+      },
+      3: {
+        count: parseInt(ratingsResult.rating_3 || '0'),
+        percentage: Math.round((parseInt(ratingsResult.rating_3 || '0') / totalReviews) * 100),
+      },
+      2: {
+        count: parseInt(ratingsResult.rating_2 || '0'),
+        percentage: Math.round((parseInt(ratingsResult.rating_2 || '0') / totalReviews) * 100),
+      },
+      1: {
+        count: parseInt(ratingsResult.rating_1 || '0'),
+        percentage: Math.round((parseInt(ratingsResult.rating_1 || '0') / totalReviews) * 100),
+      },
+    } : null;
+
+    return {
+      sales: {
+        total_revenue: parseFloat(salesResult?.total_revenue || '0'),
+        total_units_sold: parseInt(salesResult?.total_units_sold || '0'),
+        total_orders: parseInt(salesResult?.total_orders || '0'),
+        average_order_value: parseFloat(salesResult?.average_order_value || '0'),
+      },
+      inventory,
+      ratings: {
+        average_rating: parseFloat(ratingsResult?.average_rating || '0'),
+        total_reviews: totalReviews,
+        rating_distribution: ratingDistribution,
+      },
+    };
+  }
+
+  // GET /api/v1/admin/products/:id/analytics/sales - Sales trend
+  async getProductSalesTrend(productId: number, period: string = '30days') {
+    const variants = await this.variantRepository.find({
+      where: { product_id: productId as any },
+      select: ['id'],
+    });
+
+    const variantIds = variants.map(v => v.id);
+    if (variantIds.length === 0) {
+      return { period, data: [], total_revenue: 0, total_units_sold: 0 };
+    }
+
+    const days = period === '7days' ? 7 : period === '30days' ? 30 : period === '3months' ? 90 : 365;
+
+    const salesData = await this.orderItemRepository
+      .createQueryBuilder('oi')
+      .select("DATE(o.created_at)", 'date')
+      .addSelect('SUM(oi.quantity * oi.price_at_purchase)', 'revenue')
+      .addSelect('SUM(oi.quantity)', 'units_sold')
+      .addSelect('COUNT(DISTINCT oi.order_id)', 'orders')
+      .innerJoin('oi.order', 'o')
+      .where('oi.variant_id IN (:...variantIds)', { variantIds })
+      .andWhere(`o.created_at >= CURRENT_DATE - INTERVAL '${days} days'`)
+      .andWhere('o.fulfillment_status = :status', { status: 'delivered' })
+      .groupBy('DATE(o.created_at)')
+      .orderBy('date', 'ASC')
+      .getRawMany();
+
+    const formattedData = salesData.map(d => ({
+      date: d.date,
+      revenue: parseFloat(d.revenue || 0),
+      units_sold: parseInt(d.units_sold || 0),
+      orders: parseInt(d.orders || 0),
+    }));
+
+    const totalRevenue = formattedData.reduce((sum, d) => sum + d.revenue, 0);
+    const totalUnitsSold = formattedData.reduce((sum, d) => sum + d.units_sold, 0);
+
+    return {
+      period,
+      data: formattedData,
+      total_revenue: totalRevenue,
+      total_units_sold: totalUnitsSold,
+    };
+  }
+
+  // GET /api/v1/admin/products/:id/analytics/variants - Variants sales analytics
+  async getVariantsAnalytics(productId: number) {
+    const variantsData = await this.variantRepository
+      .createQueryBuilder('pv')
+      .select('pv.id', 'variant_id')
+      .addSelect('pv.sku', 'sku')
+      .addSelect('s.name', 'size')
+      .addSelect('c.name', 'color')
+      .addSelect('pv.total_stock', 'current_stock')
+      .addSelect('COALESCE(SUM(oi.quantity), 0)', 'total_sold')
+      .addSelect('COALESCE(SUM(oi.quantity * oi.price_at_purchase), 0)', 'revenue')
+      .leftJoin('pv.size', 's')
+      .leftJoin('pv.color', 'c')
+      .leftJoin('pv.order_items', 'oi')
+      .leftJoin('oi.order', 'o', 'o.fulfillment_status = :status', { status: 'delivered' })
+      .where('pv.product_id = :productId', { productId })
+      .groupBy('pv.id, pv.sku, s.name, c.name, pv.total_stock')
+      .getRawMany();
+
+    const totalSold = variantsData.reduce((sum, v) => sum + parseInt(v.total_sold || 0), 0);
+
+    const variants = variantsData
+      .map(v => ({
+        variant_id: v.variant_id,
+        sku: v.sku,
+        size: v.size || 'N/A',
+        color: v.color || 'N/A',
+        total_sold: parseInt(v.total_sold || 0),
+        revenue: parseFloat(v.revenue || 0),
+        percentage: totalSold > 0 ? Math.round((parseInt(v.total_sold || 0) / totalSold) * 100) : 0,
+        current_stock: v.current_stock,
+      }))
+      .sort((a, b) => b.total_sold - a.total_sold);
+
+    return {
+      variants,
+      total_sold: totalSold,
+    };
+  }
+
+  // GET /api/v1/admin/products/:id/reviews - Admin view of product reviews
+  async getProductReviews(productId: number, query: any) {
+    const page = parseInt(query.page) || 1;
+    const limit = parseInt(query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Get variant IDs for this product
+    const variants = await this.variantRepository.find({
+      where: { product_id: productId as any },
+      select: ['id'],
+    });
+
+    const variantIds = variants.map(v => v.id);
+    if (variantIds.length === 0) {
+      return {
+        reviews: [],
+        metadata: { page, limit, total: 0, total_pages: 0 },
+        summary: { total_approved: 0, total_pending: 0, total_rejected: 0, average_rating: 0 },
+      };
+    }
+
+    const queryBuilder = this.reviewRepository
+      .createQueryBuilder('r')
+      .leftJoinAndSelect('r.customer', 'customer')
+      .leftJoinAndSelect('r.variant', 'variant')
+      .leftJoinAndSelect('r.order', 'order')
+      .where('r.variant_id IN (:...variantIds)', { variantIds });
+
+    // Apply filters
+    if (query.rating && query.rating !== 'all') {
+      queryBuilder.andWhere('r.rating = :rating', { rating: parseInt(query.rating) });
+    }
+
+    if (query.status && query.status !== 'all') {
+      queryBuilder.andWhere('r.status = :status', { status: query.status });
+    }
+
+    // Apply sorting
+    const sortField = query.sort === 'rating' ? 'r.rating' : 'r.created_at';
+    const sortOrder = query.order === 'asc' ? 'ASC' : 'DESC';
+    queryBuilder.orderBy(sortField, sortOrder);
+
+    // Get paginated results
+    const [reviews, total] = await queryBuilder
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    // Get summary stats
+    const summaryResult = await this.reviewRepository
+      .createQueryBuilder('r')
+      .select('COUNT(CASE WHEN r.status = :approved THEN 1 END)', 'total_approved')
+      .addSelect('COUNT(CASE WHEN r.status = :pending THEN 1 END)', 'total_pending')
+      .addSelect('COUNT(CASE WHEN r.status = :rejected THEN 1 END)', 'total_rejected')
+      .addSelect('AVG(r.rating)', 'average_rating')
+      .where('r.variant_id IN (:...variantIds)', { variantIds })
+      .setParameters({ approved: 'approved', pending: 'pending', rejected: 'rejected' })
+      .getRawOne();
+
+    return {
+      reviews: reviews.map(r => ({
+        id: r.id,
+        customer_id: r.customer_id,
+        customer_name: r.customer?.name || 'Unknown',
+        customer_email: r.customer?.email || 'N/A',
+        order_id: r.order_id,
+        variant_id: r.variant_id,
+        variant_sku: r.variant?.sku || 'N/A',
+        rating: r.rating,
+        comment: r.comment,
+        status: r.status,
+        created_at: r.created_at,
+      })),
+      metadata: {
+        page,
+        limit,
+        total,
+        total_pages: Math.ceil(total / limit),
+      },
+      summary: {
+        total_approved: parseInt(summaryResult?.total_approved || '0'),
+        total_pending: parseInt(summaryResult?.total_pending || '0'),
+        total_rejected: parseInt(summaryResult?.total_rejected || '0'),
+        average_rating: parseFloat(summaryResult?.average_rating || '0'),
+      },
     };
   }
 }
