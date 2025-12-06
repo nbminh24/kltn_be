@@ -10,7 +10,6 @@ import { Product } from './product.entity';
 import { Size } from './size.entity';
 import { Color } from './color.entity';
 import { ProductImage } from './product-image.entity';
-import { OrderItem } from './order-item.entity';
 
 @Entity('product_variants')
 export class ProductVariant {
@@ -66,6 +65,6 @@ export class ProductVariant {
   @OneToMany(() => ProductImage, image => image.variant)
   images: ProductImage[];
 
-  @OneToMany(() => OrderItem, orderItem => orderItem.variant)
-  order_items: OrderItem[];
+  @OneToMany('OrderItem', 'variant')
+  order_items: any[];
 }
