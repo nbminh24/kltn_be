@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThanOrEqual } from 'typeorm';
 import { Order } from '../../entities/order.entity';
 import { Product } from '../../entities/product.entity';
 import { Category } from '../../entities/category.entity';
@@ -526,9 +526,7 @@ export class AdminService {
 
     const newCustomersThisMonth = await this.customerRepository.count({
       where: {
-        created_at: {
-          $gte: startOfMonth,
-        } as any,
+        created_at: MoreThanOrEqual(startOfMonth),
       },
     });
 
@@ -604,27 +602,44 @@ export class AdminService {
     const queryBuilder = this.variantRepository
       .createQueryBuilder('variant')
       .leftJoinAndSelect('variant.product', 'product')
+      .leftJoinAndSelect('variant.size', 'size')
+      .leftJoinAndSelect('variant.color', 'color')
       .select([
         'variant.id',
         'variant.sku',
-        'variant.color',
-        'variant.size',
-        'variant.stock',
+        'variant.total_stock',
+        'variant.reserved_stock',
+        'variant.reorder_point',
+        'variant.status',
         'product.id',
         'product.name',
-        'product.sku',
+        'size.id',
+        'size.name',
+        'color.id',
+        'color.name',
       ]);
 
     if (lowStockOnly) {
-      queryBuilder.where('variant.stock < :threshold', { threshold: 10 });
+      queryBuilder.where('variant.total_stock < :threshold', { threshold: 10 });
     }
 
     const variants = await queryBuilder
-      .orderBy('variant.stock', 'ASC')
+      .orderBy('variant.total_stock', 'ASC')
       .getMany();
 
     return {
-      data: variants,
+      data: variants.map(v => ({
+        id: v.id,
+        sku: v.sku,
+        product_name: v.product?.name,
+        size_name: v.size?.name,
+        color_name: v.color?.name,
+        total_stock: v.total_stock,
+        reserved_stock: v.reserved_stock,
+        available_stock: v.total_stock - v.reserved_stock,
+        reorder_point: v.reorder_point,
+        status: v.status,
+      })),
       total: variants.length,
       lowStockCount: variants.filter(v => v.total_stock < 10).length,
     };
@@ -670,16 +685,16 @@ export class AdminService {
 
     const queryBuilder = this.promotionRepository
       .createQueryBuilder('promotion')
-      .orderBy('promotion.created_at', 'DESC');
+      .orderBy('promotion.start_date', 'DESC');
 
     // Filter by status
     if (query.status) {
       queryBuilder.andWhere('promotion.status = :status', { status: query.status });
     }
 
-    // Filter by code (search)
+    // Filter by name (search)
     if (query.search) {
-      queryBuilder.andWhere('promotion.code ILIKE :search', {
+      queryBuilder.andWhere('promotion.name ILIKE :search', {
         search: `%${query.search}%`,
       });
     }
@@ -687,13 +702,8 @@ export class AdminService {
     // Filter active promotions only
     if (query.active === 'true') {
       queryBuilder
-        .andWhere('promotion.status = :status', { status: 'Active' })
-        .andWhere(
-          '(promotion.expiry_date IS NULL OR promotion.expiry_date >= CURRENT_DATE)',
-        )
-        .andWhere(
-          '(promotion.usage_limit IS NULL OR promotion.usage_count < promotion.usage_limit)',
-        );
+        .andWhere('promotion.status = :status', { status: 'active' })
+        .andWhere('promotion.end_date >= CURRENT_DATE');
     }
 
     const [promotions, total] = await queryBuilder
@@ -1083,6 +1093,73 @@ export class AdminService {
     }
   }
 
+  async getRestockHistory(query: any = {}) {
+    const page = parseInt(query.page) || 1;
+    const limit = parseInt(query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.restockBatchRepository
+      .createQueryBuilder('batch')
+      .leftJoinAndSelect('batch.admin', 'admin')
+      .leftJoinAndSelect('batch.items', 'items')
+      .select([
+        'batch.id',
+        'batch.admin_id',
+        'batch.type',
+        'batch.created_at',
+        'admin.id',
+        'admin.name',
+      ])
+      .orderBy('batch.created_at', 'DESC');
+
+    // Filter by type
+    if (query.type) {
+      queryBuilder.andWhere('batch.type = :type', { type: query.type });
+    }
+
+    // Filter by date range
+    if (query.start_date) {
+      queryBuilder.andWhere('batch.created_at >= :startDate', {
+        startDate: query.start_date,
+      });
+    }
+    if (query.end_date) {
+      queryBuilder.andWhere('batch.created_at <= :endDate', {
+        endDate: query.end_date,
+      });
+    }
+
+    const [batches, total] = await queryBuilder
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    // Count items for each batch
+    const batchesWithCount = await Promise.all(
+      batches.map(async (batch) => {
+        const itemsCount = await this.restockItemRepository.count({
+          where: { batch_id: batch.id as any },
+        });
+
+        return {
+          id: batch.id,
+          admin_id: batch.admin_id,
+          admin_name: batch.admin?.name || null,
+          type: batch.type,
+          created_at: batch.created_at,
+          items_count: itemsCount,
+        };
+      }),
+    );
+
+    return {
+      batches: batchesWithCount,
+      total,
+      page,
+      limit,
+    };
+  }
+
   // ==================== SUPPORT TICKETS MANAGEMENT ====================
   async getAllSupportTickets(query: any) {
     const { page = 1, limit = 20, status } = query;
@@ -1104,7 +1181,7 @@ export class AdminService {
 
     return {
       data: tickets,
-      metadata: {
+      pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
         total,

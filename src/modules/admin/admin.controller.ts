@@ -759,12 +759,87 @@ export class AdminController {
   @ApiTags('Admin - Inventory')
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
-    summary: '[UC-A04] Nhập kho qua Excel',
-    description: 'Upload file Excel để cập nhật tồn kho hàng loạt. File cần có 2 cột: sku và quantity',
+    summary: '[UC-A04] Nhập kho (Excel hoặc JSON)',
+    description: 'Upload file Excel HOẶC gửi JSON body với danh sách variants. Excel: 2 cột (sku, quantity). JSON: {items: [{variant_id, quantity}]}',
   })
   @ApiResponse({ status: 201, description: 'Import thành công' })
-  restockInventoryBatch(@CurrentUser() user: any, @UploadedFile() file: Express.Multer.File) {
-    return this.adminService.restockInventoryBatch(user.sub, file);
+  restockInventoryBatch(
+    @CurrentUser() user: any,
+    @Body() body: any,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    // If file uploaded, use Excel logic
+    if (file) {
+      return this.adminService.restockInventoryBatch(user.sub, file);
+    }
+
+    // If JSON body, use manual restock logic
+    if (body && body.items) {
+      return this.adminService.restockInventory(user.sub, body);
+    }
+
+    throw new BadRequestException('Vui lòng cung cấp file Excel hoặc JSON body với danh sách items');
+  }
+
+  @Get('inventory/restock-history')
+  @ApiTags('Admin - Inventory')
+  @ApiOperation({
+    summary: '[UC-A04] Lịch sử nhập kho',
+    description: 'Xem lịch sử các lần nhập kho với phân trang, filter theo type (Manual/Excel) và khoảng thời gian',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    example: 1,
+    description: 'Số trang',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    example: 20,
+    description: 'Số bản ghi mỗi trang',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    example: 'Manual',
+    description: 'Loại nhập kho (Manual, Excel, API)',
+  })
+  @ApiQuery({
+    name: 'start_date',
+    required: false,
+    example: '2024-12-01',
+    description: 'Từ ngày',
+  })
+  @ApiQuery({
+    name: 'end_date',
+    required: false,
+    example: '2024-12-31',
+    description: 'Đến ngày',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Danh sách lịch sử nhập kho',
+    schema: {
+      example: {
+        batches: [
+          {
+            id: 1,
+            admin_id: 1,
+            admin_name: 'Admin User',
+            type: 'Manual',
+            items_count: 3,
+            created_at: '2024-12-06T10:00:00Z',
+          },
+        ],
+        total: 10,
+        page: 1,
+        limit: 20,
+      },
+    },
+  })
+  getRestockHistory(@Query() query: any) {
+    return this.adminService.getRestockHistory(query);
   }
 
   // ==================== SUPPORT TICKETS MANAGEMENT ====================
@@ -772,12 +847,9 @@ export class AdminController {
   @ApiTags('Admin - Support')
   @ApiOperation({
     summary: '[UC-A05] Danh sách phiếu hỗ trợ',
-    description: 'Lấy danh sách các phiếu hỗ trợ do khách gửi với filter theo status',
+    description: 'Lấy danh sách tickets với phân trang, filter theo status/priority',
   })
-  @ApiQuery({ name: 'page', required: false, example: 1 })
-  @ApiQuery({ name: 'limit', required: false, example: 20 })
-  @ApiQuery({ name: 'status', required: false, example: 'pending' })
-  @ApiResponse({ status: 200, description: 'Danh sách tickets' })
+  @ApiResponse({ status: 200, description: 'Danh sách tickets với phân trang' })
   getAllSupportTickets(@Query() query: any) {
     return this.adminService.getAllSupportTickets(query);
   }
