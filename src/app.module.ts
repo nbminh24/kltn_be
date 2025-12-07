@@ -61,6 +61,7 @@ import { PagesModule } from './modules/pages/pages.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { ConsultantModule } from './modules/consultant/consultant.module';
+import { ChatbotModule } from './modules/chatbot/chatbot.module';
 
 @Module({
   imports: [
@@ -166,6 +167,7 @@ import { ConsultantModule } from './modules/consultant/consultant.module';
     ChatModule,
     PaymentModule,
     ConsultantModule,
+    ChatbotModule,
   ],
 })
 export class AppModule { }

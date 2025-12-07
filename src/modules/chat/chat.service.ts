@@ -29,6 +29,8 @@ export class ChatService {
                 order: { updated_at: 'DESC' },
             });
 
+            const isNew = !session;
+
             if (!session) {
                 session = this.sessionRepository.create({
                     customer_id: customerId,
@@ -38,10 +40,14 @@ export class ChatService {
             }
 
             return {
-                session_id: session.id,
-                customer_id: session.customer_id,
-                visitor_id: session.visitor_id,
-                created_at: session.created_at,
+                session: {
+                    id: session.id,
+                    visitor_id: session.visitor_id,
+                    customer_id: session.customer_id,
+                    created_at: session.created_at,
+                    updated_at: session.updated_at,
+                },
+                is_new: isNew,
             };
         }
 
@@ -52,6 +58,8 @@ export class ChatService {
                 order: { updated_at: 'DESC' },
             });
 
+            const isNew = !session;
+
             if (!session) {
                 session = this.sessionRepository.create({
                     customer_id: null,
@@ -61,10 +69,14 @@ export class ChatService {
             }
 
             return {
-                session_id: session.id,
-                customer_id: session.customer_id,
-                visitor_id: session.visitor_id,
-                created_at: session.created_at,
+                session: {
+                    id: session.id,
+                    visitor_id: session.visitor_id,
+                    customer_id: session.customer_id,
+                    created_at: session.created_at,
+                    updated_at: session.updated_at,
+                },
+                is_new: isNew,
             };
         }
 
@@ -116,55 +128,72 @@ export class ChatService {
         }
 
         // 1. Save user message
-        const userMessage = this.messageRepository.create({
+        const customerMessage = this.messageRepository.create({
             session_id: dto.session_id,
             sender: 'customer',
             message: dto.message,
             is_read: false,
         });
-        await this.messageRepository.save(userMessage);
+        await this.messageRepository.save(customerMessage);
 
         // 2. Call Rasa Server
-        const rasaUrl = this.configService.get<string>('RASA_SERVER_URL');
-        let botResponses = [];
+        const rasaUrl = this.configService.get<string>('RASA_SERVER_URL') || 'http://localhost:5005';
+        const senderId = session.visitor_id || `customer_${session.customer_id}`;
+        let rasaResponses = [];
+
+        console.log(`[Chat] Calling Rasa webhook: ${rasaUrl}/webhooks/rest/webhook`);
+        console.log(`[Chat] Sender: ${senderId}, Message: "${dto.message}"`);
 
         try {
             const response = await firstValueFrom(
-                this.httpService.post(`${rasaUrl}/webhooks/rest/webhook`, {
-                    sender: session.visitor_id || `customer_${session.customer_id}`,
-                    message: dto.message,
-                }),
+                this.httpService.post(
+                    `${rasaUrl}/webhooks/rest/webhook`,
+                    {
+                        sender: senderId,
+                        message: dto.message,
+                    },
+                    {
+                        timeout: 10000, // 10 seconds timeout
+                    }
+                ),
             );
 
-            botResponses = response.data || [];
+            rasaResponses = response.data || [];
+            console.log(`[Chat] Rasa responded with ${rasaResponses.length} message(s)`);
         } catch (error) {
-            // If Rasa is down, return fallback message
-            botResponses = [{
-                text: 'Xin lỗi, chatbot hiện không khả dụng. Vui lòng thử lại sau hoặc liên hệ admin.',
+            // Log detailed error for debugging
+            console.error('[Chat] Rasa webhook failed:', error.message);
+            if (error.code === 'ECONNREFUSED') {
+                console.error('[Chat] Rasa server is not running or unreachable');
+            }
+
+            // Fallback message when Rasa is down
+            rasaResponses = [{
+                text: 'Xin lỗi, chatbot hiện không khả dụng. Vui lòng thử lại sau hoặc liên hệ support.',
             }];
         }
 
-        // 3. Save bot messages
-        const savedBotMessages = [];
-        for (const botMsg of botResponses) {
+        // 3. Save bot responses
+        const savedBotResponses = [];
+        for (const rasaMsg of rasaResponses) {
             const botMessage = this.messageRepository.create({
                 session_id: dto.session_id,
                 sender: 'bot',
-                message: botMsg.text || '',
+                message: rasaMsg.text || '',
                 is_read: false,
             });
             const saved = await this.messageRepository.save(botMessage);
-            savedBotMessages.push(saved);
+            savedBotResponses.push(saved);
         }
 
         // 4. Update session timestamp
         session.updated_at = new Date();
         await this.sessionRepository.save(session);
 
+        // Return with correct naming (Fix Bug #2)
         return {
-            user_message: userMessage,
-            bot_messages: savedBotMessages,
-            session_id: dto.session_id,
+            customer_message: customerMessage,
+            bot_responses: savedBotResponses,
         };
     }
 
