@@ -55,8 +55,31 @@ export class ChatService {
             customerId = this.extractCustomerIdFromJWT(authHeader);
         }
 
-        // If user is logged in, find existing session by customer_id
+        // If user is logged in
         if (customerId) {
+            // Force create new session (ChatGPT-style new conversation)
+            if (dto.force_new) {
+                const session = this.sessionRepository.create({
+                    customer_id: customerId,
+                    visitor_id: null,
+                });
+                await this.sessionRepository.save(session);
+
+                this.logger.log(`✅ Created NEW chat session for customer_id: ${customerId}, session_id: ${session.id}`);
+
+                return {
+                    session: {
+                        id: session.id,
+                        visitor_id: session.visitor_id,
+                        customer_id: session.customer_id,
+                        created_at: session.created_at,
+                        updated_at: session.updated_at,
+                    },
+                    is_new: true,
+                };
+            }
+
+            // Get existing session or create if not exists
             let session = await this.sessionRepository.findOne({
                 where: { customer_id: customerId },
                 order: { updated_at: 'DESC' },
@@ -289,16 +312,22 @@ export class ChatService {
         };
     }
 
-    async getSessionsHistory(query: any) {
+    async getSessionsHistory(query: any, authHeader?: string) {
         const { customer_id, visitor_id, page = 1, limit = 50 } = query;
 
-        if (!customer_id && !visitor_id) {
-            throw new BadRequestException('Phải cung cấp customer_id hoặc visitor_id');
+        // Extract customer_id from JWT if not provided
+        let finalCustomerId = customer_id;
+        if (!finalCustomerId && authHeader) {
+            finalCustomerId = this.extractCustomerIdFromJWT(authHeader);
+        }
+
+        if (!finalCustomerId && !visitor_id) {
+            throw new BadRequestException('Phải cung cấp customer_id, visitor_id hoặc JWT token');
         }
 
         const where: any = { status: 'active' };
-        if (customer_id) {
-            where.customer_id = parseInt(customer_id);
+        if (finalCustomerId) {
+            where.customer_id = parseInt(finalCustomerId);
         } else if (visitor_id) {
             where.visitor_id = visitor_id;
         }
@@ -345,16 +374,22 @@ export class ChatService {
         };
     }
 
-    async getActiveSession(query: any) {
+    async getActiveSession(query: any, authHeader?: string) {
         const { customer_id, visitor_id } = query;
 
-        if (!customer_id && !visitor_id) {
-            throw new BadRequestException('Phải cung cấp customer_id hoặc visitor_id');
+        // Extract customer_id from JWT if not provided
+        let finalCustomerId = customer_id;
+        if (!finalCustomerId && authHeader) {
+            finalCustomerId = this.extractCustomerIdFromJWT(authHeader);
+        }
+
+        if (!finalCustomerId && !visitor_id) {
+            throw new BadRequestException('Phải cung cấp customer_id, visitor_id hoặc JWT token');
         }
 
         const where: any = { status: 'active' };
-        if (customer_id) {
-            where.customer_id = parseInt(customer_id);
+        if (finalCustomerId) {
+            where.customer_id = parseInt(finalCustomerId);
         } else if (visitor_id) {
             where.visitor_id = visitor_id;
         }

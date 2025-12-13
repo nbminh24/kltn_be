@@ -107,11 +107,26 @@ export class OrdersService {
   async getOrderById(customerId: number, orderId: number) {
     const order = await this.orderRepository.findOne({
       where: { id: orderId, customer_id: customerId },
-      relations: ['items', 'items.variant'],
+      relations: [
+        'items',
+        'items.variant',
+        'items.variant.size',
+        'items.variant.color',
+        'items.variant.product',
+        'items.variant.images',
+      ],
     });
 
     if (!order) {
       throw new NotFoundException('Order not found');
+    }
+
+    if (order.items) {
+      order.items = order.items.map(item => ({
+        ...item,
+        product_name: item.variant?.product?.name || item.variant?.name || 'N/A',
+        thumbnail_url: item.variant?.product?.thumbnail_url || item.variant?.images?.[0]?.image_url || null,
+      })) as any;
     }
 
     return { order };

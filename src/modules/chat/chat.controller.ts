@@ -10,7 +10,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('🤖 Chatbot & Support')
-@Controller('chat')
+@Controller('api/v1/chat')
 export class ChatController {
     constructor(private readonly chatService: ChatService) { }
 
@@ -18,16 +18,14 @@ export class ChatController {
     @Public()
     @ApiOperation({
         summary: 'Tạo hoặc lấy phiên chat',
-        description: 'Tạo session mới cho guest (visitor_id) hoặc lấy session của customer đã login',
+        description: 'Tạo session mới cho guest (visitor_id) hoặc lấy session của customer đã login. JWT token tự động extract customer_id.',
     })
     @ApiResponse({ status: 201, description: 'Session được tạo hoặc lấy thành công' })
     createSession(
         @Body() dto: CreateSessionDto,
-        @Headers('authorization') authHeader?: string,
-        @CurrentUser() user?: any
+        @Headers('authorization') authHeader?: string
     ) {
-        const customerId = user?.customerId ? parseInt(user.customerId) : undefined;
-        return this.chatService.createOrGetSession(dto, authHeader, customerId);
+        return this.chatService.createOrGetSession(dto, authHeader, undefined);
     }
 
     @Get('history')
@@ -82,29 +80,35 @@ export class ChatController {
     @Public()
     @ApiOperation({
         summary: '[Chatbot UI] Lấy lịch sử chat sessions',
-        description: 'Lấy danh sách chat sessions grouped by time (Hôm nay, Hôm qua, 7 ngày trước...). Dùng cho sidebar ChatGPT-style.',
+        description: 'Lấy danh sách chat sessions grouped by time. JWT token tự động extract customer_id.',
     })
-    @ApiQuery({ name: 'customer_id', required: false, type: Number })
+    @ApiQuery({ name: 'customer_id', required: false, type: Number, description: 'Optional - extracted from JWT if not provided' })
     @ApiQuery({ name: 'visitor_id', required: false, type: String })
     @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
     @ApiQuery({ name: 'limit', required: false, type: Number, example: 50 })
     @ApiResponse({ status: 200, description: 'Danh sách sessions grouped by time' })
-    getSessionsHistory(@Query() query: any) {
-        return this.chatService.getSessionsHistory(query);
+    getSessionsHistory(
+        @Query() query: any,
+        @Headers('authorization') authHeader?: string
+    ) {
+        return this.chatService.getSessionsHistory(query, authHeader);
     }
 
     @Get('sessions/active')
     @Public()
     @ApiOperation({
         summary: '[Chatbot UI] Lấy active session',
-        description: 'Lấy session đang active của customer hoặc visitor. Dùng cho popup bubble chat.',
+        description: 'Lấy session đang active. JWT token tự động extract customer_id.',
     })
-    @ApiQuery({ name: 'customer_id', required: false, type: Number })
+    @ApiQuery({ name: 'customer_id', required: false, type: Number, description: 'Optional - extracted from JWT if not provided' })
     @ApiQuery({ name: 'visitor_id', required: false, type: String })
     @ApiResponse({ status: 200, description: 'Active session' })
     @ApiResponse({ status: 404, description: 'Không tìm thấy session' })
-    getActiveSession(@Query() query: any) {
-        return this.chatService.getActiveSession(query);
+    getActiveSession(
+        @Query() query: any,
+        @Headers('authorization') authHeader?: string
+    ) {
+        return this.chatService.getActiveSession(query, authHeader);
     }
 
     @Delete('sessions/:id')
