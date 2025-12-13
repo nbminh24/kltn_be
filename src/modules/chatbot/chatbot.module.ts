@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
+import { JwtModule } from '@nestjs/jwt';
 import { ChatbotController } from './chatbot.controller';
 import { ChatbotService } from './chatbot.service';
 
@@ -25,6 +26,14 @@ import { WishlistService } from '../wishlist/wishlist.service';
     imports: [
         ConfigModule,
         HttpModule,
+        JwtModule.registerAsync({
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: (configService: ConfigService) => ({
+                secret: configService.get<string>('JWT_SECRET'),
+                signOptions: { expiresIn: '15m' },
+            }),
+        }),
         TypeOrmModule.forFeature([
             Customer,
             ProductVariant,

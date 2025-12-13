@@ -1,16 +1,46 @@
 import { DataSource } from 'typeorm';
 import * as readline from 'readline';
+import { config } from 'dotenv';
 
-const AppDataSource = new DataSource({
-    type: 'postgres',
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432'),
-    username: process.env.DB_USERNAME || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.DB_NAME || 'kltn_db',
-    entities: [],
-    synchronize: false,
-});
+// Load environment variables
+config();
+
+// Parse DATABASE_URL or use individual env vars
+let dbConfig: any;
+
+if (process.env.DATABASE_URL) {
+    const urlMatch = process.env.DATABASE_URL.match(/postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
+    if (urlMatch) {
+        const [, user, password, host, port, database] = urlMatch;
+        dbConfig = {
+            type: 'postgres' as const,
+            host,
+            port: parseInt(port),
+            username: user,
+            password,
+            database,
+            ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+            entities: [],
+            synchronize: false,
+        };
+    } else {
+        console.error('❌ Invalid DATABASE_URL format');
+        process.exit(1);
+    }
+} else {
+    dbConfig = {
+        type: 'postgres' as const,
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '5432'),
+        username: process.env.DB_USERNAME || 'postgres',
+        password: process.env.DB_PASSWORD || 'postgres',
+        database: process.env.DB_NAME || 'kltn_db',
+        entities: [],
+        synchronize: false,
+    };
+}
+
+const AppDataSource = new DataSource(dbConfig);
 
 const rl = readline.createInterface({
     input: process.stdin,

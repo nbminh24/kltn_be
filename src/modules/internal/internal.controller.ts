@@ -1,11 +1,14 @@
-import { Controller, Get, Query, Param, UseGuards, Post, Body } from '@nestjs/common';
+import { Controller, Get, Query, Param, UseGuards, Post, Body, UseFilters } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiSecurity } from '@nestjs/swagger';
 import { InternalService } from './internal.service';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { ProductSearchDto } from './dto/product-search.dto';
+import { InternalApiExceptionFilter } from './filters/internal-api-exception.filter';
 
 @ApiTags('Internal APIs')
 @ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
+@UseFilters(InternalApiExceptionFilter)
 @Controller('internal')
 export class InternalController {
   constructor(private readonly internalService: InternalService) { }
@@ -65,6 +68,21 @@ export class InternalController {
     @Query('limit') limit?: number,
   ) {
     return this.internalService.searchProducts({ search, category, limit: limit || 10 });
+  }
+
+  @Post('products/search')
+  @ApiOperation({
+    summary: '[Chatbot] Product Search (Scoring + Explainability)',
+    description: `Endpoint search dành riêng cho chatbot.
+    Nhận JSON body để chatbot có thể gửi dần params theo hội thoại.
+    Trả về score (0..1) + matched_on để chatbot giải thích lý do chọn sản phẩm.`,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Trả về danh sách sản phẩm đã được re-rank theo score',
+  })
+  searchProductsForChatbot(@Body() dto: ProductSearchDto) {
+    return this.internalService.searchProductsForChatbot(dto);
   }
 
   @Get('pages/:slug')

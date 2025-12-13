@@ -197,6 +197,152 @@ export class AdminService {
     };
   }
 
+  async getRevenueOrdersTrend(days: number = 30) {
+    const validDays = [7, 30, 90].includes(days) ? days : 30;
+
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - validDays);
+
+    const dailyData = await this.orderRepository
+      .createQueryBuilder('o')
+      .select("DATE(o.created_at)", 'date')
+      .addSelect('COUNT(o.id)', 'ordersCount')
+      .addSelect('SUM(o.total_amount)', 'revenue')
+      .where('o.created_at >= :startDate', { startDate })
+      .andWhere('o.created_at <= :endDate', { endDate })
+      .andWhere('o.fulfillment_status != :status', { status: 'cancelled' })
+      .groupBy('DATE(o.created_at)')
+      .orderBy('date', 'ASC')
+      .getRawMany();
+
+    const dailyStats = dailyData.map((d, index) => {
+      const revenue = parseFloat(d.revenue || 0);
+      return {
+        date: d.date,
+        day: `Day ${index + 1}`,
+        revenue: revenue,
+        revenueInMillions: parseFloat((revenue / 1000000).toFixed(1)),
+        ordersCount: parseInt(d.ordersCount),
+      };
+    });
+
+    const totalRevenue = dailyStats.reduce((sum, d) => sum + d.revenue, 0);
+    const totalOrders = dailyStats.reduce((sum, d) => sum + d.ordersCount, 0);
+    const averageDailyRevenue = validDays > 0 ? totalRevenue / validDays : 0;
+    const averageDailyOrders = validDays > 0 ? totalOrders / validDays : 0;
+
+    const prevStartDate = new Date(startDate);
+    prevStartDate.setDate(prevStartDate.getDate() - validDays);
+
+    const prevPeriodData = await this.orderRepository
+      .createQueryBuilder('o')
+      .select('COUNT(o.id)', 'ordersCount')
+      .addSelect('SUM(o.total_amount)', 'revenue')
+      .where('o.created_at >= :prevStart', { prevStart: prevStartDate })
+      .andWhere('o.created_at < :startDate', { startDate })
+      .andWhere('o.fulfillment_status != :status', { status: 'cancelled' })
+      .getRawOne();
+
+    const prevRevenue = parseFloat(prevPeriodData?.revenue || 0);
+    const prevOrders = parseInt(prevPeriodData?.ordersCount || 0);
+
+    const revenueGrowth = prevRevenue > 0
+      ? ((totalRevenue - prevRevenue) / prevRevenue) * 100
+      : 0;
+    const ordersGrowth = prevOrders > 0
+      ? ((totalOrders - prevOrders) / prevOrders) * 100
+      : 0;
+
+    return {
+      success: true,
+      data: {
+        dailyStats,
+        summary: {
+          totalRevenue,
+          totalOrders,
+          averageDailyRevenue: parseFloat(averageDailyRevenue.toFixed(2)),
+          averageDailyOrders: parseFloat(averageDailyOrders.toFixed(2)),
+          revenueGrowth: parseFloat(revenueGrowth.toFixed(1)),
+          ordersGrowth: parseFloat(ordersGrowth.toFixed(1)),
+        },
+        dateRange: {
+          from: startDate.toISOString().split('T')[0],
+          to: endDate.toISOString().split('T')[0],
+        },
+      },
+    };
+  }
+
+  async getOrderStatusDistribution(days: number = 30) {
+    const validDays = [7, 30, 90].includes(days) ? days : 30;
+
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - validDays);
+
+    const statusData = await this.orderRepository
+      .createQueryBuilder('o')
+      .select('o.fulfillment_status', 'status')
+      .addSelect('COUNT(o.id)', 'count')
+      .where('o.created_at >= :startDate', { startDate })
+      .andWhere('o.created_at <= :endDate', { endDate })
+      .groupBy('o.fulfillment_status')
+      .getRawMany();
+
+    const totalOrders = statusData.reduce((sum, s) => sum + parseInt(s.count), 0);
+
+    const statusColorMap = {
+      completed: { label: 'Completed', color: '#10b981' },
+      processing: { label: 'Processing', color: '#3b82f6' },
+      pending: { label: 'Pending', color: '#f59e0b' },
+      cancelled: { label: 'Cancelled', color: '#ef4444' },
+      delivered: { label: 'Delivered', color: '#10b981' },
+      shipping: { label: 'Shipping', color: '#3b82f6' },
+    };
+
+    const distribution = statusData.map(s => {
+      const count = parseInt(s.count);
+      const percentage = totalOrders > 0 ? (count / totalOrders) * 100 : 0;
+      const statusInfo = statusColorMap[s.status] || {
+        label: s.status.charAt(0).toUpperCase() + s.status.slice(1),
+        color: '#6b7280'
+      };
+
+      return {
+        status: s.status,
+        statusLabel: statusInfo.label,
+        count,
+        percentage: parseFloat(percentage.toFixed(1)),
+        color: statusInfo.color,
+      };
+    });
+
+    distribution.sort((a, b) => b.count - a.count);
+
+    const completedCount = distribution.find(d => d.status === 'completed')?.count || 0;
+    const cancelledCount = distribution.find(d => d.status === 'cancelled')?.count || 0;
+
+    const completionRate = totalOrders > 0 ? (completedCount / totalOrders) * 100 : 0;
+    const cancellationRate = totalOrders > 0 ? (cancelledCount / totalOrders) * 100 : 0;
+
+    return {
+      success: true,
+      data: {
+        distribution,
+        summary: {
+          totalOrders,
+          completionRate: parseFloat(completionRate.toFixed(1)),
+          cancellationRate: parseFloat(cancellationRate.toFixed(1)),
+        },
+        dateRange: {
+          from: startDate.toISOString().split('T')[0],
+          to: endDate.toISOString().split('T')[0],
+        },
+      },
+    };
+  }
+
   // ==================== PRODUCTS MANAGEMENT ====================
   async getProducts(query: any) {
     const page = parseInt(query.page) || 1;

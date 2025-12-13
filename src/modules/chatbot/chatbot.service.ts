@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
+import { JwtService } from '@nestjs/jwt';
 import { firstValueFrom } from 'rxjs';
 
 // Entities
@@ -42,7 +43,55 @@ export class ChatbotService {
         private readonly wishlistService: WishlistService,
         private readonly configService: ConfigService,
         private readonly httpService: HttpService,
+        private readonly jwtService: JwtService,
     ) { }
+
+    /**
+     * Get cart by customer ID (internal API for Rasa)
+     * Returns cart with detailed product information for chatbot display
+     */
+    async getCart(customerId: number) {
+        const customer = await this.customerRepo.findOne({
+            where: { id: customerId }
+        });
+
+        if (!customer) {
+            throw new NotFoundException(`Customer with ID ${customerId} not found`);
+        }
+
+        const cartData = await this.cartService.getCart(customerId);
+
+        const items = await Promise.all(
+            cartData.items.map(async (item) => {
+                const variant = item.variant;
+                const product = variant.product;
+                const size = variant.size;
+                const color = variant.color;
+
+                const firstImage = variant.images?.[0]?.image_url || product.thumbnail_url || null;
+
+                return {
+                    id: item.id,
+                    product_id: product.id,
+                    product_name: product.name,
+                    variant_id: variant.id,
+                    size: size?.name || null,
+                    color: color?.name || null,
+                    quantity: item.quantity,
+                    price: parseFloat(product.selling_price?.toString() || '0'),
+                    image_url: firstImage,
+                };
+            })
+        );
+
+        return {
+            customer_id: customerId,
+            items,
+            total_items: cartData.totalItems,
+            subtotal: cartData.subtotal,
+            total: cartData.subtotal,
+        };
+    }
 
     /**
      * Add item to cart (internal API for Rasa)
@@ -304,6 +353,44 @@ export class ChatbotService {
             total: recommendations.length,
             recommendations,
         };
+    }
+
+    /**
+     * Verify JWT token and return customer information
+     * Used by chatbot to get customer_id from JWT token
+     */
+    async verifyToken(jwtToken: string) {
+        try {
+            const decoded = this.jwtService.verify(jwtToken);
+
+            const customerId = decoded.sub || decoded.customerId;
+            if (!customerId) {
+                throw new UnauthorizedException('Invalid token: missing customer ID');
+            }
+
+            const customer = await this.customerRepo.findOne({
+                where: { id: customerId },
+                select: ['id', 'name', 'email']
+            });
+
+            if (!customer) {
+                throw new NotFoundException(`Customer with ID ${customerId} not found`);
+            }
+
+            return {
+                customer_id: customer.id,
+                email: customer.email,
+                name: customer.name
+            };
+
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+                throw error;
+            }
+
+            this.logger.error(`JWT verification failed: ${error.message}`);
+            throw new UnauthorizedException('Invalid or expired token');
+        }
     }
 
     /**

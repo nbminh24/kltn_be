@@ -124,6 +124,91 @@ export class AdminController {
     return this.adminService.getRevenueChart(period || '7d');
   }
 
+  @Get('dashboard/revenue-orders-trend')
+  @ApiTags('Admin - Analytics')
+  @ApiOperation({
+    summary: '[Admin] Dashboard - Revenue & Orders Trend',
+    description: 'Lấy dữ liệu biểu đồ xu hướng doanh thu và đơn hàng theo ngày (7, 30, 90 ngày)',
+  })
+  @ApiQuery({ name: 'days', required: false, example: 30, description: 'Số ngày cần lấy dữ liệu (7, 30, 90)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Dữ liệu xu hướng doanh thu và đơn hàng',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          dailyStats: [
+            {
+              date: '2024-11-12',
+              day: 'Day 1',
+              revenue: 2500000,
+              revenueInMillions: 2.5,
+              ordersCount: 15,
+            },
+          ],
+          summary: {
+            totalRevenue: 165000000,
+            totalOrders: 950,
+            averageDailyRevenue: 5500000,
+            averageDailyOrders: 31.67,
+            revenueGrowth: 12.5,
+            ordersGrowth: 8.3,
+          },
+          dateRange: {
+            from: '2024-11-12',
+            to: '2024-12-11',
+          },
+        },
+      },
+    },
+  })
+  getRevenueOrdersTrend(@Query('days') days?: string) {
+    const parsedDays = days ? parseInt(days, 10) : 30;
+    return this.adminService.getRevenueOrdersTrend(parsedDays);
+  }
+
+  @Get('dashboard/order-status-distribution')
+  @ApiTags('Admin - Analytics')
+  @ApiOperation({
+    summary: '[Admin] Dashboard - Order Status Distribution',
+    description: 'Lấy dữ liệu phân bổ đơn hàng theo trạng thái (7, 30, 90 ngày)',
+  })
+  @ApiQuery({ name: 'days', required: false, example: 30, description: 'Số ngày cần lấy dữ liệu (7, 30, 90)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Dữ liệu phân bổ trạng thái đơn hàng',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          distribution: [
+            {
+              status: 'completed',
+              statusLabel: 'Completed',
+              count: 120,
+              percentage: 60.0,
+              color: '#10b981',
+            },
+          ],
+          summary: {
+            totalOrders: 200,
+            completionRate: 60.0,
+            cancellationRate: 5.0,
+          },
+          dateRange: {
+            from: '2024-11-12',
+            to: '2024-12-11',
+          },
+        },
+      },
+    },
+  })
+  getOrderStatusDistribution(@Query('days') days?: string) {
+    const parsedDays = days ? parseInt(days, 10) : 30;
+    return this.adminService.getOrderStatusDistribution(parsedDays);
+  }
+
   // ==================== PRODUCTS MANAGEMENT ====================
   // DEPRECATED: Products APIs moved to ProductsModule (admin-products.controller.ts)
   // Use: GET/POST/PUT /admin/products

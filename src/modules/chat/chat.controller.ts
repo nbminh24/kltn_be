@@ -1,6 +1,7 @@
-import { Controller, Post, Get, Put, Delete, Body, Query, Param, UseGuards, ParseIntPipe, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Body, Query, Param, UseGuards, ParseIntPipe, UseInterceptors, UploadedFile, Headers, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Request } from 'express';
 import { ChatService } from './chat.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -20,9 +21,13 @@ export class ChatController {
         description: 'Tạo session mới cho guest (visitor_id) hoặc lấy session của customer đã login',
     })
     @ApiResponse({ status: 201, description: 'Session được tạo hoặc lấy thành công' })
-    createSession(@Body() dto: CreateSessionDto, @CurrentUser() user?: any) {
+    createSession(
+        @Body() dto: CreateSessionDto,
+        @Headers('authorization') authHeader?: string,
+        @CurrentUser() user?: any
+    ) {
         const customerId = user?.customerId ? parseInt(user.customerId) : undefined;
-        return this.chatService.createOrGetSession(dto, customerId);
+        return this.chatService.createOrGetSession(dto, authHeader, customerId);
     }
 
     @Get('history')
@@ -54,8 +59,11 @@ export class ChatController {
         description: 'Gửi tin nhắn từ user và nhận phản hồi từ Rasa bot',
     })
     @ApiResponse({ status: 201, description: 'Tin nhắn đã gửi và nhận phản hồi' })
-    sendMessage(@Body() dto: SendMessageDto) {
-        return this.chatService.sendMessage(dto);
+    sendMessage(
+        @Body() dto: SendMessageDto,
+        @Headers('authorization') authHeader?: string
+    ) {
+        return this.chatService.sendMessage(dto, authHeader);
     }
 
     @Put('merge')

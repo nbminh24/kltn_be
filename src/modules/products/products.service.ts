@@ -69,10 +69,10 @@ export class ProductsService {
       }
     }
 
-    // Search by name or description (with unaccent)
+    // Search by name, description, or slug (with unaccent for Vietnamese text)
     if (search) {
       queryBuilder.andWhere(
-        '(unaccent(product.name) ILIKE unaccent(:search) OR unaccent(product.description) ILIKE unaccent(:search))',
+        '(unaccent(product.name) ILIKE unaccent(:search) OR unaccent(product.description) ILIKE unaccent(:search) OR product.slug ILIKE :search)',
         { search: `%${search}%` },
       );
     }
@@ -240,6 +240,7 @@ export class ProductsService {
       where: {
         product_id: product.id,
         status: 'active',
+        deleted_at: null,
       },
       relations: ['size', 'color', 'images'],
       order: { size: { sort_order: 'ASC' } },
@@ -307,6 +308,7 @@ export class ProductsService {
         promotion: promotion?.promotion || null,
         variants: variantsWithStock.map(variant => ({
           id: variant.id,
+          variant_id: variant.id,
           sku: variant.sku,
           size: variant.size ? {
             id: variant.size.id,
@@ -320,6 +322,7 @@ export class ProductsService {
           total_stock: variant.total_stock,
           reserved_stock: variant.reserved_stock,
           available_stock: variant.available_stock,
+          stock: variant.available_stock,
           status: variant.status,
           images: variant.images?.map(img => ({
             id: img.id,
@@ -327,6 +330,7 @@ export class ProductsService {
             is_main: img.is_main,
           })) || [],
         })),
+        colors: availableColors.map(color => color.name),
         available_options: {
           colors: availableColors.map(color => ({
             id: color.id,

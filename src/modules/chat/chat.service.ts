@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { firstValueFrom } from 'rxjs';
 import { ChatSession } from '../../entities/chat-session.entity';
 import { ChatMessage } from '../../entities/chat-message.entity';
@@ -12,6 +13,8 @@ import { MergeSessionDto } from './dto/merge-session.dto';
 
 @Injectable()
 export class ChatService {
+    private readonly logger = new Logger(ChatService.name);
+
     constructor(
         @InjectRepository(ChatSession)
         private sessionRepository: Repository<ChatSession>,
@@ -19,9 +22,39 @@ export class ChatService {
         private messageRepository: Repository<ChatMessage>,
         private httpService: HttpService,
         private configService: ConfigService,
+        private jwtService: JwtService,
     ) { }
 
-    async createOrGetSession(dto: CreateSessionDto, customerId?: number) {
+    /**
+     * Extract customer_id from JWT token if present
+     */
+    private extractCustomerIdFromJWT(authHeader?: string): number | undefined {
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return undefined;
+        }
+
+        try {
+            const token = authHeader.substring(7);
+            const decoded = this.jwtService.verify(token);
+            const customerId = decoded.sub || decoded.customerId;
+
+            if (customerId) {
+                this.logger.log(`✅ Extracted customer_id from JWT: ${customerId}`);
+                return Number(customerId);
+            }
+        } catch (error) {
+            this.logger.warn(`⚠️ Failed to decode JWT: ${error.message}`);
+        }
+
+        return undefined;
+    }
+
+    async createOrGetSession(dto: CreateSessionDto, authHeader?: string, customerId?: number) {
+        // Try to extract customer_id from JWT if not provided
+        if (!customerId && authHeader) {
+            customerId = this.extractCustomerIdFromJWT(authHeader);
+        }
+
         // If user is logged in, find existing session by customer_id
         if (customerId) {
             let session = await this.sessionRepository.findOne({
@@ -118,13 +151,26 @@ export class ChatService {
         };
     }
 
-    async sendMessage(dto: SendMessageDto) {
+    async sendMessage(dto: SendMessageDto, authHeader?: string) {
         const session = await this.sessionRepository.findOne({
             where: { id: dto.session_id },
         });
 
         if (!session) {
             throw new NotFoundException('Không tìm thấy phiên chat');
+        }
+
+        // Extract customer_id from JWT and update session if needed
+        let customerId = session.customer_id;
+        if (!customerId && authHeader) {
+            customerId = this.extractCustomerIdFromJWT(authHeader);
+
+            // Update session with customer_id if extracted from JWT
+            if (customerId && session.customer_id !== customerId) {
+                this.logger.log(`🔄 Updating session ${session.id} with customer_id: ${customerId}`);
+                session.customer_id = customerId;
+                await this.sessionRepository.save(session);
+            }
         }
 
         // 1. Save user message
@@ -136,13 +182,28 @@ export class ChatService {
         });
         await this.messageRepository.save(customerMessage);
 
-        // 2. Call Rasa Server
+        // 2. Call Rasa Server with customer_id in metadata
         const rasaUrl = this.configService.get<string>('RASA_SERVER_URL') || 'http://localhost:5005';
         const senderId = session.visitor_id || `customer_${session.customer_id}`;
         let rasaResponses = [];
 
+        // Build metadata with customer_id
+        const metadata: any = {
+            session_id: dto.session_id.toString(),
+        };
+
+        if (customerId) {
+            metadata.customer_id = customerId;
+            this.logger.log(`✅ Injecting customer_id into Rasa metadata: ${customerId}`);
+        }
+
+        if (authHeader) {
+            metadata.user_jwt_token = authHeader.replace('Bearer ', '');
+        }
+
         console.log(`[Chat] Calling Rasa webhook: ${rasaUrl}/webhooks/rest/webhook`);
         console.log(`[Chat] Sender: ${senderId}, Message: "${dto.message}"`);
+        console.log(`[Chat] Metadata:`, JSON.stringify(metadata));
 
         try {
             const response = await firstValueFrom(
@@ -151,6 +212,7 @@ export class ChatService {
                     {
                         sender: senderId,
                         message: dto.message,
+                        metadata: metadata,  // ✅ Include metadata with customer_id
                     },
                     {
                         timeout: 10000, // 10 seconds timeout

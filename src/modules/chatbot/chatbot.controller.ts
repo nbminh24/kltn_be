@@ -26,6 +26,7 @@ import { AddToWishlistInternalDto } from './dto/add-to-wishlist-internal.dto';
 import { SizeAdviceDto } from './dto/size-advice.dto';
 import { ProductRecommendDto } from './dto/product-recommend.dto';
 import { GeminiAskDto } from './dto/gemini-ask.dto';
+import { VerifyTokenDto } from './dto/verify-token.dto';
 
 /**
  * Internal APIs for Rasa chatbot
@@ -44,6 +45,66 @@ export class ChatbotController {
     constructor(private readonly chatbotService: ChatbotService) { }
 
     // ==================== CART APIs ====================
+
+    @Get('cart/:customer_id')
+    @ApiOperation({
+        summary: '[Internal] Get cart by customer ID',
+        description: 'Internal API for Rasa chatbot to retrieve customer cart. Returns cart items with product details, variants, and totals.',
+    })
+    @ApiParam({
+        name: 'customer_id',
+        description: 'Customer ID to get cart for',
+        example: 123
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Cart retrieved successfully',
+        schema: {
+            example: {
+                success: true,
+                data: {
+                    customer_id: 123,
+                    items: [
+                        {
+                            id: 1,
+                            product_id: 456,
+                            product_name: 'Basic White T-Shirt',
+                            variant_id: 789,
+                            size: 'M',
+                            color: 'White',
+                            quantity: 2,
+                            price: 150000,
+                            image_url: 'https://...'
+                        }
+                    ],
+                    total_items: 2,
+                    subtotal: 300000,
+                    total: 300000
+                }
+            }
+        }
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Invalid or missing API key'
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Customer not found'
+    })
+    async getCart(@Param('customer_id') customerId: string) {
+        const id = parseInt(customerId, 10);
+        if (isNaN(id)) {
+            throw new BadRequestException('Invalid customer ID format');
+        }
+
+        const result = await this.chatbotService.getCart(id);
+
+        return {
+            success: true,
+            data: result
+        };
+    }
 
     @Post('cart/add')
     @ApiOperation({
@@ -232,6 +293,40 @@ export class ChatbotController {
     })
     async getProductRecommendations(@Query() dto: ProductRecommendDto) {
         const result = await this.chatbotService.getProductRecommendations(dto);
+
+        return {
+            success: true,
+            data: result
+        };
+    }
+
+    // ==================== AUTH APIs ====================
+
+    @Post('auth/verify')
+    @ApiOperation({
+        summary: '[Internal] Verify JWT token',
+        description: 'Internal API for Rasa chatbot to verify JWT token and get customer information. Returns customer_id and profile data.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Token verified successfully',
+        schema: {
+            example: {
+                success: true,
+                data: {
+                    customer_id: 123,
+                    email: 'user@example.com',
+                    name: 'John Doe'
+                }
+            }
+        }
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Invalid or expired token'
+    })
+    async verifyToken(@Body() dto: VerifyTokenDto) {
+        const result = await this.chatbotService.verifyToken(dto.jwt_token);
 
         return {
             success: true,
