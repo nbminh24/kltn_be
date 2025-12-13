@@ -35,6 +35,7 @@ export class ProductsService {
       sizes,
       min_price,
       max_price,
+      min_rating,
       sort_by = 'newest',
       search,
       page = 1,
@@ -67,6 +68,15 @@ export class ProductsService {
       } else {
         queryBuilder.andWhere('product.selling_price <= :maxPrice', { maxPrice: max_price });
       }
+    }
+
+    // Filter by rating
+    if (min_rating) {
+      const rating = parseFloat(min_rating);
+      if (isNaN(rating) || rating < 0 || rating > 5) {
+        throw new BadRequestException('min_rating phải là số từ 0 đến 5');
+      }
+      queryBuilder.andWhere('product.average_rating >= :minRating', { minRating: rating });
     }
 
     // Search by name, description, or slug (with unaccent for Vietnamese text)

@@ -4,7 +4,7 @@ import { CategoriesService } from './categories.service';
 import { Public } from '../../common/decorators/public.decorator';
 
 @ApiTags('📂 Categories')
-@Controller('categories')
+@Controller('api/v1/categories')
 @Public()
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) { }
@@ -12,6 +12,12 @@ export class CategoriesController {
   @Get()
   @ApiOperation({ summary: 'Danh sách categories (Public - chỉ active)' })
   findAll() {
+    return this.categoriesService.findAllActive();
+  }
+
+  @Get('all')
+  @ApiOperation({ summary: 'Lấy tất cả categories (cho dropdown/filter)' })
+  findAllForDropdown() {
     return this.categoriesService.findAllActive();
   }
 

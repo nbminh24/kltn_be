@@ -432,6 +432,45 @@ export class InternalService {
     };
   }
 
+  async getProductById(productId: number) {
+    const product = await this.productRepository.findOne({
+      where: { id: productId, status: 'active' },
+      relations: ['category', 'variants', 'variants.size', 'variants.color', 'variants.images'],
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${productId} not found`);
+    }
+
+    const variants = (product.variants || []).map(v => {
+      const availableStock = (v.total_stock || 0) - (v.reserved_stock || 0);
+      return {
+        id: v.id,
+        product_id: product.id,
+        color_id: v.color_id,
+        color_name: v.color?.name || null,
+        color_hex: v.color?.hex_code || null,
+        size_id: v.size_id,
+        size_name: v.size?.name || null,
+        sku: v.sku,
+        stock: availableStock,
+        price: product.selling_price,
+        images: (v.images || []).map(img => img.image_url),
+      };
+    });
+
+    return {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      description: product.description,
+      price: product.selling_price,
+      thumbnail: product.thumbnail_url,
+      category: product.category?.name || null,
+      variants,
+    };
+  }
+
   async searchProducts(options: { search?: string; category?: string; limit?: number }) {
     const { search, category, limit = 10 } = options;
 

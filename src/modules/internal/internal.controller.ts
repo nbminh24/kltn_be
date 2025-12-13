@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Param, UseGuards, Post, Body, UseFilters } from '@nestjs/common';
+import { Controller, Get, Query, Param, UseGuards, Post, Body, UseFilters, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiSecurity } from '@nestjs/swagger';
 import { InternalService } from './internal.service';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
@@ -83,6 +83,27 @@ export class InternalController {
   })
   searchProductsForChatbot(@Body() dto: ProductSearchDto) {
     return this.internalService.searchProductsForChatbot(dto);
+  }
+
+  @Get('products/:id')
+  @ApiOperation({
+    summary: '[Chatbot] Get Product Details with Variants',
+    description: `Get product details including variants with color_id, size_id for accurate variant matching in chatbot add-to-cart flow.`,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Product details with variants',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Product not found',
+  })
+  getProductById(@Param('id') id: string) {
+    const productId = parseInt(id, 10);
+    if (isNaN(productId)) {
+      throw new BadRequestException('Invalid product ID format');
+    }
+    return this.internalService.getProductById(productId);
   }
 
   @Get('pages/:slug')

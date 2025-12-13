@@ -26,6 +26,7 @@ export class ProductsController {
   @ApiQuery({ name: 'max_price', required: false, example: 500000, description: 'Giá tối đa' })
   @ApiQuery({ name: 'search', required: false, example: 'Áo sơ mi', description: 'Tìm kiếm theo tên hoặc mô tả' })
   @ApiQuery({ name: 'sort_by', required: false, example: 'newest', description: 'Sắp xếp: newest | price_asc | price_desc | rating' })
+  @ApiQuery({ name: 'min_rating', required: false, example: 4, description: 'Lọc theo rating tối thiểu (0-5)' })
   @ApiResponse({ status: 200, description: 'Danh sách sản phẩm với metadata phân trang' })
   findAll(@Query() query: any) {
     return this.productsService.findAll(query);
