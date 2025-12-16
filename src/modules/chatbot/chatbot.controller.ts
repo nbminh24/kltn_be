@@ -25,6 +25,7 @@ import { CancelOrderInternalDto } from './dto/cancel-order-internal.dto';
 import { AddToWishlistInternalDto } from './dto/add-to-wishlist-internal.dto';
 import { SizeAdviceDto } from './dto/size-advice.dto';
 import { ProductRecommendDto } from './dto/product-recommend.dto';
+import { ProductSearchDto } from './dto/product-search.dto';
 import { GeminiAskDto } from './dto/gemini-ask.dto';
 import { VerifyTokenDto } from './dto/verify-token.dto';
 
@@ -277,6 +278,48 @@ export class ChatbotController {
     }
 
     // ==================== PRODUCT RECOMMENDATION APIs ====================
+
+    @Get('products/search')
+    @ApiOperation({
+        summary: '[Internal] Search products by keyword',
+        description: 'Search products by name/description keywords. Prioritizes products matching all keywords over partial matches.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Products found successfully',
+        schema: {
+            example: {
+                success: true,
+                data: {
+                    query: 'meow shirt',
+                    total: 5,
+                    products: [
+                        {
+                            product_id: 5,
+                            name: 'Sushi Meow T-Shirt',
+                            slug: 'sushi-meow-t-shirt',
+                            price: 12.72,
+                            thumbnail: 'https://...',
+                            rating: 4.5,
+                            in_stock: true
+                        }
+                    ]
+                }
+            }
+        }
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Invalid or missing API key'
+    })
+    async searchProducts(@Query() dto: ProductSearchDto) {
+        const result = await this.chatbotService.searchProducts(dto);
+
+        return {
+            success: true,
+            data: result
+        };
+    }
 
     @Get('products/recommend')
     @ApiOperation({

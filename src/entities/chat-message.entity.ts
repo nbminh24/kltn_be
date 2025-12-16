@@ -28,6 +28,12 @@ export class ChatMessage {
     @Column({ type: 'text', nullable: true })
     image_url: string;
 
+    @Column({ type: 'jsonb', nullable: true })
+    custom: any;
+
+    @Column({ type: 'jsonb', nullable: true })
+    buttons: any;
+
     @CreateDateColumn({ type: 'timestamp with time zone' })
     created_at: Date;
 

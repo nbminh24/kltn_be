@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, UseGuards, BadRequestException, Headers, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -15,16 +15,15 @@ export class OrdersController {
   @Get('track')
   @Public()
   @ApiOperation({
-    summary: 'Tracking đơn hàng (Public)',
-    description: 'Tra cứu thông tin đơn hàng bằng order_id hoặc phone + email. Dùng cho chatbot.',
+    summary: 'Tracking đơn hàng',
+    description: 'Tra cứu thông tin đơn hàng bằng order_id. Yêu cầu authentication để verify ownership.',
   })
-  @ApiQuery({ name: 'order_id', required: false, type: Number, example: 123 })
-  @ApiQuery({ name: 'phone', required: false, type: String, example: '0912345678' })
-  @ApiQuery({ name: 'email', required: false, type: String, example: 'user@example.com' })
+  @ApiQuery({ name: 'order_id', required: true, type: String, example: '0000000001' })
   @ApiResponse({ status: 200, description: 'Thông tin đơn hàng' })
+  @ApiResponse({ status: 403, description: 'Không có quyền xem đơn hàng' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
-  trackOrder(@Query() query: any) {
-    return this.ordersService.trackOrder(query);
+  trackOrder(@Query() query: any, @Headers('authorization') authHeader?: string) {
+    return this.ordersService.trackOrder(query, authHeader);
   }
 
   @Get()

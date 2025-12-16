@@ -91,15 +91,13 @@ async function clearAllData() {
             'chat_messages',
             'chat_sessions',
             'customer_addresses',
-            'customers',
             'product_images',
             'product_variants',
             'products',
             'categories',
             'sizes',
             'colors',
-            'pages',
-            'admins'
+            'pages'
         ];
 
         for (const table of tables) {

@@ -19,6 +19,9 @@ export class Order {
   @Column({ type: 'bigint', nullable: true })
   customer_id: number;
 
+  @Column({ type: 'varchar', unique: true, nullable: true })
+  order_number: string;
+
   @Column({ type: 'varchar', nullable: true })
   customer_email: string;
 

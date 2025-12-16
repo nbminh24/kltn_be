@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
 import { Order } from '../../entities/order.entity';
 import { OrderItem } from '../../entities/order-item.entity';
 import { Cart } from '../../entities/cart.entity';
@@ -11,6 +12,8 @@ import { OrderStatusHistory } from '../../entities/order-status-history.entity';
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
@@ -26,6 +29,7 @@ export class OrdersService {
     private variantRepository: Repository<ProductVariant>,
     @InjectRepository(OrderStatusHistory)
     private statusHistoryRepository: Repository<OrderStatusHistory>,
+    private jwtService: JwtService,
   ) { }
 
   async createOrder(customerId: number, orderData: any) {
@@ -179,30 +183,66 @@ export class OrdersService {
     return { message: 'Order cancelled successfully' };
   }
 
-  async trackOrder(query: any) {
-    const { order_id, phone, email } = query;
-
-    if (!order_id && (!phone || !email)) {
-      throw new BadRequestException('Phải cung cấp order_id hoặc (phone + email)');
+  private extractCustomerIdFromJWT(authHeader?: string): number | undefined {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return undefined;
     }
 
-    let order: Order | null = null;
+    try {
+      const token = authHeader.substring(7);
+      const decoded = this.jwtService.verify(token);
+      const customerId = decoded.sub || decoded.customerId;
 
-    if (order_id) {
-      // Track by order_id
+      if (customerId) {
+        return Number(customerId);
+      }
+    } catch (error) {
+      this.logger.warn(`⚠️ Failed to decode JWT: ${error.message}`);
+    }
+
+    return undefined;
+  }
+
+  async trackOrder(query: any, authHeader?: string) {
+    const { order_id } = query;
+
+    if (!order_id) {
+      throw new BadRequestException('Phải cung cấp order_id');
+    }
+
+    // Extract customer_id from JWT
+    const authenticatedCustomerId = this.extractCustomerIdFromJWT(authHeader);
+
+    if (!authenticatedCustomerId) {
+      throw new BadRequestException('Yêu cầu đăng nhập để track order');
+    }
+
+    // Find order with flexible lookup
+    let order: Order | null = null;
+    const orderIdStr = order_id.toString().replace(/^#/, '');
+
+    // Try numeric ID first
+    const parsedId = parseInt(orderIdStr);
+    if (!isNaN(parsedId)) {
       order = await this.orderRepository.findOne({
-        where: { id: parseInt(order_id) },
-        relations: ['items', 'items.variant', 'items.variant.product'],
+        where: { id: parsedId },
+        relations: ['items', 'items.variant', 'items.variant.product', 'items.variant.size', 'items.variant.color'],
       });
-    } else {
-      // Track by phone + email
+    }
+
+    // Try order_number
+    if (!order) {
       order = await this.orderRepository.findOne({
-        where: {
-          shipping_phone: phone,
-          customer_email: email,
-        },
-        relations: ['items', 'items.variant', 'items.variant.product'],
-        order: { created_at: 'DESC' }, // Get latest order
+        where: { order_number: orderIdStr },
+        relations: ['items', 'items.variant', 'items.variant.product', 'items.variant.size', 'items.variant.color'],
+      });
+    }
+
+    // Try with # prefix
+    if (!order && !orderIdStr.startsWith('#')) {
+      order = await this.orderRepository.findOne({
+        where: { order_number: `#${orderIdStr}` },
+        relations: ['items', 'items.variant', 'items.variant.product', 'items.variant.size', 'items.variant.color'],
       });
     }
 
@@ -210,8 +250,26 @@ export class OrdersService {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
 
+    // 🚨 CRITICAL: Verify ownership
+    if (order.customer_id !== authenticatedCustomerId) {
+      this.logger.warn(
+        `[SECURITY] Customer ${authenticatedCustomerId} attempted to access order ${order.order_number} belonging to customer ${order.customer_id}`
+      );
+      throw new ForbiddenException('Bạn không có quyền xem đơn hàng này');
+    }
+
+    // Return with field aliases for chatbot compatibility
     return {
       order_id: order.id,
+      order_number: order.order_number,
+      customer_id: order.customer_id,
+
+      // ✅ Field aliases for chatbot (Bug #2 fix)
+      status: order.fulfillment_status,
+      total: order.total_amount,
+      date: order.created_at,
+
+      // Detailed fields
       fulfillment_status: order.fulfillment_status,
       payment_status: order.payment_status,
       total_amount: order.total_amount,
@@ -219,10 +277,17 @@ export class OrdersService {
       shipping_address: order.shipping_address,
       shipping_phone: order.shipping_phone,
       created_at: order.created_at,
+      updated_at: order.updated_at,
+
       items: order.items.map(item => ({
+        product_id: item.variant?.product?.id,
         product_name: item.variant?.product?.name || 'N/A',
+        variant_id: item.variant_id,
+        size: item.variant?.size?.name,
+        color: item.variant?.color?.name,
         quantity: item.quantity,
         price: item.price_at_purchase,
+        subtotal: item.quantity * item.price_at_purchase,
       })),
     };
   }

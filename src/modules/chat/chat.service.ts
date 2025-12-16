@@ -258,16 +258,20 @@ export class ChatService {
             }];
         }
 
-        // 3. Save bot responses
+        // 3. Save bot responses WITH custom data to database
         const savedBotResponses = [];
         for (const rasaMsg of rasaResponses) {
+            // Save to DB including custom and buttons for persistence
             const botMessage = this.messageRepository.create({
                 session_id: dto.session_id,
                 sender: 'bot',
                 message: rasaMsg.text || '',
                 is_read: false,
+                custom: rasaMsg.custom || null,    // ✅ SAVE custom to DB
+                buttons: rasaMsg.buttons || null,  // ✅ SAVE buttons to DB
             });
             const saved = await this.messageRepository.save(botMessage);
+
             savedBotResponses.push(saved);
         }
 
@@ -275,7 +279,7 @@ export class ChatService {
         session.updated_at = new Date();
         await this.sessionRepository.save(session);
 
-        // Return with correct naming (Fix Bug #2)
+        // Return with custom data attached
         return {
             customer_message: customerMessage,
             bot_responses: savedBotResponses,

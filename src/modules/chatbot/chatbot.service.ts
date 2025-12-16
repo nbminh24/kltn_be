@@ -271,6 +271,90 @@ export class ChatbotService {
     }
 
     /**
+     * Search products by keyword
+     * Prioritizes products matching all keywords over partial matches
+     */
+    async searchProducts(dto: any) {
+        const { query, limit = 5, category } = dto;
+
+        if (!query || query.trim().length === 0) {
+            return {
+                query: query || '',
+                total: 0,
+                products: [],
+            };
+        }
+
+        // Split query into individual keywords
+        const keywords = query.toLowerCase().trim().split(/\s+/);
+
+        // Build base query
+        const queryBuilder = this.productRepo
+            .createQueryBuilder('product')
+            .leftJoinAndSelect('product.variants', 'variants')
+            .leftJoinAndSelect('product.category', 'category')
+            .where('product.status = :status', { status: 'active' })
+            .andWhere('product.deleted_at IS NULL');
+
+        // Filter by category if provided
+        if (category) {
+            queryBuilder.andWhere('category.slug = :category', { category: category.toLowerCase() });
+        }
+
+        // Build search conditions for each keyword
+        // Search in product name and description
+        const searchConditions = keywords.map((keyword, index) => {
+            return `(LOWER(product.name) LIKE :keyword${index} OR LOWER(product.description) LIKE :keyword${index})`;
+        });
+
+        // Require ALL keywords to match (AND logic)
+        if (searchConditions.length > 0) {
+            queryBuilder.andWhere(`(${searchConditions.join(' AND ')})`);
+
+            // Set parameters for each keyword
+            keywords.forEach((keyword, index) => {
+                queryBuilder.setParameter(`keyword${index}`, `%${keyword}%`);
+            });
+        }
+
+        // Order by rating and reviews (simple approach to avoid SQL complexity)
+        queryBuilder
+            .orderBy('product.average_rating', 'DESC')
+            .addOrderBy('product.total_reviews', 'DESC')
+            .addOrderBy('product.created_at', 'DESC')
+            .take(limit);
+
+        const products = await queryBuilder.getMany();
+
+        // Format response
+        const formattedProducts = products.map(product => {
+            const firstVariant = product.variants?.[0];
+            const availableStock = firstVariant
+                ? firstVariant.total_stock - firstVariant.reserved_stock
+                : 0;
+
+            return {
+                product_id: product.id,
+                name: product.name,
+                slug: product.slug,
+                description: product.description,
+                price: product.selling_price,
+                thumbnail: product.thumbnail_url,
+                rating: product.average_rating,
+                reviews: product.total_reviews,
+                category: product.category?.name,
+                in_stock: availableStock > 0,
+            };
+        });
+
+        return {
+            query,
+            total: formattedProducts.length,
+            products: formattedProducts,
+        };
+    }
+
+    /**
      * Get product recommendations based on context/occasion
      * Uses JSONB attributes to match products with specific tags
      */
