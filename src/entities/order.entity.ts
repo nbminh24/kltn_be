@@ -49,6 +49,39 @@ export class Order {
   @Column({ type: 'varchar', default: 'cod' })
   payment_method: string;
 
+  @Column({ type: 'varchar', default: 'standard', nullable: true })
+  shipping_method: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  tracking_number: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  carrier_name: string;
+
+  @Column({ type: 'date', nullable: true })
+  estimated_delivery_from: Date;
+
+  @Column({ type: 'date', nullable: true })
+  estimated_delivery_to: Date;
+
+  @Column({ type: 'date', nullable: true })
+  actual_delivery_date: Date;
+
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  cancelled_at: Date;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  cancel_reason: string;
+
+  @Column({ type: 'bigint', nullable: true })
+  cancelled_by_customer_id: number;
+
+  @Column({ type: 'varchar', length: 20, default: 'pending', nullable: true })
+  refund_status: string;
+
+  @Column({ type: 'numeric', nullable: true })
+  refund_amount: number;
+
   @Column({ type: 'numeric', default: 0 })
   shipping_fee: number;
 

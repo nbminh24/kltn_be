@@ -22,8 +22,20 @@ export class ChatSession {
     @Column({ type: 'varchar', nullable: true })
     visitor_id: string;
 
-    @Column({ type: 'varchar', default: 'active' })
-    status: string;
+    @Column({ type: 'varchar', default: 'bot' })
+    status: string; // 'bot' | 'human_pending' | 'human_active' | 'closed'
+
+    @Column({ type: 'bigint', nullable: true })
+    assigned_admin_id: number;
+
+    @Column({ type: 'timestamp with time zone', nullable: true })
+    handoff_requested_at: Date;
+
+    @Column({ type: 'timestamp with time zone', nullable: true })
+    handoff_accepted_at: Date;
+
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    handoff_reason: string;
 
     @CreateDateColumn({ type: 'timestamp with time zone' })
     created_at: Date;

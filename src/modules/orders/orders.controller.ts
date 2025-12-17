@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Param, Query, UseGuards, BadRequestException, Headers, ForbiddenException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Param, Query, Body, UseGuards, BadRequestException, Headers, ForbiddenException } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -11,6 +12,19 @@ import { Public } from '../../common/decorators/public.decorator';
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) { }
+
+  @Get('track/delivery-estimation')
+  @Public()
+  @ApiOperation({
+    summary: 'Delivery estimation for order',
+    description: 'Get estimated delivery date for an order based on shipping method and destination. Requires authentication.',
+  })
+  @ApiQuery({ name: 'order_id', required: true, type: String, example: '0000000032' })
+  @ApiResponse({ status: 200, description: 'Delivery estimation details' })
+  @ApiResponse({ status: 404, description: 'Order not found' })
+  getDeliveryEstimation(@Query() query: any, @Headers('authorization') authHeader?: string) {
+    return this.ordersService.getDeliveryEstimation(query, authHeader);
+  }
 
   @Get('track')
   @Public()
@@ -71,17 +85,22 @@ export class OrdersController {
 
   @Post(':id/cancel')
   @ApiOperation({
-    summary: 'Hủy đơn hàng',
-    description: 'Hủy đơn hàng khi đơn hàng đang ở trạng thái pending. Hoàn lại kho (giảm reserved_stock).'
+    summary: 'Cancel order with reason',
+    description: 'Cancel order when status is pending. Requires cancellation reason for analytics.',
   })
-  @ApiResponse({ status: 200, description: 'Hủy đơn hàng thành công' })
-  @ApiResponse({ status: 400, description: 'Không thể hủy đơn hàng ở trạng thái hiện tại' })
-  @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
-  cancelOrder(@CurrentUser() user: any, @Param('id') id: string) {
+  @ApiBody({ type: CancelOrderDto })
+  @ApiResponse({ status: 200, description: 'Order cancelled successfully' })
+  @ApiResponse({ status: 400, description: 'Cannot cancel order at current status / Invalid reason' })
+  @ApiResponse({ status: 404, description: 'Order not found' })
+  cancelOrder(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() cancelOrderDto: CancelOrderDto,
+  ) {
     const orderId = parseInt(id, 10);
     if (isNaN(orderId)) {
-      throw new BadRequestException('ID đơn hàng không hợp lệ');
+      throw new BadRequestException('Invalid order ID');
     }
-    return this.ordersService.cancelOrder(user.sub, orderId);
+    return this.ordersService.cancelOrder(user.sub, orderId, cancelOrderDto.cancel_reason);
   }
 }

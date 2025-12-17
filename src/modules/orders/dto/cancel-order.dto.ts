@@ -1,9 +1,6 @@
-import { IsInt, IsPositive, IsEnum, IsOptional } from 'class-validator';
+import { IsEnum, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-/**
- * DTO for internal cancel order API (used by Rasa chatbot)
- */
 export enum CancelReason {
     CHANGED_MIND = 'changed_mind',
     ORDERED_WRONG_ITEM = 'ordered_wrong_item',
@@ -15,22 +12,15 @@ export enum CancelReason {
     OTHER = 'other',
 }
 
-export class CancelOrderInternalDto {
-    @ApiProperty({
-        example: 123,
-        description: 'Customer ID who owns the order'
-    })
-    @IsInt()
-    @IsPositive()
-    customer_id: number;
-
+export class CancelOrderDto {
     @ApiProperty({
         enum: CancelReason,
         description: 'Reason for order cancellation',
-        example: 'changed_mind',
-        required: false,
+        example: 'wrong_size_color',
     })
-    @IsEnum(CancelReason)
-    @IsOptional()
-    cancel_reason?: CancelReason;
+    @IsEnum(CancelReason, {
+        message: 'Invalid cancellation reason. Must be one of: changed_mind, ordered_wrong_item, wrong_size_color, found_better_price, delivery_too_slow, payment_issue, duplicate_order, other',
+    })
+    @IsNotEmpty()
+    cancel_reason: CancelReason;
 }

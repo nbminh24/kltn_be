@@ -9,6 +9,7 @@ import { CartItem } from '../../entities/cart-item.entity';
 import { Customer } from '../../entities/customer.entity';
 import { ProductVariant } from '../../entities/product-variant.entity';
 import { OrderStatusHistory } from '../../entities/order-status-history.entity';
+import { DeliveryEstimationService } from './delivery-estimation.service';
 
 @Injectable()
 export class OrdersService {
@@ -30,6 +31,7 @@ export class OrdersService {
     @InjectRepository(OrderStatusHistory)
     private statusHistoryRepository: Repository<OrderStatusHistory>,
     private jwtService: JwtService,
+    private deliveryEstimationService: DeliveryEstimationService,
   ) { }
 
   async createOrder(customerId: number, orderData: any) {
@@ -163,24 +165,126 @@ export class OrdersService {
     };
   }
 
-  async cancelOrder(customerId: number, orderId: number) {
+  async cancelOrder(customerId: number, orderId: number, cancelReason: string) {
     const order = await this.orderRepository.findOne({
       where: { id: orderId, customer_id: customerId },
       relations: ['items'],
     });
 
     if (!order) {
-      throw new NotFoundException('Order not found');
+      throw new NotFoundException({
+        success: false,
+        error: 'ORDER_NOT_FOUND',
+        message: `Order #${orderId} not found`,
+        suggestion: null,
+      });
     }
 
-    if (order.fulfillment_status !== 'pending' && order.fulfillment_status !== 'confirmed') {
-      throw new BadRequestException('Cannot cancel this order at current status');
+    const validReasons = [
+      'changed_mind',
+      'ordered_wrong_item',
+      'wrong_size_color',
+      'found_better_price',
+      'delivery_too_slow',
+      'payment_issue',
+      'duplicate_order',
+      'other',
+    ];
+
+    if (!validReasons.includes(cancelReason)) {
+      throw new BadRequestException({
+        success: false,
+        error: 'INVALID_CANCEL_REASON',
+        message: 'Invalid cancellation reason provided',
+        valid_reasons: validReasons,
+      });
+    }
+
+    const status = order.fulfillment_status;
+
+    if (status === 'cancelled') {
+      throw new BadRequestException({
+        success: false,
+        error: 'ALREADY_CANCELLED',
+        message: 'This order has already been cancelled',
+        current_status: 'cancelled',
+        cancelled_at: order.cancelled_at,
+        suggestion: null,
+      });
+    }
+
+    if (status === 'confirmed') {
+      throw new BadRequestException({
+        success: false,
+        error: 'CANNOT_CANCEL_CONFIRMED',
+        message: 'This order has been confirmed and is waiting for delivery',
+        current_status: 'confirmed',
+        suggestion:
+          'You can refuse the package upon delivery or request a return after receiving it, according to our return policy',
+      });
+    }
+
+    if (status === 'shipping' || status === 'shipped') {
+      throw new BadRequestException({
+        success: false,
+        error: 'CANNOT_CANCEL_SHIPPING',
+        message: 'This order is currently being shipped',
+        current_status: status,
+        tracking_number: order.tracking_number || null,
+        carrier: order.carrier_name || null,
+        suggestion:
+          'A common option is to refuse the delivery when the courier arrives, or initiate a return after the package is delivered',
+      });
+    }
+
+    if (status === 'delivered') {
+      throw new BadRequestException({
+        success: false,
+        error: 'CANNOT_CANCEL_DELIVERED',
+        message: 'This order has already been delivered',
+        current_status: 'delivered',
+        delivered_at: order.actual_delivery_date,
+        suggestion:
+          'You may request a return or refund according to our return policy if the product meets the conditions',
+      });
+    }
+
+    if (status !== 'pending') {
+      throw new BadRequestException({
+        success: false,
+        error: 'CANNOT_CANCEL',
+        message: `Cannot cancel order in ${status} status`,
+        current_status: status,
+        suggestion: 'Please contact support for assistance',
+      });
     }
 
     order.fulfillment_status = 'cancelled';
+    order.cancelled_at = new Date();
+    order.cancel_reason = cancelReason;
+    order.cancelled_by_customer_id = customerId;
+    order.refund_status = order.payment_status === 'paid' ? 'pending' : 'not_applicable';
+    order.refund_amount = order.payment_status === 'paid' ? order.total_amount : null;
+
     await this.orderRepository.save(order);
 
-    return { message: 'Order cancelled successfully' };
+    this.logger.log(
+      `✅ Order #${order.order_number} cancelled by customer ${customerId}. Reason: ${cancelReason}`
+    );
+
+    return {
+      success: true,
+      message: 'Order cancelled successfully',
+      order: {
+        order_id: order.id,
+        order_number: order.order_number,
+        fulfillment_status: order.fulfillment_status,
+        cancelled_at: order.cancelled_at,
+        cancel_reason: order.cancel_reason,
+        refund_status: order.refund_status,
+        refund_amount: order.refund_amount,
+      },
+    };
   }
 
   private extractCustomerIdFromJWT(authHeader?: string): number | undefined {
@@ -289,6 +393,120 @@ export class OrdersService {
         price: item.price_at_purchase,
         subtotal: item.quantity * item.price_at_purchase,
       })),
+    };
+  }
+
+  async getDeliveryEstimation(query: any, authHeader?: string) {
+    const { order_id } = query;
+
+    if (!order_id) {
+      throw new BadRequestException('Order ID is required');
+    }
+
+    const authenticatedCustomerId = this.extractCustomerIdFromJWT(authHeader);
+
+    if (!authenticatedCustomerId) {
+      throw new BadRequestException('Authentication required');
+    }
+
+    let order: Order | null = null;
+    const orderIdStr = order_id.toString().replace(/^#/, '');
+
+    const parsedId = parseInt(orderIdStr);
+    if (!isNaN(parsedId)) {
+      order = await this.orderRepository.findOne({
+        where: { id: parsedId },
+      });
+    }
+
+    if (!order) {
+      order = await this.orderRepository.findOne({
+        where: { order_number: orderIdStr },
+      });
+    }
+
+    if (!order && !orderIdStr.startsWith('#')) {
+      order = await this.orderRepository.findOne({
+        where: { order_number: `#${orderIdStr}` },
+      });
+    }
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    if (order.customer_id !== authenticatedCustomerId) {
+      this.logger.warn(
+        `[SECURITY] Customer ${authenticatedCustomerId} attempted to access delivery estimation for order ${order.order_number} belonging to customer ${order.customer_id}`
+      );
+      throw new NotFoundException('Order not found');
+    }
+
+    const status = order.fulfillment_status;
+
+    if (status === 'pending' || status === 'confirmed' || status === 'processing') {
+      return {
+        order_id: order.id,
+        order_number: order.order_number,
+        status: status,
+        estimated_delivery: null,
+        message: this.deliveryEstimationService.getDeliveryStatusMessage(status),
+      };
+    }
+
+    if (status === 'delivered' && order.actual_delivery_date) {
+      return {
+        order_id: order.id,
+        order_number: order.order_number,
+        status: 'delivered',
+        estimated_delivery: {
+          actual_date: order.actual_delivery_date,
+          formatted: new Date(order.actual_delivery_date).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          }),
+        },
+        message: `Your order was delivered on ${new Date(order.actual_delivery_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.`,
+      };
+    }
+
+    if (status === 'cancelled') {
+      return {
+        order_id: order.id,
+        order_number: order.order_number,
+        status: 'cancelled',
+        estimated_delivery: null,
+        message: 'This order has been cancelled.',
+      };
+    }
+
+    const location = {
+      city: order.shipping_city || '',
+      district: order.shipping_district || '',
+    };
+
+    const isMajorCity = this.deliveryEstimationService.isMajorCity(location.city);
+
+    const deliveryEstimate = this.deliveryEstimationService.estimateDeliveryDate(
+      order.created_at,
+      order.shipping_method || 'standard',
+      location
+    );
+
+    return {
+      order_id: order.id,
+      order_number: order.order_number,
+      status: status,
+      shipping_method: order.shipping_method || 'standard',
+      destination: {
+        city: order.shipping_city,
+        district: order.shipping_district,
+        is_major_city: isMajorCity,
+      },
+      estimated_delivery: deliveryEstimate,
+      tracking_url: order.tracking_number ? `https://tracking.example.com/${order.tracking_number}` : null,
+      delivery_status_message: this.deliveryEstimationService.getDeliveryStatusMessage(status),
     };
   }
 }

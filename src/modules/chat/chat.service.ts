@@ -62,6 +62,7 @@ export class ChatService {
                 const session = this.sessionRepository.create({
                     customer_id: customerId,
                     visitor_id: null,
+                    status: 'bot',
                 });
                 await this.sessionRepository.save(session);
 
@@ -91,6 +92,7 @@ export class ChatService {
                 session = this.sessionRepository.create({
                     customer_id: customerId,
                     visitor_id: null,
+                    status: 'bot',
                 });
                 await this.sessionRepository.save(session);
             }
@@ -120,6 +122,7 @@ export class ChatService {
                 session = this.sessionRepository.create({
                     customer_id: null,
                     visitor_id: dto.visitor_id,
+                    status: 'bot',
                 });
                 await this.sessionRepository.save(session);
             }
@@ -161,6 +164,10 @@ export class ChatService {
                 id: session.id,
                 customer_id: session.customer_id,
                 visitor_id: session.visitor_id,
+                status: session.status,
+                assigned_admin_id: session.assigned_admin_id,
+                handoff_requested_at: session.handoff_requested_at,
+                handoff_accepted_at: session.handoff_accepted_at,
                 customer: session.customer ? {
                     id: session.customer.id,
                     name: session.customer.name,
@@ -205,9 +212,41 @@ export class ChatService {
         });
         await this.messageRepository.save(customerMessage);
 
-        // 2. Call Rasa Server with customer_id in metadata
+        // ❗ CRITICAL: Skip Rasa if conversation is in human mode
+        if (session.status === 'human_pending' || session.status === 'human_active') {
+            this.logger.log(`🚫 Skipping Rasa for session ${session.id} - status: ${session.status}`);
+
+            // Update session timestamp
+            session.updated_at = new Date();
+            await this.sessionRepository.save(session);
+
+            // If pending, send waiting message
+            if (session.status === 'human_pending') {
+                const waitingMessage = this.messageRepository.create({
+                    session_id: dto.session_id,
+                    sender: 'bot',
+                    message: 'Your request has been forwarded to our support team. They will respond during working hours (8AM-8PM).',
+                    is_read: false,
+                });
+                const saved = await this.messageRepository.save(waitingMessage);
+
+                return {
+                    customer_message: customerMessage,
+                    bot_responses: [saved],
+                };
+            }
+
+            // If human_active, just save customer message (admin will respond)
+            return {
+                customer_message: customerMessage,
+                bot_responses: [],
+            };
+        }
+
+        // 2. Call Rasa Server with customer_id in metadata (only if status = 'bot')
         const rasaUrl = this.configService.get<string>('RASA_SERVER_URL') || 'http://localhost:5005';
-        const senderId = session.visitor_id || `customer_${session.customer_id}`;
+        // Use session_id as sender to isolate Rasa conversations per session
+        const senderId = session.visitor_id || `session_${dto.session_id}`;
         let rasaResponses = [];
 
         // Build metadata with customer_id
@@ -276,8 +315,12 @@ export class ChatService {
         }
 
         // 4. Update session timestamp
-        session.updated_at = new Date();
-        await this.sessionRepository.save(session);
+        // Reload session to get latest status (in case handoff was triggered)
+        const latestSession = await this.sessionRepository.findOne({ where: { id: dto.session_id } });
+        if (latestSession) {
+            latestSession.updated_at = new Date();
+            await this.sessionRepository.save(latestSession);
+        }
 
         // Return with custom data attached
         return {
@@ -329,7 +372,7 @@ export class ChatService {
             throw new BadRequestException('Phải cung cấp customer_id, visitor_id hoặc JWT token');
         }
 
-        const where: any = { status: 'active' };
+        const where: any = {};
         if (finalCustomerId) {
             where.customer_id = parseInt(finalCustomerId);
         } else if (visitor_id) {
@@ -391,7 +434,7 @@ export class ChatService {
             throw new BadRequestException('Phải cung cấp customer_id, visitor_id hoặc JWT token');
         }
 
-        const where: any = { status: 'active' };
+        const where: any = {};
         if (finalCustomerId) {
             where.customer_id = parseInt(finalCustomerId);
         } else if (visitor_id) {
@@ -479,8 +522,238 @@ export class ChatService {
         await this.messageRepository.save(message);
 
         return {
-            message: 'Đánh dấu đã đọc thành công',
+            message: 'Đã đánh dấu là đã đọc',
             message_id: messageId,
+        };
+    }
+
+    /**
+     * Request human handoff - transfer conversation from bot to human agent
+     */
+    async requestHandoff(sessionId: number, reason?: string) {
+        const session = await this.sessionRepository.findOne({
+            where: { id: sessionId },
+        });
+
+        if (!session) {
+            throw new NotFoundException('Session not found');
+        }
+
+        if (session.status === 'human_pending' || session.status === 'human_active') {
+            throw new BadRequestException('This conversation is already assigned to or pending human agent');
+        }
+
+        // Check working hours (8AM - 8PM)
+        const now = new Date();
+        const hour = now.getHours();
+        const isWorkingHours = hour >= 8 && hour < 20;
+
+        // Update session status
+        session.status = 'human_pending';
+        session.handoff_requested_at = new Date();
+        session.handoff_reason = reason || 'customer_request';
+        await this.sessionRepository.save(session);
+
+        this.logger.log(` Handoff requested for session ${sessionId}. Working hours: ${isWorkingHours}`);
+
+        // Send bot confirmation message
+        const botMessage = this.messageRepository.create({
+            session_id: sessionId,
+            sender: 'bot',
+            message: isWorkingHours
+                ? "I'm inviting one of our human support agents to assist you. They will respond shortly. This conversation will now be handled by a human agent."
+                : "I've forwarded your request to our support team. Our agents are available from 8:00 AM to 8:00 PM. They will respond during working hours.",
+            is_read: false,
+        });
+        await this.messageRepository.save(botMessage);
+
+        return {
+            success: true,
+            message: 'Handoff request created',
+            session: {
+                id: session.id,
+                status: session.status,
+                handoff_requested_at: session.handoff_requested_at,
+                working_hours: isWorkingHours,
+            },
+        };
+    }
+
+    /**
+     * Admin accepts conversation - assigns admin to conversation
+     */
+    async acceptConversation(sessionId: number, adminId: number) {
+        const session = await this.sessionRepository.findOne({
+            where: { id: sessionId },
+        });
+
+        if (!session) {
+            throw new NotFoundException('Session not found');
+        }
+
+        if (session.status !== 'human_pending') {
+            throw new BadRequestException(`Cannot accept conversation with status: ${session.status}`);
+        }
+
+        // Assign admin and activate
+        session.status = 'human_active';
+        session.assigned_admin_id = adminId;
+        session.handoff_accepted_at = new Date();
+        await this.sessionRepository.save(session);
+
+        this.logger.log(` Admin ${adminId} accepted conversation ${sessionId}`);
+
+        // Send system message
+        const systemMessage = this.messageRepository.create({
+            session_id: sessionId,
+            sender: 'admin',
+            message: 'Hello! I\'m here to help you. How can I assist you today?',
+            is_read: false,
+        });
+        await this.messageRepository.save(systemMessage);
+
+        return {
+            success: true,
+            message: 'Conversation accepted',
+            session: {
+                id: session.id,
+                status: session.status,
+                assigned_admin_id: session.assigned_admin_id,
+                handoff_accepted_at: session.handoff_accepted_at,
+            },
+        };
+    }
+
+    /**
+     * Close conversation - end human conversation
+     */
+    async closeConversation(sessionId: number, adminId: number) {
+        const session = await this.sessionRepository.findOne({
+            where: { id: sessionId },
+        });
+
+        if (!session) {
+            throw new NotFoundException('Session not found');
+        }
+
+        if (Number(session.assigned_admin_id) !== Number(adminId)) {
+            throw new BadRequestException('You are not assigned to this conversation');
+        }
+
+        session.status = 'closed';
+        await this.sessionRepository.save(session);
+
+        this.logger.log(` Conversation ${sessionId} closed by admin ${adminId}`);
+
+        // Send closing message
+        const closingMessage = this.messageRepository.create({
+            session_id: sessionId,
+            sender: 'admin',
+            message: 'This conversation has been closed. If you need further assistance, please start a new conversation.',
+            is_read: false,
+        });
+        await this.messageRepository.save(closingMessage);
+
+        return {
+            success: true,
+            message: 'Conversation closed',
+            session_id: sessionId,
+        };
+    }
+
+    /**
+     * Get pending conversations for admin dashboard
+     */
+    async getPendingConversations() {
+        const sessions = await this.sessionRepository.find({
+            where: { status: 'human_pending' },
+            relations: ['customer'],
+            order: { handoff_requested_at: 'ASC' },
+        });
+
+        return {
+            total: sessions.length,
+            conversations: sessions.map(s => ({
+                session_id: s.id,
+                customer: s.customer ? {
+                    id: s.customer.id,
+                    name: s.customer.name,
+                    email: s.customer.email,
+                } : null,
+                visitor_id: s.visitor_id,
+                handoff_reason: s.handoff_reason,
+                handoff_requested_at: s.handoff_requested_at,
+                created_at: s.created_at,
+            })),
+        };
+    }
+
+    /**
+     * Get active conversations assigned to admin
+     */
+    async getAdminConversations(adminId: number) {
+        const sessions = await this.sessionRepository.find({
+            where: {
+                assigned_admin_id: adminId,
+                status: 'human_active',
+            },
+            relations: ['customer'],
+            order: { updated_at: 'DESC' },
+        });
+
+        return {
+            total: sessions.length,
+            conversations: sessions.map(s => ({
+                session_id: s.id,
+                customer: s.customer ? {
+                    id: s.customer.id,
+                    name: s.customer.name,
+                    email: s.customer.email,
+                } : null,
+                visitor_id: s.visitor_id,
+                handoff_reason: s.handoff_reason,
+                handoff_accepted_at: s.handoff_accepted_at,
+                updated_at: s.updated_at,
+            })),
+        };
+    }
+
+    /**
+     * Send admin message to customer
+     */
+    async sendAdminMessage(sessionId: number, adminId: number, message: string) {
+        const session = await this.sessionRepository.findOne({
+            where: { id: sessionId },
+        });
+
+        if (!session) {
+            throw new NotFoundException('Session not found');
+        }
+
+        if (Number(session.assigned_admin_id) !== Number(adminId)) {
+            throw new BadRequestException('You are not assigned to this conversation');
+        }
+
+        if (session.status !== 'human_active') {
+            throw new BadRequestException('Conversation is not active');
+        }
+
+        // Save admin message
+        const adminMessage = this.messageRepository.create({
+            session_id: sessionId,
+            sender: 'admin',
+            message: message,
+            is_read: false,
+        });
+        await this.messageRepository.save(adminMessage);
+
+        // Update session timestamp
+        session.updated_at = new Date();
+        await this.sessionRepository.save(session);
+
+        return {
+            success: true,
+            message: adminMessage,
         };
     }
 }

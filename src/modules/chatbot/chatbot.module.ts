@@ -19,13 +19,14 @@ import { WishlistItem } from '../../entities/wishlist-item.entity';
 
 // Import services from other modules
 import { CartService } from '../cart/cart.service';
-import { OrdersService } from '../orders/orders.service';
 import { WishlistService } from '../wishlist/wishlist.service';
+import { OrdersModule } from '../orders/orders.module';
 
 @Module({
     imports: [
         ConfigModule,
         HttpModule,
+        OrdersModule,
         JwtModule.registerAsync({
             imports: [ConfigModule],
             inject: [ConfigService],
@@ -50,7 +51,6 @@ import { WishlistService } from '../wishlist/wishlist.service';
     providers: [
         ChatbotService,
         CartService,
-        OrdersService,
         WishlistService,
     ],
     exports: [ChatbotService],

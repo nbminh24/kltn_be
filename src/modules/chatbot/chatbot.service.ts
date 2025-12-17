@@ -190,8 +190,9 @@ export class ChatbotService {
             );
         }
 
-        // Call existing OrdersService
-        const result = await this.ordersService.cancelOrder(dto.customer_id, orderId);
+        // Call existing OrdersService with cancel_reason (default to 'other' if not provided)
+        const cancelReason = dto.cancel_reason || 'other';
+        const result = await this.ordersService.cancelOrder(dto.customer_id, orderId, cancelReason);
 
         return result;
     }

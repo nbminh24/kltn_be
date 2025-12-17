@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { DeliveryEstimationService } from './delivery-estimation.service';
 import { Order } from '../../entities/order.entity';
 import { OrderItem } from '../../entities/order-item.entity';
 import { Cart } from '../../entities/cart.entity';
@@ -26,7 +27,7 @@ import { ProductVariant } from '../../entities/product-variant.entity';
     }),
   ],
   controllers: [OrdersController],
-  providers: [OrdersService],
+  providers: [OrdersService, DeliveryEstimationService],
   exports: [OrdersService],
 })
 export class OrdersModule { }

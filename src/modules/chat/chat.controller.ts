@@ -6,6 +6,7 @@ import { ChatService } from './chat.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { MergeSessionDto } from './dto/merge-session.dto';
+import { HandoffRequestDto } from './dto/handoff-request.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -146,5 +147,88 @@ export class ChatController {
     @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
     markAsRead(@Param('id', ParseIntPipe) id: number) {
         return this.chatService.markAsRead(id);
+    }
+
+    @Post('handoff')
+    @Public()
+    @ApiOperation({
+        summary: '[Human Handoff] Request human agent',
+        description: 'Transfer conversation from bot to human support agent. Bot will stop responding.',
+    })
+    @ApiResponse({ status: 201, description: 'Handoff request created' })
+    @ApiResponse({ status: 400, description: 'Conversation already in human mode' })
+    requestHandoff(@Body() dto: HandoffRequestDto) {
+        return this.chatService.requestHandoff(dto.session_id, dto.reason);
+    }
+
+    @Get('conversations/pending')
+    @Public()
+    @ApiOperation({
+        summary: '[Admin Dashboard] Get pending handoff requests',
+        description: 'List all conversations waiting for admin to accept',
+    })
+    @ApiResponse({ status: 200, description: 'List of pending conversations' })
+    getPendingConversations() {
+        return this.chatService.getPendingConversations();
+    }
+
+    @Post('conversations/:id/accept')
+    @Public()
+    @ApiOperation({
+        summary: '[Admin Dashboard] Accept conversation',
+        description: 'Admin accepts and becomes assigned to conversation',
+    })
+    @ApiQuery({ name: 'admin_id', required: true, type: Number })
+    @ApiResponse({ status: 200, description: 'Conversation accepted' })
+    @ApiResponse({ status: 400, description: 'Cannot accept this conversation' })
+    acceptConversation(
+        @Param('id', ParseIntPipe) sessionId: number,
+        @Query('admin_id', ParseIntPipe) adminId: number,
+    ) {
+        return this.chatService.acceptConversation(sessionId, adminId);
+    }
+
+    @Post('conversations/:id/close')
+    @Public()
+    @ApiOperation({
+        summary: '[Admin Dashboard] Close conversation',
+        description: 'Admin closes conversation after resolving issue',
+    })
+    @ApiQuery({ name: 'admin_id', required: true, type: Number })
+    @ApiResponse({ status: 200, description: 'Conversation closed' })
+    @ApiResponse({ status: 400, description: 'Not authorized to close this conversation' })
+    closeConversation(
+        @Param('id', ParseIntPipe) sessionId: number,
+        @Query('admin_id', ParseIntPipe) adminId: number,
+    ) {
+        return this.chatService.closeConversation(sessionId, adminId);
+    }
+
+    @Get('conversations/admin/:adminId')
+    @Public()
+    @ApiOperation({
+        summary: '[Admin Dashboard] Get admin active conversations',
+        description: 'List all active conversations assigned to specific admin',
+    })
+    @ApiResponse({ status: 200, description: 'List of admin conversations' })
+    getAdminConversations(@Param('adminId', ParseIntPipe) adminId: number) {
+        return this.chatService.getAdminConversations(adminId);
+    }
+
+    @Post('conversations/:id/admin-message')
+    @Public()
+    @ApiOperation({
+        summary: '[Admin Dashboard] Send admin message',
+        description: 'Admin sends message to customer in active conversation',
+    })
+    @ApiQuery({ name: 'admin_id', required: true, type: Number })
+    @ApiResponse({ status: 201, description: 'Message sent' })
+    @ApiResponse({ status: 400, description: 'Not authorized or conversation not active' })
+    sendAdminMessage(
+        @Param('id', ParseIntPipe) sessionId: number,
+        @Query('admin_id', ParseIntPipe) adminId: number,
+        @Body() body: { message: string },
+    ) {
+        return this.chatService.sendAdminMessage(sessionId, adminId, body.message);
     }
 }
