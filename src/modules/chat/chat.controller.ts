@@ -1,8 +1,9 @@
-import { Controller, Post, Get, Put, Delete, Body, Query, Param, UseGuards, ParseIntPipe, UseInterceptors, UploadedFile, Headers, Req } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Body, Query, Param, UseGuards, ParseIntPipe, UseInterceptors, UploadedFile, Headers, Req, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { ChatService } from './chat.service';
+import { CloudinaryService } from './cloudinary.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { MergeSessionDto } from './dto/merge-session.dto';
@@ -13,7 +14,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @ApiTags('🤖 Chatbot & Support')
 @Controller('api/v1/chat')
 export class ChatController {
-    constructor(private readonly chatService: ChatService) { }
+    constructor(
+        private readonly chatService: ChatService,
+        private readonly cloudinaryService: CloudinaryService,
+    ) { }
 
     @Post('session')
     @Public()
@@ -124,19 +128,6 @@ export class ChatController {
         return this.chatService.deleteSession(id);
     }
 
-    @Post('upload-image')
-    @Public()
-    @UseInterceptors(FileInterceptor('file'))
-    @ApiConsumes('multipart/form-data')
-    @ApiOperation({
-        summary: '[Chatbot UI] Upload ảnh trong chat',
-        description: 'Upload ảnh và trả về URL. Frontend sẽ gửi URL này kèm message.',
-    })
-    @ApiResponse({ status: 201, description: 'Upload thành công' })
-    @ApiResponse({ status: 400, description: 'File không hợp lệ' })
-    uploadImage(@UploadedFile() file: Express.Multer.File) {
-        return this.chatService.uploadImage(file);
-    }
 
     @Put('messages/:id/read')
     @Public()
@@ -230,5 +221,97 @@ export class ChatController {
         @Body() body: { message: string },
     ) {
         return this.chatService.sendAdminMessage(sessionId, adminId, body.message);
+    }
+
+    @Post('search-by-image')
+    @Public()
+    @UseInterceptors(FileInterceptor('image'))
+    @ApiConsumes('multipart/form-data')
+    @ApiOperation({
+        summary: '[Image Search] Tìm sản phẩm tương tự qua hình ảnh',
+        description: 'Upload ảnh để tìm các sản phẩm thời trang tương đồng. Trả về top 10 sản phẩm có độ tương đồng cao nhất.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Danh sách sản phẩm tương tự kèm similarity score'
+    })
+    @ApiResponse({ status: 400, description: 'No image provided' })
+    @ApiResponse({ status: 503, description: 'Image Search Service unavailable' })
+    async searchByImage(@UploadedFile() file: Express.Multer.File) {
+        if (!file) {
+            throw new BadRequestException('No image file provided');
+        }
+
+        const products = await this.chatService.searchProductsByImage(
+            file.buffer,
+            file.originalname
+        );
+
+        return {
+            success: true,
+            total: products.length,
+            products: products,
+        };
+    }
+
+    @Post('search-by-image/rasa')
+    @Public()
+    @UseInterceptors(FileInterceptor('image'))
+    @ApiConsumes('multipart/form-data')
+    @ApiOperation({
+        summary: '[Rasa Integration] Image search với Rasa carousel format',
+        description: 'Endpoint cho Rasa custom action. Upload ảnh và nhận response dạng Rasa carousel để hiển thị cho user.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Rasa carousel format response',
+        schema: {
+            type: 'object',
+            properties: {
+                text: { type: 'string' },
+                custom: { type: 'object' },
+                attachment: { type: 'object' }
+            }
+        }
+    })
+    @ApiResponse({ status: 400, description: 'No image provided' })
+    async searchByImageForRasa(@UploadedFile() file: Express.Multer.File) {
+        if (!file) {
+            throw new BadRequestException('No image file provided');
+        }
+
+        const products = await this.chatService.searchProductsByImage(
+            file.buffer,
+            file.originalname
+        );
+
+        return this.chatService.formatAsRasaCarousel(products);
+    }
+
+    @Post('upload-image')
+    @Public()
+    @UseInterceptors(FileInterceptor('file'))
+    @ApiConsumes('multipart/form-data')
+    @ApiOperation({
+        summary: 'Upload ảnh lên Cloudinary',
+        description: 'Upload ảnh cho image search trong chat',
+    })
+    @ApiResponse({ status: 200, description: 'Image uploaded successfully' })
+    @ApiResponse({ status: 400, description: 'No file provided' })
+    async uploadImage(@UploadedFile() file: Express.Multer.File) {
+        if (!file) {
+            throw new BadRequestException('No file provided');
+        }
+
+        const result = await this.cloudinaryService.uploadImage(
+            file.buffer,
+            file.originalname
+        );
+
+        return {
+            url: result.url,
+            filename: file.originalname,
+            size: file.size,
+        };
     }
 }

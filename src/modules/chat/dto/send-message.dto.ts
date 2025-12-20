@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, IsOptional, IsUrl } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SendMessageDto {
@@ -11,4 +11,13 @@ export class SendMessageDto {
     @IsNotEmpty()
     @IsString()
     message: string;
+
+    @ApiProperty({
+        description: 'Image URL for image search (optional)',
+        required: false,
+        example: 'https://res.cloudinary.com/doticibcy/image/upload/...'
+    })
+    @IsOptional()
+    @IsUrl()
+    image_url?: string;
 }

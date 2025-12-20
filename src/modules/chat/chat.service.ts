@@ -7,9 +7,13 @@ import { JwtService } from '@nestjs/jwt';
 import { firstValueFrom } from 'rxjs';
 import { ChatSession } from '../../entities/chat-session.entity';
 import { ChatMessage } from '../../entities/chat-message.entity';
+import { Product } from '../../entities/product.entity';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { MergeSessionDto } from './dto/merge-session.dto';
+import { ProductSearchResultDto } from './dto/image-search.dto';
+import { ImageSearchService } from './image-search.service';
+import { In } from 'typeorm';
 
 @Injectable()
 export class ChatService {
@@ -20,9 +24,12 @@ export class ChatService {
         private sessionRepository: Repository<ChatSession>,
         @InjectRepository(ChatMessage)
         private messageRepository: Repository<ChatMessage>,
+        @InjectRepository(Product)
+        private productRepository: Repository<Product>,
         private httpService: HttpService,
         private configService: ConfigService,
         private jwtService: JwtService,
+        private imageSearchService: ImageSearchService,
     ) { }
 
     /**
@@ -208,9 +215,16 @@ export class ChatService {
             session_id: dto.session_id,
             sender: 'customer',
             message: dto.message,
+            image_url: dto.image_url || null,
             is_read: false,
         });
         await this.messageRepository.save(customerMessage);
+
+        // 🖼️ IMAGE SEARCH: If message contains image_url, handle image search
+        if (dto.image_url) {
+            this.logger.log(`🖼️ Detected image in message, processing image search...`);
+            return await this.handleImageSearchInChat(dto, session);
+        }
 
         // ❗ CRITICAL: Skip Rasa if conversation is in human mode
         if (session.status === 'human_pending' || session.status === 'human_active') {
@@ -754,6 +768,232 @@ export class ChatService {
         return {
             success: true,
             message: adminMessage,
+        };
+    }
+
+    /**
+     * Search products by image - for chat image upload
+     */
+    async searchProductsByImage(
+        imageBuffer: Buffer,
+        filename: string,
+    ): Promise<ProductSearchResultDto[]> {
+        this.logger.log(`🖼️ Processing image search request: ${filename}`);
+
+        // 1. Call Image Search Service
+        const searchResult = await this.imageSearchService.searchByImage(imageBuffer, filename);
+
+        if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
+            this.logger.warn('No similar products found');
+            return [];
+        }
+
+        // 2. Extract product IDs
+        const productIds = searchResult.results.map(r => r.product_id);
+        this.logger.log(`Found ${productIds.length} similar products: ${productIds.join(', ')}`);
+
+        // 3. Query database for product details
+        this.logger.debug(`Querying database for product IDs: ${JSON.stringify(productIds)}`);
+
+        const products = await this.productRepository
+            .createQueryBuilder('product')
+            .where('product.id IN (:...ids)', { ids: productIds })
+            .andWhere('product.status = :status', { status: 'active' })
+            .andWhere('product.deleted_at IS NULL')
+            .select([
+                'product.id',
+                'product.name',
+                'product.selling_price',
+                'product.thumbnail_url',
+                'product.slug'
+            ])
+            .getMany();
+
+        this.logger.debug(`Database returned ${products.length} products`);
+        if (products.length === 0 && productIds.length > 0) {
+            // Try without filters to debug
+            const allProducts = await this.productRepository.find({
+                where: { id: In(productIds) },
+            });
+            this.logger.warn(`Without filters: found ${allProducts.length} products. Check status/deleted_at`);
+        }
+
+        // 4. Map products with similarity scores (preserve order from search results)
+        // Convert product IDs to numbers for consistent comparison
+        const productMap = new Map(products.map(p => [Number(p.id), p]));
+        const results: ProductSearchResultDto[] = [];
+
+        this.logger.debug(`Product map keys: ${Array.from(productMap.keys()).join(', ')}`);
+        this.logger.debug(`Search result product IDs: ${searchResult.results.map(r => r.product_id).join(', ')}`);
+
+        for (const searchItem of searchResult.results) {
+            const productId = Number(searchItem.product_id);
+            const product = productMap.get(productId);
+
+            if (product) {
+                results.push({
+                    id: product.id,
+                    name: product.name,
+                    selling_price: Number(product.selling_price),
+                    thumbnail_url: product.thumbnail_url,
+                    slug: product.slug,
+                    similarity_score: searchItem.similarity_score,
+                    matched_image_url: searchItem.image_url,
+                });
+            } else {
+                this.logger.warn(`Product ${productId} not found in map (searched: ${searchItem.product_id}, type: ${typeof searchItem.product_id})`);
+            }
+        }
+
+        this.logger.log(`✅ Returning ${results.length} products with details`);
+        return results;
+    }
+
+    /**
+     * Handle image search within chat conversation
+     */
+    private async handleImageSearchInChat(dto: SendMessageDto, session: ChatSession) {
+        try {
+            // 1. Download image from URL
+            this.logger.log(`📥 Downloading image from: ${dto.image_url}`);
+            const imageBuffer = await this.downloadImageFromUrl(dto.image_url);
+
+            // 2. Search products by image
+            const products = await this.searchProductsByImage(imageBuffer, 'chat-image.jpg');
+
+            // 3. Create bot response message
+            let botMessage: string;
+            if (products.length === 0) {
+                botMessage = '😔 Xin lỗi, tôi không tìm thấy sản phẩm tương tự nào. Bạn có thể thử với ảnh khác hoặc mô tả sản phẩm bạn muốn tìm.';
+            } else {
+                botMessage = `🔍 Tôi đã tìm thấy ${products.length} sản phẩm tương tự! Đây là những sản phẩm phù hợp nhất:\n\n`;
+
+                products.slice(0, 5).forEach((p, idx) => {
+                    const similarity = Math.round(p.similarity_score * 100);
+                    botMessage += `${idx + 1}. ${p.name}\n`;
+                    botMessage += `   💰 ${Number(p.selling_price).toLocaleString('vi-VN')}đ\n`;
+                    botMessage += `   ✨ ${similarity}% tương đồng\n`;
+                    botMessage += `   🔗 /products/${p.slug}\n\n`;
+                });
+            }
+
+            // 4. Save bot response
+            const botResponse = this.messageRepository.create({
+                session_id: dto.session_id,
+                sender: 'bot',
+                message: botMessage,
+                custom: {
+                    type: 'image_search_results',
+                    products: products.map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        price: p.selling_price,
+                        image: p.thumbnail_url,
+                        slug: p.slug,
+                        similarity: Math.round(p.similarity_score * 100),
+                    })),
+                },
+                is_read: false,
+            });
+            await this.messageRepository.save(botResponse);
+
+            // 5. Update session timestamp
+            session.updated_at = new Date();
+            await this.sessionRepository.save(session);
+
+            this.logger.log(`✅ Image search completed, found ${products.length} products`);
+
+            return {
+                customer_message: await this.messageRepository.findOne({
+                    where: { session_id: dto.session_id },
+                    order: { created_at: 'DESC' }
+                }),
+                bot_responses: [botResponse],
+            };
+
+        } catch (error) {
+            this.logger.error(`❌ Image search in chat failed: ${error.message}`);
+
+            // Return error message as bot response
+            const errorMessage = this.messageRepository.create({
+                session_id: dto.session_id,
+                sender: 'bot',
+                message: 'Xin lỗi, có lỗi xảy ra khi xử lý hình ảnh. Vui lòng thử lại hoặc gửi ảnh khác.',
+                is_read: false,
+            });
+            await this.messageRepository.save(errorMessage);
+
+            return {
+                customer_message: await this.messageRepository.findOne({
+                    where: { session_id: dto.session_id },
+                    order: { created_at: 'DESC' }
+                }),
+                bot_responses: [errorMessage],
+            };
+        }
+    }
+
+    /**
+     * Download image from URL
+     */
+    private async downloadImageFromUrl(url: string): Promise<Buffer> {
+        try {
+            const response = await firstValueFrom(
+                this.httpService.get(url, {
+                    responseType: 'arraybuffer',
+                    timeout: 10000,
+                })
+            );
+            return Buffer.from(response.data);
+        } catch (error) {
+            this.logger.error(`Failed to download image from ${url}: ${error.message}`);
+            throw new BadRequestException('Cannot download image from provided URL');
+        }
+    }
+
+    /**
+     * Format image search results as Rasa carousel
+     */
+    formatAsRasaCarousel(products: ProductSearchResultDto[]) {
+        if (!products || products.length === 0) {
+            return {
+                text: "Xin lỗi, tôi không tìm thấy sản phẩm tương tự nào. Bạn có thể thử với ảnh khác hoặc mô tả sản phẩm bạn muốn tìm.",
+            };
+        }
+
+        const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+
+        return {
+            text: `🔍 Tôi đã tìm thấy ${products.length} sản phẩm tương tự! Đây là những sản phẩm phù hợp nhất:`,
+            custom: {
+                type: 'image_search_results',
+                products: products.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    price: p.selling_price,
+                    image: p.thumbnail_url || p.matched_image_url,
+                    similarity: Math.round(p.similarity_score * 100),
+                    link: `${frontendUrl}/products/${p.slug}`,
+                })),
+            },
+            attachment: {
+                type: 'template',
+                payload: {
+                    template_type: 'generic',
+                    elements: products.slice(0, 10).map(p => ({
+                        title: p.name,
+                        subtitle: `${Number(p.selling_price).toLocaleString('vi-VN')}đ • ${Math.round(p.similarity_score * 100)}% tương đồng`,
+                        image_url: p.thumbnail_url || p.matched_image_url,
+                        buttons: [
+                            {
+                                type: 'web_url',
+                                url: `${frontendUrl}/products/${p.slug}`,
+                                title: 'Xem chi tiết',
+                            },
+                        ],
+                    })),
+                },
+            },
         };
     }
 }
