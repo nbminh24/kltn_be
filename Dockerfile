@@ -1,21 +1,3 @@
-# Build stage
-FROM node:18-alpine AS builder
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install ALL dependencies (including devDependencies for build)
-RUN npm ci && npm cache clean --force
-
-# Copy source code
-COPY . .
-
-# Build application
-RUN npm run build
-
-# Production stage
 FROM node:18-alpine
 
 WORKDIR /app
@@ -23,12 +5,17 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm ci --only=production && npm cache clean --force
+# Install dependencies
+RUN npm install --legacy-peer-deps
 
-# Copy built application from builder
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/migrations ./migrations
+# Copy source code
+COPY . .
+
+# Build application
+RUN npm run build
+
+# Remove devDependencies
+RUN npm prune --production
 
 # Expose port
 EXPOSE 3000
