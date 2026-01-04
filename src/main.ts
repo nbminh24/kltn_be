@@ -6,9 +6,11 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS for Frontend (localhost:3000)
+  // Enable CORS for Frontend
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: process.env.NODE_ENV === 'production'
+      ? ['https://your-frontend-domain.com']
+      : ['http://localhost:3000', 'http://127.0.0.1:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
@@ -161,16 +163,17 @@ async function bootstrap() {
     ],
   });
 
-  const port = process.env.PORT || 3001; // Backend port (Frontend uses 3000)
-  await app.listen(port);
+  const port = process.env.PORT || 3001;
+  await app.listen(port, '0.0.0.0');
 
+  const isProduction = process.env.NODE_ENV === 'production';
   console.log(`
   ╔═══════════════════════════════════════════════════════════╗
   ║                                                           ║
   ║  🚀 KLTN E-commerce Backend is running!                  ║
   ║                                                           ║
-  ║  📡 Server:        http://localhost:${port}                    ║
-  ║  📚 API Docs:      http://localhost:${port}/api-docs          ║
+  ║  📡 Server:        ${isProduction ? 'Production' : `http://localhost:${port}`}  ║
+  ║  📚 API Docs:      ${isProduction ? '/api-docs' : `http://localhost:${port}/api-docs`}  ║
   ║  🤖 AI Chatbot:    ${process.env.RASA_SERVER_URL || 'Not configured'}       ║
   ║  🖼️  AI Image:      ${process.env.FASTAPI_SERVICE_URL || 'Not configured'}  ║
   ║                                                           ║

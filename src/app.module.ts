@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
+import { AppController } from './app.controller';
 
 // Entities
 import { Admin } from './entities/admin.entity';
@@ -65,6 +66,7 @@ import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { AddressLookupModule } from './modules/address/address.module';
 
 @Module({
+  controllers: [AppController],
   imports: [
     // Config Module
     ConfigModule.forRoot({
