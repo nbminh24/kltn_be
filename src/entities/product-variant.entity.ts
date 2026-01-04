@@ -1,51 +1,63 @@
-import {
-  Entity,
-  Column,
-  PrimaryColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
-  ManyToOne,
-  OneToMany,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { Product } from './product.entity';
-import { OrderItem } from './order-item.entity';
-import { CartItem } from './cart-item.entity';
+import { Size } from './size.entity';
+import { Color } from './color.entity';
+import { ProductImage } from './product-image.entity';
 
 @Entity('product_variants')
 export class ProductVariant {
-  @PrimaryColumn({ type: 'varchar', length: 50 })
-  id: string;
+  @PrimaryGeneratedColumn('identity', { type: 'bigint', generatedIdentity: 'ALWAYS' })
+  id: number;
 
-  @Column({ type: 'varchar', length: 50 })
-  product_id: string;
+  @Column({ type: 'bigint' })
+  product_id: number;
 
-  @Column({ type: 'varchar', length: 100, unique: true })
+  @Column({ type: 'bigint', nullable: true })
+  size_id: number;
+
+  @Column({ type: 'bigint', nullable: true })
+  color_id: number;
+
+  @Column({ type: 'varchar', nullable: true })
+  name: string;
+
+  @Column({ type: 'varchar', unique: true })
   sku: string;
 
-  @Column({ type: 'varchar', length: 50, nullable: true })
-  size: string;
-
-  @Column({ type: 'varchar', length: 50, nullable: true })
-  color: string;
+  @Column({ type: 'int', default: 0 })
+  total_stock: number;
 
   @Column({ type: 'int', default: 0 })
-  stock: number;
+  reserved_stock: number;
 
-  @CreateDateColumn()
-  created_at: Date;
+  @Column({ type: 'int', default: 0 })
+  reorder_point: number;
 
-  @UpdateDateColumn()
-  updated_at: Date;
+  @Column({ type: 'varchar', default: 'active' })
+  status: string;
+
+  @Column({ type: 'int', default: 1 })
+  version: number;
+
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  deleted_at: Date;
 
   // Relations
-  @ManyToOne(() => Product, product => product.variants, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Product, product => product.variants)
   @JoinColumn({ name: 'product_id' })
   product: Product;
 
-  @OneToMany(() => OrderItem, orderItem => orderItem.product_variant)
-  order_items: OrderItem[];
+  @ManyToOne(() => Size, size => size.variants)
+  @JoinColumn({ name: 'size_id' })
+  size: Size;
 
-  @OneToMany(() => CartItem, cartItem => cartItem.product_variant)
-  cart_items: CartItem[];
+  @ManyToOne(() => Color, color => color.variants)
+  @JoinColumn({ name: 'color_id' })
+  color: Color;
+
+  @OneToMany(() => ProductImage, image => image.variant)
+  images: ProductImage[];
+
+  @OneToMany('OrderItem', 'variant')
+  order_items: any[];
 }

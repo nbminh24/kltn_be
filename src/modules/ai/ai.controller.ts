@@ -17,17 +17,21 @@ export class AiController {
 
   @Post('chatbot')
   @Public()
+  @ApiTags('AI - Chatbot')
   @ApiOperation({
     summary: 'Chatbot AI (Proxy đến Rasa Server)',
     description: 'Gửi tin nhắn đến Rasa chatbot. API này hoạt động như proxy.',
   })
   @ApiResponse({ status: 200, description: 'Nhận được phản hồi từ chatbot' })
   async chatbot(@Body() body: ChatbotRequestDto, @CurrentUser() user?: any) {
-    return this.aiService.chatbot(body.message, body.session_id, user?.userId);
+    // customerId is number from JWT, or undefined if not logged in
+    const customerId = user?.customerId ? parseInt(user.customerId) : undefined;
+    return this.aiService.chatbot(body.message, body.session_id, customerId);
   }
 
   @Post('search/image')
   @Public()
+  @ApiTags('AI - Image Search')
   @UseInterceptors(FileInterceptor('image'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({

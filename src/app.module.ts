@@ -6,39 +6,63 @@ import { HttpModule } from '@nestjs/axios';
 // Entities
 import { Admin } from './entities/admin.entity';
 import { Customer } from './entities/customer.entity';
-import { User } from './entities/user.entity';
+
 import { Product } from './entities/product.entity';
-import { Category } from './entities/category.entity';
-import { ProductImage } from './entities/product-image.entity';
+import { Size } from './entities/size.entity';
+import { Color } from './entities/color.entity';
 import { ProductVariant } from './entities/product-variant.entity';
+import { ProductImage } from './entities/product-image.entity';
+import { Category } from './entities/category.entity';
 import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
+import { OrderStatusHistory } from './entities/order-status-history.entity';
 import { CartItem } from './entities/cart-item.entity';
-import { Wishlist } from './entities/wishlist.entity';
-import { Address } from './entities/address.entity';
+import { WishlistItem } from './entities/wishlist-item.entity';
+import { CustomerAddress } from './entities/customer-address.entity';
+import { Cart } from './entities/cart.entity';
 import { Review } from './entities/review.entity';
 import { Promotion } from './entities/promotion.entity';
+import { PromotionProduct } from './entities/promotion-product.entity';
 import { SupportTicket } from './entities/support-ticket.entity';
-import { StaticPage } from './entities/static-page.entity';
-import { ChatbotConversation } from './entities/chatbot-conversation.entity';
-import { ChatbotMessage } from './entities/chatbot-message.entity';
+import { SupportTicketReply } from './entities/support-ticket-reply.entity';
+
+import { Page } from './entities/page.entity';
+import { RestockBatch } from './entities/restock-batch.entity';
+import { RestockItem } from './entities/restock-item.entity';
+import { ChatSession } from './entities/chat-session.entity';
+import { ChatMessage } from './entities/chat-message.entity';
+import { Payment } from './entities/payment.entity';
+import { PromotionUsage } from './entities/promotion-usage.entity';
 import { AiRecommendation } from './entities/ai-recommendation.entity';
+import { ProductNotification } from './entities/product-notification.entity';
 
 // Modules
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ProductsModule } from './modules/products/products.module';
+import { SizesModule } from './modules/sizes/sizes.module';
+import { ColorsModule } from './modules/colors/colors.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { CartModule } from './modules/cart/cart.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
+import { AccountModule } from './modules/account/account.module';
 import { SupportModule } from './modules/support/support.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
+import { CheckoutModule } from './modules/checkout/checkout.module';
 import { AiModule } from './modules/ai/ai.module';
 import { InternalModule } from './modules/internal/internal.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { PagesModule } from './modules/pages/pages.module';
+import { ChatModule } from './modules/chat/chat.module';
+import { PaymentModule } from './modules/payment/payment.module';
+import { ConsultantModule } from './modules/consultant/consultant.module';
+import { ChatbotModule } from './modules/chatbot/chatbot.module';
+import { AddressLookupModule } from './modules/address/address.module';
 
 @Module({
   imports: [
@@ -54,39 +78,63 @@ import { InternalModule } from './modules/internal/internal.module';
       useFactory: (configService: ConfigService) => {
         const databaseUrl = configService.get<string>('DATABASE_URL');
         const isSupabase = databaseUrl?.includes('supabase.co');
-        
+
         return {
           type: 'postgres',
           url: databaseUrl,
           entities: [
             Admin,
             Customer,
-            User,
             Product,
             Category,
+            Size,
+            Color,
             ProductImage,
             ProductVariant,
             Order,
             OrderItem,
+            OrderStatusHistory,
+            Cart,
             CartItem,
-            Wishlist,
-            Address,
+            WishlistItem,
+            CustomerAddress,
             Review,
             Promotion,
+            PromotionProduct,
             SupportTicket,
-            StaticPage,
-            ChatbotConversation,
-            ChatbotMessage,
+            SupportTicketReply,
+            Page,
+            RestockBatch,
+            RestockItem,
+            ChatSession,
+            ChatMessage,
+            Payment,
+            PromotionUsage,
             AiRecommendation,
+            ProductNotification,
           ],
           synchronize: false,
           logging: false,
           // Only use SSL for Supabase
           ssl: isSupabase ? { rejectUnauthorized: false } : false,
-          extra: isSupabase ? {
-            max: 10,
-            connectionTimeoutMillis: 10000,
-          } : {},
+          // Connection pool & timeout settings
+          extra: isSupabase
+            ? {
+              max: 10, // Max connections
+              min: 2, // Min connections
+              connectionTimeoutMillis: 30000, // 30s timeout (tăng từ 10s)
+              idleTimeoutMillis: 30000,
+              keepAlive: true, // Keep connection alive
+              keepAliveInitialDelayMillis: 10000,
+            }
+            : {
+              max: 10,
+              min: 2,
+              keepAlive: true,
+            },
+          // Retry on failure
+          retryAttempts: 3,
+          retryDelay: 3000,
         };
       },
       inject: [ConfigService],
@@ -103,15 +151,27 @@ import { InternalModule } from './modules/internal/internal.module';
     UsersModule,
     ProductsModule,
     CategoriesModule,
+    SizesModule,
+    ColorsModule,
     CartModule,
     OrdersModule,
     WishlistModule,
     AddressesModule,
+    AccountModule,
     SupportModule,
     AdminModule,
     PromotionsModule,
+    CheckoutModule,
     AiModule,
     InternalModule,
+    ReviewsModule,
+    AnalyticsModule,
+    PagesModule,
+    ChatModule,
+    PaymentModule,
+    ConsultantModule,
+    ChatbotModule,
+    AddressLookupModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }

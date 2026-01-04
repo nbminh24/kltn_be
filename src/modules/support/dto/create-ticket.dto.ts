@@ -1,32 +1,34 @@
-import { IsString, IsOptional, IsIn } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsNumber, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateTicketDto {
-  @ApiProperty({ description: 'Tên khách hàng', example: 'Nguyễn Văn A' })
-  @IsString()
-  customer_name: string;
+  @ApiProperty({
+    description: 'Email liên hệ (tự động lấy nếu đã đăng nhập)',
+    example: 'customer@example.com',
+    required: false,
+  })
+  @IsOptional()
+  @IsEmail()
+  customer_email?: string;
 
-  @ApiProperty({ description: 'Email khách hàng', example: 'customer@example.com' })
-  @IsString()
-  customer_email: string;
-
-  @ApiProperty({ description: 'Tiêu đề yêu cầu', example: 'Cần hỗ trợ về đơn hàng' })
+  @ApiProperty({ description: 'Tiêu đề yêu cầu hỗ trợ', example: 'Cần hỗ trợ về đơn hàng' })
   @IsString()
   subject: string;
 
-  @ApiProperty({ description: 'Nội dung chi tiết', example: 'Tôi muốn hỏi về trạng thái đơn hàng #12345' })
+  @ApiProperty({
+    description: 'Nội dung yêu cầu hỗ trợ',
+    example: 'Tôi cần hỗ trợ về đơn hàng #123...',
+  })
   @IsString()
+  @IsNotEmpty()
   message: string;
 
   @ApiProperty({
-    description: 'Mức độ ưu tiên',
-    example: 'medium',
-    enum: ['low', 'medium', 'high', 'urgent'],
+    description: 'ID khách hàng (nếu đã đăng nhập)',
+    example: 1,
     required: false,
-    default: 'medium'
   })
   @IsOptional()
-  @IsString()
-  @IsIn(['low', 'medium', 'high', 'urgent'])
-  priority?: string;
+  @IsNumber()
+  customer_id?: number;
 }

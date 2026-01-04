@@ -1,5 +1,5 @@
-import { IsString, IsIn } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsIn, IsOptional } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateOrderStatusDto {
   @ApiProperty({
@@ -10,4 +10,12 @@ export class UpdateOrderStatusDto {
   @IsString()
   @IsIn(['Pending', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled'])
   status: string;
+
+  @ApiPropertyOptional({
+    description: 'Ghi chú về thay đổi trạng thái',
+    example: 'Đã liên hệ khách hàng xác nhận địa chỉ',
+  })
+  @IsOptional()
+  @IsString()
+  note?: string;
 }

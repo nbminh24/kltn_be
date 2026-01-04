@@ -1,7 +1,7 @@
 import {
   Entity,
   Column,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
@@ -9,84 +9,63 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { Category } from './category.entity';
-import { ProductImage } from './product-image.entity';
 import { ProductVariant } from './product-variant.entity';
-import { OrderItem } from './order-item.entity';
-import { Review } from './review.entity';
-import { Wishlist } from './wishlist.entity';
-import { CartItem } from './cart-item.entity';
-import { AiRecommendation } from './ai-recommendation.entity';
 
 @Entity('products')
 export class Product {
-  @PrimaryColumn({ type: 'varchar', length: 50 })
-  id: string;
+  @PrimaryGeneratedColumn('identity', { type: 'bigint', generatedIdentity: 'ALWAYS' })
+  id: number;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'bigint', nullable: true })
+  category_id: number;
+
+  @Column({ type: 'varchar' })
   name: string;
 
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @Column({ type: 'varchar', unique: true })
   slug: string;
-
-  @Column({ type: 'varchar', length: 100, unique: true })
-  sku: string;
 
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({ type: 'varchar', length: 50, nullable: true })
-  category_id: string;
+  @Column({ type: 'text', nullable: true })
+  full_description: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  price: number;
+  @Column({ type: 'numeric', nullable: true })
+  cost_price: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
-  original_price: number;
+  @Column({ type: 'numeric' })
+  selling_price: number;
 
-  @Column({ type: 'decimal', precision: 2, scale: 1, default: 0 })
-  rating: number;
-
-  @Column({ type: 'int', default: 0 })
-  reviews_count: number;
-
-  @Column({ type: 'int', default: 0 })
-  sold_count: number;
-
-  @Column({ type: 'varchar', length: 20, default: 'Active' })
+  @Column({ type: 'varchar', default: 'active' })
   status: string;
 
-  @Column({ type: 'boolean', default: false })
-  ai_indexed: boolean;
+  @Column({ type: 'text', nullable: true })
+  thumbnail_url: string;
 
-  @CreateDateColumn()
+  @Column({ type: 'numeric', default: 0.0 })
+  average_rating: number;
+
+  @Column({ type: 'int', default: 0 })
+  total_reviews: number;
+
+  @Column({ type: 'jsonb', default: '{}' })
+  attributes: any;
+
+  @CreateDateColumn({ type: 'timestamp with time zone' })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
   updated_at: Date;
+
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  deleted_at: Date;
 
   // Relations
   @ManyToOne(() => Category, category => category.products, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'category_id' })
   category: Category;
 
-  @OneToMany(() => ProductImage, image => image.product)
-  images: ProductImage[];
-
   @OneToMany(() => ProductVariant, variant => variant.product)
   variants: ProductVariant[];
-
-  @OneToMany(() => OrderItem, orderItem => orderItem.product)
-  order_items: OrderItem[];
-
-  @OneToMany(() => Review, review => review.product)
-  reviews: Review[];
-
-  @OneToMany(() => Wishlist, wishlist => wishlist.product)
-  wishlists: Wishlist[];
-
-  @OneToMany(() => CartItem, cartItem => cartItem.product)
-  cart_items: CartItem[];
-
-  @OneToMany(() => AiRecommendation, recommendation => recommendation.product)
-  recommendations: AiRecommendation[];
 }

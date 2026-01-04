@@ -1,13 +1,15 @@
 import { Module, Global } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from '../entities/user.entity';
+import { ConfigModule } from '@nestjs/config';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AdminGuard } from './guards/admin.guard';
+import { QueryBuilderService } from './services/query-builder.service';
+import { StorageService } from './services/storage.service';
+import { SlugService } from './services/slug.service';
 
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([User])],
-  providers: [JwtAuthGuard, AdminGuard],
-  exports: [JwtAuthGuard, AdminGuard, TypeOrmModule],
+  imports: [ConfigModule],
+  providers: [JwtAuthGuard, AdminGuard, QueryBuilderService, StorageService, SlugService],
+  exports: [JwtAuthGuard, AdminGuard, QueryBuilderService, StorageService, SlugService],
 })
 export class CommonModule {}
