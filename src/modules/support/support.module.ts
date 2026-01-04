@@ -13,4 +13,4 @@ import { Page } from '../../entities/page.entity';
   providers: [SupportService],
   exports: [SupportService],
 })
-export class SupportModule { }
+export class SupportModule {}

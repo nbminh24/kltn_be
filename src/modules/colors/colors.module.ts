@@ -11,4 +11,4 @@ import { ColorsController } from './colors.controller';
   providers: [ColorsService],
   exports: [ColorsService],
 })
-export class ColorsModule { }
+export class ColorsModule {}

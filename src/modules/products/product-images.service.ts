@@ -17,11 +17,7 @@ export class ProductImagesService {
   ) {}
 
   // POST /api/v1/admin/variants/:id/images - Upload images for a variant
-  async uploadImages(
-    variantId: number,
-    files: Express.Multer.File[],
-    isMain: boolean = false,
-  ) {
+  async uploadImages(variantId: number, files: Express.Multer.File[], isMain: boolean = false) {
     // Check variant exists
     const variant = await this.variantRepository.findOne({
       where: { id: variantId as any },

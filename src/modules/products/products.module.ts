@@ -46,17 +46,7 @@ import { CommonModule } from '../../common/common.module';
     AdminVariantsController,
     AdminImagesController,
   ],
-  providers: [
-    ProductsService,
-    AdminProductsService,
-    ProductVariantsService,
-    ProductImagesService,
-  ],
-  exports: [
-    ProductsService,
-    AdminProductsService,
-    ProductVariantsService,
-    ProductImagesService,
-  ],
+  providers: [ProductsService, AdminProductsService, ProductVariantsService, ProductImagesService],
+  exports: [ProductsService, AdminProductsService, ProductVariantsService, ProductImagesService],
 })
-export class ProductsModule { }
+export class ProductsModule {}

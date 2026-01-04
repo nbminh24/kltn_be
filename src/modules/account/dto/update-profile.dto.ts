@@ -6,7 +6,7 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  name?: string;  // ✅ Changed from 'full_name' to 'name' to match entity
+  name?: string; // ✅ Changed from 'full_name' to 'name' to match entity
 
   // Note: Phone field removed - customers table has no phone column
   // Phone is stored in customer_addresses table instead

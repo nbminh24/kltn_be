@@ -28,4 +28,4 @@ import { ProductVariant } from '../../entities/product-variant.entity';
   providers: [CheckoutService, PaymentService],
   exports: [CheckoutService, PaymentService],
 })
-export class CheckoutModule { }
+export class CheckoutModule {}

@@ -10,12 +10,13 @@ import { AddToWishlistDto } from './dto/add-to-wishlist.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('wishlist')
 export class WishlistController {
-  constructor(private readonly wishlistService: WishlistService) { }
+  constructor(private readonly wishlistService: WishlistService) {}
 
   @Get()
   @ApiOperation({
     summary: '[UC-C9] Danh sách sản phẩm yêu thích',
-    description: 'Lấy tất cả variants trong danh sách yêu thích của khách hàng. Bao gồm thông tin sản phẩm, size, color, ảnh và danh mục.'
+    description:
+      'Lấy tất cả variants trong danh sách yêu thích của khách hàng. Bao gồm thông tin sản phẩm, size, color, ảnh và danh mục.',
   })
   @ApiResponse({ status: 200, description: 'Danh sách wishlist' })
   getWishlist(@CurrentUser() user: any) {
@@ -25,7 +26,7 @@ export class WishlistController {
   @Post()
   @ApiOperation({
     summary: '[UC-C9] Thêm vào wishlist',
-    description: 'Thêm variant vào danh sách yêu thích. Nếu đã có sẽ trả về lỗi 400.'
+    description: 'Thêm variant vào danh sách yêu thích. Nếu đã có sẽ trả về lỗi 400.',
   })
   @ApiResponse({ status: 201, description: 'Thêm vào wishlist thành công' })
   @ApiResponse({ status: 400, description: 'Variant đã có trong wishlist' })
@@ -37,7 +38,8 @@ export class WishlistController {
   @Post('toggle')
   @ApiOperation({
     summary: '[UC-C9] Toggle wishlist (Thêm/Xóa)',
-    description: 'Nếu variant chưa có trong wishlist thì thêm vào, nếu đã có thì xóa khỏi. Trả về trạng thái mới (added/removed).'
+    description:
+      'Nếu variant chưa có trong wishlist thì thêm vào, nếu đã có thì xóa khỏi. Trả về trạng thái mới (added/removed).',
   })
   @ApiResponse({ status: 200, description: 'Toggle thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy variant' })
@@ -48,7 +50,7 @@ export class WishlistController {
   @Delete('clear')
   @ApiOperation({
     summary: '[UC-C9] Xóa toàn bộ wishlist',
-    description: 'Xóa tất cả items trong danh sách yêu thích của khách hàng.'
+    description: 'Xóa tất cả items trong danh sách yêu thích của khách hàng.',
   })
   @ApiResponse({ status: 200, description: 'Xóa thành công' })
   clearWishlist(@CurrentUser() user: any) {
@@ -58,7 +60,7 @@ export class WishlistController {
   @Delete(':variantId')
   @ApiOperation({
     summary: '[UC-C9] Xóa variant khỏi wishlist',
-    description: 'Xóa một variant khỏi danh sách yêu thích của khách hàng.'
+    description: 'Xóa một variant khỏi danh sách yêu thích của khách hàng.',
   })
   @ApiResponse({ status: 200, description: 'Xóa thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy variant trong wishlist' })

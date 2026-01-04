@@ -9,7 +9,7 @@ import { AdminGuard } from '../../common/guards/admin.guard';
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/analytics')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) { }
+  constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('stats')
   @ApiOperation({
@@ -39,7 +39,7 @@ export class AnalyticsController {
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/products')
 export class ProductAnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) { }
+  constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get(':id/analytics')
   @ApiOperation({
@@ -89,12 +89,13 @@ export class ProductAnalyticsController {
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin')
 export class OperationsAnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) { }
+  constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('orders/status-counts')
   @ApiOperation({
     summary: '[UC-A03] Thống kê đơn hàng',
-    description: 'Đếm số lượng đơn hàng theo trạng thái (pending, processing, delivered, cancelled)',
+    description:
+      'Đếm số lượng đơn hàng theo trạng thái (pending, processing, delivered, cancelled)',
   })
   @ApiResponse({ status: 200, description: 'Order status counts' })
   getOrderStatusCounts() {

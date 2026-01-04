@@ -1,4 +1,12 @@
-import { IsString, IsNumber, IsOptional, Min, IsArray, ValidateNested, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  Min,
+  IsArray,
+  ValidateNested,
+  IsBoolean,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -136,8 +144,8 @@ export class CreateProductDto {
     required: false,
     example: [
       { sku: 'TEE-BASIC-BLK-M', size_id: 1, color_id: 2, stock: 100 },
-      { sku: 'TEE-BASIC-BLK-L', size_id: 2, color_id: 2, stock: 50 }
-    ]
+      { sku: 'TEE-BASIC-BLK-L', size_id: 2, color_id: 2, stock: 50 },
+    ],
   })
   @IsOptional()
   @IsArray()
@@ -151,8 +159,8 @@ export class CreateProductDto {
     required: false,
     example: [
       { image_url: 'https://example.com/image1.jpg', is_primary: true, display_order: 0 },
-      { image_url: 'https://example.com/image2.jpg', is_primary: false, display_order: 1 }
-    ]
+      { image_url: 'https://example.com/image2.jpg', is_primary: false, display_order: 1 },
+    ],
   })
   @IsOptional()
   @IsArray()

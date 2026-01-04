@@ -1,4 +1,14 @@
-import { Controller, Get, Patch, Delete, Param, Query, Body, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Delete,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ReviewsService } from './reviews.service';
 import { UpdateReviewStatusDto } from './dto/update-review-status.dto';
@@ -10,7 +20,7 @@ import { AdminGuard } from '../../common/guards/admin.guard';
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin/reviews')
 export class AdminReviewsController {
-  constructor(private readonly reviewsService: ReviewsService) { }
+  constructor(private readonly reviewsService: ReviewsService) {}
 
   @Get()
   @ApiOperation({
@@ -21,7 +31,12 @@ export class AdminReviewsController {
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'product_id', required: false, description: 'Lọc theo sản phẩm' })
   @ApiQuery({ name: 'rating', required: false, example: 5, description: 'Lọc theo rating (1-5)' })
-  @ApiQuery({ name: 'status', required: false, example: 'pending', description: 'pending/approved/rejected' })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    example: 'pending',
+    description: 'pending/approved/rejected',
+  })
   @ApiResponse({ status: 200, description: 'Danh sách reviews' })
   getAllReviews(@Query() query: any) {
     return this.reviewsService.getAllReviews(query);
@@ -30,7 +45,8 @@ export class AdminReviewsController {
   @Patch(':id/status')
   @ApiOperation({
     summary: '[UC-A08] Admin - Duyệt/Từ chối review',
-    description: 'Admin approve hoặc reject review. Khi approve, rating sản phẩm sẽ được cập nhật tự động.',
+    description:
+      'Admin approve hoặc reject review. Khi approve, rating sản phẩm sẽ được cập nhật tự động.',
   })
   @ApiResponse({ status: 200, description: 'Cập nhật trạng thái thành công' })
   @ApiResponse({ status: 404, description: 'Review không tồn tại' })

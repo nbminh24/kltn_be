@@ -3,7 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class CreatePaymentUrlDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'ID đơn hàng vừa tạo',
     example: 1,
   })

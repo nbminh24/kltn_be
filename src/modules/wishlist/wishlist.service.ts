@@ -11,7 +11,7 @@ export class WishlistService {
     private wishlistItemRepository: Repository<WishlistItem>,
     @InjectRepository(ProductVariant)
     private variantRepository: Repository<ProductVariant>,
-  ) { }
+  ) {}
 
   async getWishlist(customerId: number) {
     const items = await this.wishlistItemRepository
@@ -46,7 +46,7 @@ export class WishlistService {
         color: item.variant?.color?.name,
         color_hex: item.variant?.color?.hex_code,
         available_stock: item.variant ? item.variant.total_stock - item.variant.reserved_stock : 0,
-        in_stock: item.variant ? (item.variant.total_stock - item.variant.reserved_stock) > 0 : false,
+        in_stock: item.variant ? item.variant.total_stock - item.variant.reserved_stock > 0 : false,
       },
     }));
 

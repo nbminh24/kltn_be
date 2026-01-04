@@ -15,7 +15,15 @@ import { ProductVariant } from '../../entities/product-variant.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Order, OrderItem, Cart, CartItem, Customer, OrderStatusHistory, ProductVariant]),
+    TypeOrmModule.forFeature([
+      Order,
+      OrderItem,
+      Cart,
+      CartItem,
+      Customer,
+      OrderStatusHistory,
+      ProductVariant,
+    ]),
     ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -30,4 +38,4 @@ import { ProductVariant } from '../../entities/product-variant.entity';
   providers: [OrdersService, DeliveryEstimationService],
   exports: [OrdersService],
 })
-export class OrdersModule { }
+export class OrdersModule {}

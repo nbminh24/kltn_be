@@ -7,11 +7,9 @@ import { ProductVariant } from '../../entities/product-variant.entity';
 import { Promotion } from '../../entities/promotion.entity';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([Product, ProductVariant, Promotion]),
-    ],
-    controllers: [ConsultantController],
-    providers: [ConsultantService],
-    exports: [ConsultantService],
+  imports: [TypeOrmModule.forFeature([Product, ProductVariant, Promotion])],
+  controllers: [ConsultantController],
+  providers: [ConsultantService],
+  exports: [ConsultantService],
 })
-export class ConsultantModule { }
+export class ConsultantModule {}

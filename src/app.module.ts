@@ -62,6 +62,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { ConsultantModule } from './modules/consultant/consultant.module';
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
+import { AddressLookupModule } from './modules/address/address.module';
 
 @Module({
   imports: [
@@ -117,18 +118,20 @@ import { ChatbotModule } from './modules/chatbot/chatbot.module';
           // Only use SSL for Supabase
           ssl: isSupabase ? { rejectUnauthorized: false } : false,
           // Connection pool & timeout settings
-          extra: isSupabase ? {
-            max: 10, // Max connections
-            min: 2,  // Min connections
-            connectionTimeoutMillis: 30000, // 30s timeout (tăng từ 10s)
-            idleTimeoutMillis: 30000,
-            keepAlive: true, // Keep connection alive
-            keepAliveInitialDelayMillis: 10000,
-          } : {
-            max: 10,
-            min: 2,
-            keepAlive: true,
-          },
+          extra: isSupabase
+            ? {
+              max: 10, // Max connections
+              min: 2, // Min connections
+              connectionTimeoutMillis: 30000, // 30s timeout (tăng từ 10s)
+              idleTimeoutMillis: 30000,
+              keepAlive: true, // Keep connection alive
+              keepAliveInitialDelayMillis: 10000,
+            }
+            : {
+              max: 10,
+              min: 2,
+              keepAlive: true,
+            },
           // Retry on failure
           retryAttempts: 3,
           retryDelay: 3000,
@@ -168,7 +171,7 @@ import { ChatbotModule } from './modules/chatbot/chatbot.module';
     PaymentModule,
     ConsultantModule,
     ChatbotModule,
+    AddressLookupModule,
   ],
 })
 export class AppModule { }
-

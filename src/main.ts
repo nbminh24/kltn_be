@@ -29,7 +29,8 @@ async function bootstrap() {
   // Swagger configuration
   const config = new DocumentBuilder()
     .setTitle('🛍️ LeCas Fashion - E-commerce API')
-    .setDescription(`
+    .setDescription(
+      `
       <h2>📚 Backend API Documentation - LeCas Fashion</h2>
       <p><strong>Version:</strong> 1.0 | <strong>Updated:</strong> November 2024</p>
       <p>Hệ thống E-commerce hoàn chỉnh với tích hợp AI (Chatbot + Image Search)</p>
@@ -69,7 +70,8 @@ async function bootstrap() {
         <li>🖼️ AI Image Search - Tìm kiếm sản phẩm bằng hình ảnh</li>
         <li>🎯 AI Recommendations - Gợi ý sản phẩm thông minh</li>
       </ul>
-    `)
+    `,
+    )
     .setVersion('1.0.0')
     .addBearerAuth(
       {
@@ -91,18 +93,18 @@ async function bootstrap() {
       },
       'api-key',
     )
-    
+
     // ==================== AUTHENTICATION ====================
     .addTag('Auth', '🔐 Authentication - Đăng nhập & Đăng ký')
     .addTag('Auth - Admin', '🔐 Admin Authentication - Đăng nhập quản trị viên')
-    
+
     // ==================== CUSTOMER - PUBLIC ====================
     .addTag('Products', '🛍️ Products - Sản phẩm [PUBLIC]')
     .addTag('Categories', '📂 Categories - Danh mục [PUBLIC]')
     .addTag('Sizes', '📏 Sizes - Kích cỡ [PUBLIC]')
     .addTag('Colors', '🎨 Colors - Màu sắc [PUBLIC]')
     .addTag('Pages (Public)', '📄 Pages - Trang tĩnh [PUBLIC]')
-    
+
     // ==================== CUSTOMER - PROTECTED ====================
     .addTag('Cart', '🛒 Cart - Giỏ hàng [PROTECTED]')
     .addTag('Checkout', '💳 Checkout & Payment - Thanh toán [PROTECTED]')
@@ -111,16 +113,16 @@ async function bootstrap() {
     .addTag('Wishlist', '❤️ Wishlist - Yêu thích [PROTECTED]')
     .addTag('Account', '👤 Account - Tài khoản & Địa chỉ [PROTECTED]')
     .addTag('Support', '💬 Support - Hỗ trợ khách hàng [PROTECTED]')
-    
+
     // ==================== ADMIN - DASHBOARD & ANALYTICS ====================
     .addTag('Admin - Analytics', '📊 Analytics - Dashboard & Thống kê [ADMIN]')
-    
+
     // ==================== ADMIN - PRODUCTS ====================
     .addTag('Admin - Products', '🛍️ Admin Products - Quản lý sản phẩm [ADMIN]')
     .addTag('Admin - Variants', '🔀 Admin Variants - Quản lý biến thể [ADMIN]')
     .addTag('Admin - Images', '🖼️ Admin Images - Quản lý ảnh sản phẩm [ADMIN]')
     .addTag('Admin - Categories', '📂 Admin Categories - Quản lý danh mục [ADMIN]')
-    
+
     // ==================== ADMIN - OPERATIONS ====================
     .addTag('Admin - Orders', '📦 Admin Orders - Quản lý đơn hàng [ADMIN]')
     .addTag('Admin - Reviews', '⭐ Admin Reviews - Quản lý đánh giá [ADMIN]')
@@ -128,20 +130,20 @@ async function bootstrap() {
     .addTag('Admin - Inventory', '📦 Admin Inventory - Quản lý tồn kho [ADMIN]')
     .addTag('Admin - Promotions', '🎁 Admin Promotions - Quản lý khuyến mãi [ADMIN]')
     .addTag('Admin - Support', '💬 Admin Support - Quản lý hỗ trợ [ADMIN]')
-    
+
     // ==================== ADMIN - CMS & CONTENT ====================
     .addTag('Admin - CMS Pages', '📄 Admin CMS - Quản lý trang tĩnh [ADMIN]')
-    
+
     // ==================== ADMIN - AI & CHATBOT ====================
     .addTag('Admin - AI', '🤖 Admin AI - Quản lý AI & Chatbot [ADMIN]')
-    
+
     // ==================== AI PUBLIC ====================
     .addTag('AI - Chatbot', '🤖 AI Chatbot - Trò chuyện với AI')
     .addTag('AI - Image Search', '🖼️ AI Image Search - Tìm kiếm bằng ảnh')
-    
+
     // ==================== INTERNAL APIS ====================
     .addTag('Internal APIs', '🔧 Internal - APIs cho Rasa Action Server [INTERNAL]')
-    
+
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

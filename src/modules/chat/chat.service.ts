@@ -17,983 +17,1005 @@ import { In } from 'typeorm';
 
 @Injectable()
 export class ChatService {
-    private readonly logger = new Logger(ChatService.name);
+  private readonly logger = new Logger(ChatService.name);
 
-    constructor(
-        @InjectRepository(ChatSession)
-        private sessionRepository: Repository<ChatSession>,
-        @InjectRepository(ChatMessage)
-        private messageRepository: Repository<ChatMessage>,
-        @InjectRepository(Product)
-        private productRepository: Repository<Product>,
-        private httpService: HttpService,
-        private configService: ConfigService,
-        private jwtService: JwtService,
-        private imageSearchService: ImageSearchService,
-    ) { }
+  constructor(
+    @InjectRepository(ChatSession)
+    private sessionRepository: Repository<ChatSession>,
+    @InjectRepository(ChatMessage)
+    private messageRepository: Repository<ChatMessage>,
+    @InjectRepository(Product)
+    private productRepository: Repository<Product>,
+    private httpService: HttpService,
+    private configService: ConfigService,
+    private jwtService: JwtService,
+    private imageSearchService: ImageSearchService,
+  ) {}
 
-    /**
-     * Extract customer_id from JWT token if present
-     */
-    private extractCustomerIdFromJWT(authHeader?: string): number | undefined {
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return undefined;
-        }
-
-        try {
-            const token = authHeader.substring(7);
-            const decoded = this.jwtService.verify(token);
-            const customerId = decoded.sub || decoded.customerId;
-
-            if (customerId) {
-                this.logger.log(`✅ Extracted customer_id from JWT: ${customerId}`);
-                return Number(customerId);
-            }
-        } catch (error) {
-            this.logger.warn(`⚠️ Failed to decode JWT: ${error.message}`);
-        }
-
-        return undefined;
+  /**
+   * Extract customer_id from JWT token if present
+   */
+  private extractCustomerIdFromJWT(authHeader?: string): number | undefined {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return undefined;
     }
 
-    async createOrGetSession(dto: CreateSessionDto, authHeader?: string, customerId?: number) {
-        // Try to extract customer_id from JWT if not provided
-        if (!customerId && authHeader) {
-            customerId = this.extractCustomerIdFromJWT(authHeader);
-        }
+    try {
+      const token = authHeader.substring(7);
+      const decoded = this.jwtService.verify(token);
+      const customerId = decoded.sub || decoded.customerId;
 
-        // If user is logged in
-        if (customerId) {
-            // Force create new session (ChatGPT-style new conversation)
-            if (dto.force_new) {
-                const session = this.sessionRepository.create({
-                    customer_id: customerId,
-                    visitor_id: null,
-                    status: 'bot',
-                });
-                await this.sessionRepository.save(session);
-
-                this.logger.log(`✅ Created NEW chat session for customer_id: ${customerId}, session_id: ${session.id}`);
-
-                return {
-                    session: {
-                        id: session.id,
-                        visitor_id: session.visitor_id,
-                        customer_id: session.customer_id,
-                        created_at: session.created_at,
-                        updated_at: session.updated_at,
-                    },
-                    is_new: true,
-                };
-            }
-
-            // Get existing session or create if not exists
-            let session = await this.sessionRepository.findOne({
-                where: { customer_id: customerId },
-                order: { updated_at: 'DESC' },
-            });
-
-            const isNew = !session;
-
-            if (!session) {
-                session = this.sessionRepository.create({
-                    customer_id: customerId,
-                    visitor_id: null,
-                    status: 'bot',
-                });
-                await this.sessionRepository.save(session);
-            }
-
-            return {
-                session: {
-                    id: session.id,
-                    visitor_id: session.visitor_id,
-                    customer_id: session.customer_id,
-                    created_at: session.created_at,
-                    updated_at: session.updated_at,
-                },
-                is_new: isNew,
-            };
-        }
-
-        // If visitor_id provided, find existing session
-        if (dto.visitor_id) {
-            let session = await this.sessionRepository.findOne({
-                where: { visitor_id: dto.visitor_id },
-                order: { updated_at: 'DESC' },
-            });
-
-            const isNew = !session;
-
-            if (!session) {
-                session = this.sessionRepository.create({
-                    customer_id: null,
-                    visitor_id: dto.visitor_id,
-                    status: 'bot',
-                });
-                await this.sessionRepository.save(session);
-            }
-
-            return {
-                session: {
-                    id: session.id,
-                    visitor_id: session.visitor_id,
-                    customer_id: session.customer_id,
-                    created_at: session.created_at,
-                    updated_at: session.updated_at,
-                },
-                is_new: isNew,
-            };
-        }
-
-        throw new BadRequestException('Phải cung cấp visitor_id hoặc đăng nhập');
+      if (customerId) {
+        this.logger.log(`✅ Extracted customer_id from JWT: ${customerId}`);
+        return Number(customerId);
+      }
+    } catch (error) {
+      this.logger.warn(`⚠️ Failed to decode JWT: ${error.message}`);
     }
 
-    async getHistory(sessionId: number, limit: number = 50, offset: number = 0) {
-        const session = await this.sessionRepository.findOne({
-            where: { id: sessionId },
-            relations: ['customer'],
-        });
+    return undefined;
+  }
 
-        if (!session) {
-            throw new NotFoundException('Không tìm thấy phiên chat');
-        }
-
-        const [messages, total] = await this.messageRepository.findAndCount({
-            where: { session_id: sessionId },
-            order: { created_at: 'DESC' },
-            take: limit,
-            skip: offset,
-        });
-
-        return {
-            session: {
-                id: session.id,
-                customer_id: session.customer_id,
-                visitor_id: session.visitor_id,
-                status: session.status,
-                assigned_admin_id: session.assigned_admin_id,
-                handoff_requested_at: session.handoff_requested_at,
-                handoff_accepted_at: session.handoff_accepted_at,
-                customer: session.customer ? {
-                    id: session.customer.id,
-                    name: session.customer.name,
-                    email: session.customer.email,
-                } : null,
-            },
-            messages: messages.reverse(), // Reverse để hiển thị từ cũ đến mới
-            total,
-            limit,
-            offset,
-        };
+  async createOrGetSession(dto: CreateSessionDto, authHeader?: string, customerId?: number) {
+    // Try to extract customer_id from JWT if not provided
+    if (!customerId && authHeader) {
+      customerId = this.extractCustomerIdFromJWT(authHeader);
     }
 
-    async sendMessage(dto: SendMessageDto, authHeader?: string) {
-        const session = await this.sessionRepository.findOne({
-            where: { id: dto.session_id },
+    // If user is logged in
+    if (customerId) {
+      // Force create new session (ChatGPT-style new conversation)
+      if (dto.force_new) {
+        const session = this.sessionRepository.create({
+          customer_id: customerId,
+          visitor_id: null,
+          status: 'bot',
         });
+        await this.sessionRepository.save(session);
 
-        if (!session) {
-            throw new NotFoundException('Không tìm thấy phiên chat');
-        }
-
-        // Extract customer_id from JWT and update session if needed
-        let customerId = session.customer_id;
-        if (!customerId && authHeader) {
-            customerId = this.extractCustomerIdFromJWT(authHeader);
-
-            // Update session with customer_id if extracted from JWT
-            if (customerId && session.customer_id !== customerId) {
-                this.logger.log(`🔄 Updating session ${session.id} with customer_id: ${customerId}`);
-                session.customer_id = customerId;
-                await this.sessionRepository.save(session);
-            }
-        }
-
-        // 1. Save user message
-        const customerMessage = this.messageRepository.create({
-            session_id: dto.session_id,
-            sender: 'customer',
-            message: dto.message,
-            image_url: dto.image_url || null,
-            is_read: false,
-        });
-        await this.messageRepository.save(customerMessage);
-
-        // 🖼️ IMAGE SEARCH: If message contains image_url, handle image search
-        if (dto.image_url) {
-            this.logger.log(`🖼️ Detected image in message, processing image search...`);
-            return await this.handleImageSearchInChat(dto, session);
-        }
-
-        // ❗ CRITICAL: Skip Rasa if conversation is in human mode
-        if (session.status === 'human_pending' || session.status === 'human_active') {
-            this.logger.log(`🚫 Skipping Rasa for session ${session.id} - status: ${session.status}`);
-
-            // Update session timestamp
-            session.updated_at = new Date();
-            await this.sessionRepository.save(session);
-
-            // If pending, send waiting message
-            if (session.status === 'human_pending') {
-                const waitingMessage = this.messageRepository.create({
-                    session_id: dto.session_id,
-                    sender: 'bot',
-                    message: 'Your request has been forwarded to our support team. They will respond during working hours (8AM-8PM).',
-                    is_read: false,
-                });
-                const saved = await this.messageRepository.save(waitingMessage);
-
-                return {
-                    customer_message: customerMessage,
-                    bot_responses: [saved],
-                };
-            }
-
-            // If human_active, just save customer message (admin will respond)
-            return {
-                customer_message: customerMessage,
-                bot_responses: [],
-            };
-        }
-
-        // 2. Call Rasa Server with customer_id in metadata (only if status = 'bot')
-        const rasaUrl = this.configService.get<string>('RASA_SERVER_URL') || 'http://localhost:5005';
-        // Use session_id as sender to isolate Rasa conversations per session
-        const senderId = session.visitor_id || `session_${dto.session_id}`;
-        let rasaResponses = [];
-
-        // Build metadata with customer_id
-        const metadata: any = {
-            session_id: dto.session_id.toString(),
-        };
-
-        if (customerId) {
-            metadata.customer_id = customerId;
-            this.logger.log(`✅ Injecting customer_id into Rasa metadata: ${customerId}`);
-        }
-
-        if (authHeader) {
-            metadata.user_jwt_token = authHeader.replace('Bearer ', '');
-        }
-
-        console.log(`[Chat] Calling Rasa webhook: ${rasaUrl}/webhooks/rest/webhook`);
-        console.log(`[Chat] Sender: ${senderId}, Message: "${dto.message}"`);
-        console.log(`[Chat] Metadata:`, JSON.stringify(metadata));
-
-        try {
-            const response = await firstValueFrom(
-                this.httpService.post(
-                    `${rasaUrl}/webhooks/rest/webhook`,
-                    {
-                        sender: senderId,
-                        message: dto.message,
-                        metadata: metadata,  // ✅ Include metadata with customer_id
-                    },
-                    {
-                        timeout: 10000, // 10 seconds timeout
-                    }
-                ),
-            );
-
-            rasaResponses = response.data || [];
-            console.log(`[Chat] Rasa responded with ${rasaResponses.length} message(s)`);
-        } catch (error) {
-            // Log detailed error for debugging
-            console.error('[Chat] Rasa webhook failed:', error.message);
-            if (error.code === 'ECONNREFUSED') {
-                console.error('[Chat] Rasa server is not running or unreachable');
-            }
-
-            // Fallback message when Rasa is down
-            rasaResponses = [{
-                text: 'Xin lỗi, chatbot hiện không khả dụng. Vui lòng thử lại sau hoặc liên hệ support.',
-            }];
-        }
-
-        // 3. Save bot responses WITH custom data to database
-        const savedBotResponses = [];
-        for (const rasaMsg of rasaResponses) {
-            // Save to DB including custom and buttons for persistence
-            const botMessage = this.messageRepository.create({
-                session_id: dto.session_id,
-                sender: 'bot',
-                message: rasaMsg.text || '',
-                is_read: false,
-                custom: rasaMsg.custom || null,    // ✅ SAVE custom to DB
-                buttons: rasaMsg.buttons || null,  // ✅ SAVE buttons to DB
-            });
-            const saved = await this.messageRepository.save(botMessage);
-
-            savedBotResponses.push(saved);
-        }
-
-        // 4. Update session timestamp
-        // Reload session to get latest status (in case handoff was triggered)
-        const latestSession = await this.sessionRepository.findOne({ where: { id: dto.session_id } });
-        if (latestSession) {
-            latestSession.updated_at = new Date();
-            await this.sessionRepository.save(latestSession);
-        }
-
-        // Return with custom data attached
-        return {
-            customer_message: customerMessage,
-            bot_responses: savedBotResponses,
-        };
-    }
-
-    async mergeSessions(dto: MergeSessionDto, customerId: number) {
-        if (!customerId) {
-            throw new BadRequestException('Người dùng chưa đăng nhập');
-        }
-
-        // Find all sessions with this visitor_id
-        const visitorSessions = await this.sessionRepository.find({
-            where: { visitor_id: dto.visitor_id },
-        });
-
-        if (visitorSessions.length === 0) {
-            return {
-                message: 'Không tìm thấy phiên chat nào để merge',
-                merged_count: 0,
-            };
-        }
-
-        // Update all visitor sessions to belong to customer
-        await this.sessionRepository.update(
-            { visitor_id: dto.visitor_id },
-            { customer_id: customerId, visitor_id: null },
+        this.logger.log(
+          `✅ Created NEW chat session for customer_id: ${customerId}, session_id: ${session.id}`,
         );
 
         return {
-            message: 'Merge phiên chat thành công',
-            merged_count: visitorSessions.length,
-            customer_id: customerId,
-        };
-    }
-
-    async getSessionsHistory(query: any, authHeader?: string) {
-        const { customer_id, visitor_id, page = 1, limit = 50 } = query;
-
-        // Extract customer_id from JWT if not provided
-        let finalCustomerId = customer_id;
-        if (!finalCustomerId && authHeader) {
-            finalCustomerId = this.extractCustomerIdFromJWT(authHeader);
-        }
-
-        if (!finalCustomerId && !visitor_id) {
-            throw new BadRequestException('Phải cung cấp customer_id, visitor_id hoặc JWT token');
-        }
-
-        const where: any = {};
-        if (finalCustomerId) {
-            where.customer_id = parseInt(finalCustomerId);
-        } else if (visitor_id) {
-            where.visitor_id = visitor_id;
-        }
-
-        const [sessions, total] = await this.sessionRepository.findAndCount({
-            where,
-            order: { updated_at: 'DESC' },
-            take: limit,
-            skip: (page - 1) * limit,
-        });
-
-        // Group sessions by time
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-        const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-        const grouped = {
-            today: [],
-            yesterday: [],
-            last_7_days: [],
-            older: [],
-        };
-
-        for (const session of sessions) {
-            const sessionDate = new Date(session.updated_at);
-
-            if (sessionDate >= today) {
-                grouped.today.push(session);
-            } else if (sessionDate >= yesterday) {
-                grouped.yesterday.push(session);
-            } else if (sessionDate >= sevenDaysAgo) {
-                grouped.last_7_days.push(session);
-            } else {
-                grouped.older.push(session);
-            }
-        }
-
-        return {
-            sessions: grouped,
-            total,
-            page: parseInt(page),
-            limit: parseInt(limit),
-        };
-    }
-
-    async getActiveSession(query: any, authHeader?: string) {
-        const { customer_id, visitor_id } = query;
-
-        // Extract customer_id from JWT if not provided
-        let finalCustomerId = customer_id;
-        if (!finalCustomerId && authHeader) {
-            finalCustomerId = this.extractCustomerIdFromJWT(authHeader);
-        }
-
-        if (!finalCustomerId && !visitor_id) {
-            throw new BadRequestException('Phải cung cấp customer_id, visitor_id hoặc JWT token');
-        }
-
-        const where: any = {};
-        if (finalCustomerId) {
-            where.customer_id = parseInt(finalCustomerId);
-        } else if (visitor_id) {
-            where.visitor_id = visitor_id;
-        }
-
-        const session = await this.sessionRepository.findOne({
-            where,
-            order: { updated_at: 'DESC' },
-        });
-
-        if (!session) {
-            throw new NotFoundException('Không tìm thấy session active');
-        }
-
-        return {
-            session_id: session.id,
-            customer_id: session.customer_id,
+          session: {
+            id: session.id,
             visitor_id: session.visitor_id,
-            status: session.status,
+            customer_id: session.customer_id,
             created_at: session.created_at,
             updated_at: session.updated_at,
+          },
+          is_new: true,
         };
-    }
+      }
 
-    async deleteSession(sessionId: number) {
-        const session = await this.sessionRepository.findOne({
-            where: { id: sessionId },
+      // Get existing session or create if not exists
+      let session = await this.sessionRepository.findOne({
+        where: { customer_id: customerId },
+        order: { updated_at: 'DESC' },
+      });
+
+      const isNew = !session;
+
+      if (!session) {
+        session = this.sessionRepository.create({
+          customer_id: customerId,
+          visitor_id: null,
+          status: 'bot',
         });
-
-        if (!session) {
-            throw new NotFoundException('Không tìm thấy session');
-        }
-
-        // Delete all messages first
-        await this.messageRepository.delete({ session_id: sessionId });
-
-        // Delete session
-        await this.sessionRepository.delete({ id: sessionId });
-
-        return {
-            message: 'Xóa session thành công',
-            session_id: sessionId,
-        };
-    }
-
-    async uploadImage(file: Express.Multer.File) {
-        if (!file) {
-            throw new BadRequestException('Không tìm thấy file');
-        }
-
-        // Validate file type
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        if (!allowedTypes.includes(file.mimetype)) {
-            throw new BadRequestException('Chỉ chấp nhận file ảnh (JPEG, PNG, GIF, WebP)');
-        }
-
-        // Validate file size (max 5MB)
-        const maxSize = 5 * 1024 * 1024;
-        if (file.size > maxSize) {
-            throw new BadRequestException('File quá lớn (tối đa 5MB)');
-        }
-
-        // TODO: Upload to cloud storage (S3, Cloudinary, etc.)
-        // For now, return a placeholder URL
-        const imageUrl = `https://placeholder.com/chat/${Date.now()}-${file.originalname}`;
-
-        return {
-            url: imageUrl,
-            filename: file.originalname,
-            size: file.size,
-        };
-    }
-
-    async markAsRead(messageId: number) {
-        const message = await this.messageRepository.findOne({
-            where: { id: messageId },
-        });
-
-        if (!message) {
-            throw new NotFoundException('Không tìm thấy tin nhắn');
-        }
-
-        message.is_read = true;
-        await this.messageRepository.save(message);
-
-        return {
-            message: 'Đã đánh dấu là đã đọc',
-            message_id: messageId,
-        };
-    }
-
-    /**
-     * Request human handoff - transfer conversation from bot to human agent
-     */
-    async requestHandoff(sessionId: number, reason?: string) {
-        const session = await this.sessionRepository.findOne({
-            where: { id: sessionId },
-        });
-
-        if (!session) {
-            throw new NotFoundException('Session not found');
-        }
-
-        if (session.status === 'human_pending' || session.status === 'human_active') {
-            throw new BadRequestException('This conversation is already assigned to or pending human agent');
-        }
-
-        // Check working hours (8AM - 8PM)
-        const now = new Date();
-        const hour = now.getHours();
-        const isWorkingHours = hour >= 8 && hour < 20;
-
-        // Update session status
-        session.status = 'human_pending';
-        session.handoff_requested_at = new Date();
-        session.handoff_reason = reason || 'customer_request';
         await this.sessionRepository.save(session);
+      }
 
-        this.logger.log(` Handoff requested for session ${sessionId}. Working hours: ${isWorkingHours}`);
-
-        // Send bot confirmation message
-        const botMessage = this.messageRepository.create({
-            session_id: sessionId,
-            sender: 'bot',
-            message: isWorkingHours
-                ? "I'm inviting one of our human support agents to assist you. They will respond shortly. This conversation will now be handled by a human agent."
-                : "I've forwarded your request to our support team. Our agents are available from 8:00 AM to 8:00 PM. They will respond during working hours.",
-            is_read: false,
-        });
-        await this.messageRepository.save(botMessage);
-
-        return {
-            success: true,
-            message: 'Handoff request created',
-            session: {
-                id: session.id,
-                status: session.status,
-                handoff_requested_at: session.handoff_requested_at,
-                working_hours: isWorkingHours,
-            },
-        };
+      return {
+        session: {
+          id: session.id,
+          visitor_id: session.visitor_id,
+          customer_id: session.customer_id,
+          created_at: session.created_at,
+          updated_at: session.updated_at,
+        },
+        is_new: isNew,
+      };
     }
 
-    /**
-     * Admin accepts conversation - assigns admin to conversation
-     */
-    async acceptConversation(sessionId: number, adminId: number) {
-        const session = await this.sessionRepository.findOne({
-            where: { id: sessionId },
+    // If visitor_id provided, find existing session
+    if (dto.visitor_id) {
+      let session = await this.sessionRepository.findOne({
+        where: { visitor_id: dto.visitor_id },
+        order: { updated_at: 'DESC' },
+      });
+
+      const isNew = !session;
+
+      if (!session) {
+        session = this.sessionRepository.create({
+          customer_id: null,
+          visitor_id: dto.visitor_id,
+          status: 'bot',
         });
-
-        if (!session) {
-            throw new NotFoundException('Session not found');
-        }
-
-        if (session.status !== 'human_pending') {
-            throw new BadRequestException(`Cannot accept conversation with status: ${session.status}`);
-        }
-
-        // Assign admin and activate
-        session.status = 'human_active';
-        session.assigned_admin_id = adminId;
-        session.handoff_accepted_at = new Date();
         await this.sessionRepository.save(session);
+      }
 
-        this.logger.log(` Admin ${adminId} accepted conversation ${sessionId}`);
-
-        // Send system message
-        const systemMessage = this.messageRepository.create({
-            session_id: sessionId,
-            sender: 'admin',
-            message: 'Hello! I\'m here to help you. How can I assist you today?',
-            is_read: false,
-        });
-        await this.messageRepository.save(systemMessage);
-
-        return {
-            success: true,
-            message: 'Conversation accepted',
-            session: {
-                id: session.id,
-                status: session.status,
-                assigned_admin_id: session.assigned_admin_id,
-                handoff_accepted_at: session.handoff_accepted_at,
-            },
-        };
+      return {
+        session: {
+          id: session.id,
+          visitor_id: session.visitor_id,
+          customer_id: session.customer_id,
+          created_at: session.created_at,
+          updated_at: session.updated_at,
+        },
+        is_new: isNew,
+      };
     }
 
-    /**
-     * Close conversation - end human conversation
-     */
-    async closeConversation(sessionId: number, adminId: number) {
-        const session = await this.sessionRepository.findOne({
-            where: { id: sessionId },
-        });
+    throw new BadRequestException('Phải cung cấp visitor_id hoặc đăng nhập');
+  }
 
-        if (!session) {
-            throw new NotFoundException('Session not found');
-        }
+  async getHistory(sessionId: number, limit: number = 50, offset: number = 0) {
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+      relations: ['customer'],
+    });
 
-        if (Number(session.assigned_admin_id) !== Number(adminId)) {
-            throw new BadRequestException('You are not assigned to this conversation');
-        }
-
-        session.status = 'closed';
-        await this.sessionRepository.save(session);
-
-        this.logger.log(` Conversation ${sessionId} closed by admin ${adminId}`);
-
-        // Send closing message
-        const closingMessage = this.messageRepository.create({
-            session_id: sessionId,
-            sender: 'admin',
-            message: 'This conversation has been closed. If you need further assistance, please start a new conversation.',
-            is_read: false,
-        });
-        await this.messageRepository.save(closingMessage);
-
-        return {
-            success: true,
-            message: 'Conversation closed',
-            session_id: sessionId,
-        };
+    if (!session) {
+      throw new NotFoundException('Không tìm thấy phiên chat');
     }
 
-    /**
-     * Get pending conversations for admin dashboard
-     */
-    async getPendingConversations() {
-        const sessions = await this.sessionRepository.find({
-            where: { status: 'human_pending' },
-            relations: ['customer'],
-            order: { handoff_requested_at: 'ASC' },
-        });
+    const [messages, total] = await this.messageRepository.findAndCount({
+      where: { session_id: sessionId },
+      order: { created_at: 'DESC' },
+      take: limit,
+      skip: offset,
+    });
 
-        return {
-            total: sessions.length,
-            conversations: sessions.map(s => ({
-                session_id: s.id,
-                customer: s.customer ? {
-                    id: s.customer.id,
-                    name: s.customer.name,
-                    email: s.customer.email,
-                } : null,
-                visitor_id: s.visitor_id,
-                handoff_reason: s.handoff_reason,
-                handoff_requested_at: s.handoff_requested_at,
-                created_at: s.created_at,
-            })),
-        };
-    }
-
-    /**
-     * Get active conversations assigned to admin
-     */
-    async getAdminConversations(adminId: number) {
-        const sessions = await this.sessionRepository.find({
-            where: {
-                assigned_admin_id: adminId,
-                status: 'human_active',
-            },
-            relations: ['customer'],
-            order: { updated_at: 'DESC' },
-        });
-
-        return {
-            total: sessions.length,
-            conversations: sessions.map(s => ({
-                session_id: s.id,
-                customer: s.customer ? {
-                    id: s.customer.id,
-                    name: s.customer.name,
-                    email: s.customer.email,
-                } : null,
-                visitor_id: s.visitor_id,
-                handoff_reason: s.handoff_reason,
-                handoff_accepted_at: s.handoff_accepted_at,
-                updated_at: s.updated_at,
-            })),
-        };
-    }
-
-    /**
-     * Send admin message to customer
-     */
-    async sendAdminMessage(sessionId: number, adminId: number, message: string) {
-        const session = await this.sessionRepository.findOne({
-            where: { id: sessionId },
-        });
-
-        if (!session) {
-            throw new NotFoundException('Session not found');
-        }
-
-        if (Number(session.assigned_admin_id) !== Number(adminId)) {
-            throw new BadRequestException('You are not assigned to this conversation');
-        }
-
-        if (session.status !== 'human_active') {
-            throw new BadRequestException('Conversation is not active');
-        }
-
-        // Save admin message
-        const adminMessage = this.messageRepository.create({
-            session_id: sessionId,
-            sender: 'admin',
-            message: message,
-            is_read: false,
-        });
-        await this.messageRepository.save(adminMessage);
-
-        // Update session timestamp
-        session.updated_at = new Date();
-        await this.sessionRepository.save(session);
-
-        return {
-            success: true,
-            message: adminMessage,
-        };
-    }
-
-    /**
-     * Search products by image - for chat image upload
-     */
-    async searchProductsByImage(
-        imageBuffer: Buffer,
-        filename: string,
-    ): Promise<ProductSearchResultDto[]> {
-        this.logger.log(`🖼️ Processing image search request: ${filename}`);
-
-        // 1. Call Image Search Service
-        const searchResult = await this.imageSearchService.searchByImage(imageBuffer, filename);
-
-        if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
-            this.logger.warn('No similar products found');
-            return [];
-        }
-
-        // 2. Extract product IDs
-        const productIds = searchResult.results.map(r => r.product_id);
-        this.logger.log(`Found ${productIds.length} similar products: ${productIds.join(', ')}`);
-
-        // 3. Query database for product details
-        this.logger.debug(`Querying database for product IDs: ${JSON.stringify(productIds)}`);
-
-        const products = await this.productRepository
-            .createQueryBuilder('product')
-            .where('product.id IN (:...ids)', { ids: productIds })
-            .andWhere('product.status = :status', { status: 'active' })
-            .andWhere('product.deleted_at IS NULL')
-            .select([
-                'product.id',
-                'product.name',
-                'product.selling_price',
-                'product.thumbnail_url',
-                'product.slug'
-            ])
-            .getMany();
-
-        this.logger.debug(`Database returned ${products.length} products`);
-        if (products.length === 0 && productIds.length > 0) {
-            // Try without filters to debug
-            const allProducts = await this.productRepository.find({
-                where: { id: In(productIds) },
-            });
-            this.logger.warn(`Without filters: found ${allProducts.length} products. Check status/deleted_at`);
-        }
-
-        // 4. Map products with similarity scores (preserve order from search results)
-        // Convert product IDs to numbers for consistent comparison
-        const productMap = new Map(products.map(p => [Number(p.id), p]));
-        const results: ProductSearchResultDto[] = [];
-
-        this.logger.debug(`Product map keys: ${Array.from(productMap.keys()).join(', ')}`);
-        this.logger.debug(`Search result product IDs: ${searchResult.results.map(r => r.product_id).join(', ')}`);
-
-        for (const searchItem of searchResult.results) {
-            const productId = Number(searchItem.product_id);
-            const product = productMap.get(productId);
-
-            if (product) {
-                results.push({
-                    id: product.id,
-                    name: product.name,
-                    selling_price: Number(product.selling_price),
-                    thumbnail_url: product.thumbnail_url,
-                    slug: product.slug,
-                    similarity_score: searchItem.similarity_score,
-                    matched_image_url: searchItem.image_url,
-                });
-            } else {
-                this.logger.warn(`Product ${productId} not found in map (searched: ${searchItem.product_id}, type: ${typeof searchItem.product_id})`);
+    return {
+      session: {
+        id: session.id,
+        customer_id: session.customer_id,
+        visitor_id: session.visitor_id,
+        status: session.status,
+        assigned_admin_id: session.assigned_admin_id,
+        handoff_requested_at: session.handoff_requested_at,
+        handoff_accepted_at: session.handoff_accepted_at,
+        customer: session.customer
+          ? {
+              id: session.customer.id,
+              name: session.customer.name,
+              email: session.customer.email,
             }
-        }
+          : null,
+      },
+      messages: messages.reverse(), // Reverse để hiển thị từ cũ đến mới
+      total,
+      limit,
+      offset,
+    };
+  }
 
-        this.logger.log(`✅ Returning ${results.length} products with details`);
-        return results;
+  async sendMessage(dto: SendMessageDto, authHeader?: string) {
+    const session = await this.sessionRepository.findOne({
+      where: { id: dto.session_id },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Không tìm thấy phiên chat');
     }
 
-    /**
-     * Handle image search within chat conversation
-     */
-    private async handleImageSearchInChat(dto: SendMessageDto, session: ChatSession) {
-        try {
-            // 1. Download image from URL
-            this.logger.log(`📥 Downloading image from: ${dto.image_url}`);
-            const imageBuffer = await this.downloadImageFromUrl(dto.image_url);
+    // Extract customer_id from JWT and update session if needed
+    let customerId = session.customer_id;
+    if (!customerId && authHeader) {
+      customerId = this.extractCustomerIdFromJWT(authHeader);
 
-            // 2. Search products by image
-            const products = await this.searchProductsByImage(imageBuffer, 'chat-image.jpg');
-
-            // 3. Create bot response message
-            let botMessage: string;
-            if (products.length === 0) {
-                botMessage = '😔 Xin lỗi, tôi không tìm thấy sản phẩm tương tự nào. Bạn có thể thử với ảnh khác hoặc mô tả sản phẩm bạn muốn tìm.';
-            } else {
-                botMessage = `🔍 Tôi đã tìm thấy ${products.length} sản phẩm tương tự! Đây là những sản phẩm phù hợp nhất:\n\n`;
-
-                products.slice(0, 5).forEach((p, idx) => {
-                    const similarity = Math.round(p.similarity_score * 100);
-                    botMessage += `${idx + 1}. ${p.name}\n`;
-                    botMessage += `   💰 ${Number(p.selling_price).toLocaleString('vi-VN')}đ\n`;
-                    botMessage += `   ✨ ${similarity}% tương đồng\n`;
-                    botMessage += `   🔗 /products/${p.slug}\n\n`;
-                });
-            }
-
-            // 4. Save bot response
-            const botResponse = this.messageRepository.create({
-                session_id: dto.session_id,
-                sender: 'bot',
-                message: botMessage,
-                custom: {
-                    type: 'image_search_results',
-                    products: products.map(p => ({
-                        id: p.id,
-                        name: p.name,
-                        price: p.selling_price,
-                        image: p.thumbnail_url,
-                        slug: p.slug,
-                        similarity: Math.round(p.similarity_score * 100),
-                    })),
-                },
-                is_read: false,
-            });
-            await this.messageRepository.save(botResponse);
-
-            // 5. Update session timestamp
-            session.updated_at = new Date();
-            await this.sessionRepository.save(session);
-
-            this.logger.log(`✅ Image search completed, found ${products.length} products`);
-
-            return {
-                customer_message: await this.messageRepository.findOne({
-                    where: { session_id: dto.session_id },
-                    order: { created_at: 'DESC' }
-                }),
-                bot_responses: [botResponse],
-            };
-
-        } catch (error) {
-            this.logger.error(`❌ Image search in chat failed: ${error.message}`);
-
-            // Return error message as bot response
-            const errorMessage = this.messageRepository.create({
-                session_id: dto.session_id,
-                sender: 'bot',
-                message: 'Xin lỗi, có lỗi xảy ra khi xử lý hình ảnh. Vui lòng thử lại hoặc gửi ảnh khác.',
-                is_read: false,
-            });
-            await this.messageRepository.save(errorMessage);
-
-            return {
-                customer_message: await this.messageRepository.findOne({
-                    where: { session_id: dto.session_id },
-                    order: { created_at: 'DESC' }
-                }),
-                bot_responses: [errorMessage],
-            };
-        }
+      // Update session with customer_id if extracted from JWT
+      if (customerId && session.customer_id !== customerId) {
+        this.logger.log(`🔄 Updating session ${session.id} with customer_id: ${customerId}`);
+        session.customer_id = customerId;
+        await this.sessionRepository.save(session);
+      }
     }
 
-    /**
-     * Download image from URL
-     */
-    private async downloadImageFromUrl(url: string): Promise<Buffer> {
-        try {
-            const response = await firstValueFrom(
-                this.httpService.get(url, {
-                    responseType: 'arraybuffer',
-                    timeout: 10000,
-                })
-            );
-            return Buffer.from(response.data);
-        } catch (error) {
-            this.logger.error(`Failed to download image from ${url}: ${error.message}`);
-            throw new BadRequestException('Cannot download image from provided URL');
-        }
+    // 1. Save user message
+    const customerMessage = this.messageRepository.create({
+      session_id: dto.session_id,
+      sender: 'customer',
+      message: dto.message,
+      image_url: dto.image_url || null,
+      is_read: false,
+    });
+    await this.messageRepository.save(customerMessage);
+
+    // 🖼️ IMAGE SEARCH: If message contains image_url, handle image search
+    if (dto.image_url) {
+      this.logger.log(`🖼️ Detected image in message, processing image search...`);
+      return await this.handleImageSearchInChat(dto, session);
     }
 
-    /**
-     * Format image search results as Rasa carousel
-     */
-    formatAsRasaCarousel(products: ProductSearchResultDto[]) {
-        if (!products || products.length === 0) {
-            return {
-                text: "Xin lỗi, tôi không tìm thấy sản phẩm tương tự nào. Bạn có thể thử với ảnh khác hoặc mô tả sản phẩm bạn muốn tìm.",
-            };
-        }
+    // ❗ CRITICAL: Skip Rasa if conversation is in human mode
+    if (session.status === 'human_pending' || session.status === 'human_active') {
+      this.logger.log(`🚫 Skipping Rasa for session ${session.id} - status: ${session.status}`);
 
-        const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+      // Update session timestamp
+      session.updated_at = new Date();
+      await this.sessionRepository.save(session);
+
+      // If pending, send waiting message
+      if (session.status === 'human_pending') {
+        const waitingMessage = this.messageRepository.create({
+          session_id: dto.session_id,
+          sender: 'bot',
+          message:
+            'Your request has been forwarded to our support team. They will respond during working hours (8AM-8PM).',
+          is_read: false,
+        });
+        const saved = await this.messageRepository.save(waitingMessage);
 
         return {
-            text: `🔍 Tôi đã tìm thấy ${products.length} sản phẩm tương tự! Đây là những sản phẩm phù hợp nhất:`,
-            custom: {
-                type: 'image_search_results',
-                products: products.map(p => ({
-                    id: p.id,
-                    name: p.name,
-                    price: p.selling_price,
-                    image: p.thumbnail_url || p.matched_image_url,
-                    similarity: Math.round(p.similarity_score * 100),
-                    link: `${frontendUrl}/products/${p.slug}`,
-                })),
-            },
-            attachment: {
-                type: 'template',
-                payload: {
-                    template_type: 'generic',
-                    elements: products.slice(0, 10).map(p => ({
-                        title: p.name,
-                        subtitle: `${Number(p.selling_price).toLocaleString('vi-VN')}đ • ${Math.round(p.similarity_score * 100)}% tương đồng`,
-                        image_url: p.thumbnail_url || p.matched_image_url,
-                        buttons: [
-                            {
-                                type: 'web_url',
-                                url: `${frontendUrl}/products/${p.slug}`,
-                                title: 'Xem chi tiết',
-                            },
-                        ],
-                    })),
-                },
-            },
+          customer_message: customerMessage,
+          bot_responses: [saved],
         };
+      }
+
+      // If human_active, just save customer message (admin will respond)
+      return {
+        customer_message: customerMessage,
+        bot_responses: [],
+      };
     }
+
+    // 2. Call Rasa Server with customer_id in metadata (only if status = 'bot')
+    const rasaUrl = this.configService.get<string>('RASA_SERVER_URL') || 'http://localhost:5005';
+    // Use session_id as sender to isolate Rasa conversations per session
+    const senderId = session.visitor_id || `session_${dto.session_id}`;
+    let rasaResponses = [];
+
+    // Build metadata with customer_id
+    const metadata: any = {
+      session_id: dto.session_id.toString(),
+    };
+
+    if (customerId) {
+      metadata.customer_id = customerId;
+      this.logger.log(`✅ Injecting customer_id into Rasa metadata: ${customerId}`);
+    }
+
+    if (authHeader) {
+      metadata.user_jwt_token = authHeader.replace('Bearer ', '');
+    }
+
+    console.log(`[Chat] Calling Rasa webhook: ${rasaUrl}/webhooks/rest/webhook`);
+    console.log(`[Chat] Sender: ${senderId}, Message: "${dto.message}"`);
+    console.log(`[Chat] Metadata:`, JSON.stringify(metadata));
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(
+          `${rasaUrl}/webhooks/rest/webhook`,
+          {
+            sender: senderId,
+            message: dto.message,
+            metadata: metadata, // ✅ Include metadata with customer_id
+          },
+          {
+            timeout: 10000, // 10 seconds timeout
+          },
+        ),
+      );
+
+      rasaResponses = response.data || [];
+      console.log(`[Chat] Rasa responded with ${rasaResponses.length} message(s)`);
+    } catch (error) {
+      // Log detailed error for debugging
+      console.error('[Chat] Rasa webhook failed:', error.message);
+      if (error.code === 'ECONNREFUSED') {
+        console.error('[Chat] Rasa server is not running or unreachable');
+      }
+
+      // Fallback message when Rasa is down
+      rasaResponses = [
+        {
+          text: 'Xin lỗi, chatbot hiện không khả dụng. Vui lòng thử lại sau hoặc liên hệ support.',
+        },
+      ];
+    }
+
+    // 3. Save bot responses WITH custom data to database
+    const savedBotResponses = [];
+    for (const rasaMsg of rasaResponses) {
+      // Save to DB including custom and buttons for persistence
+      const botMessage = this.messageRepository.create({
+        session_id: dto.session_id,
+        sender: 'bot',
+        message: rasaMsg.text || '',
+        is_read: false,
+        custom: rasaMsg.custom || null, // ✅ SAVE custom to DB
+        buttons: rasaMsg.buttons || null, // ✅ SAVE buttons to DB
+      });
+      const saved = await this.messageRepository.save(botMessage);
+
+      savedBotResponses.push(saved);
+    }
+
+    // 4. Update session timestamp
+    // Reload session to get latest status (in case handoff was triggered)
+    const latestSession = await this.sessionRepository.findOne({ where: { id: dto.session_id } });
+    if (latestSession) {
+      latestSession.updated_at = new Date();
+      await this.sessionRepository.save(latestSession);
+    }
+
+    // Return with custom data attached
+    return {
+      customer_message: customerMessage,
+      bot_responses: savedBotResponses,
+    };
+  }
+
+  async mergeSessions(dto: MergeSessionDto, customerId: number) {
+    if (!customerId) {
+      throw new BadRequestException('Người dùng chưa đăng nhập');
+    }
+
+    // Find all sessions with this visitor_id
+    const visitorSessions = await this.sessionRepository.find({
+      where: { visitor_id: dto.visitor_id },
+    });
+
+    if (visitorSessions.length === 0) {
+      return {
+        message: 'Không tìm thấy phiên chat nào để merge',
+        merged_count: 0,
+      };
+    }
+
+    // Update all visitor sessions to belong to customer
+    await this.sessionRepository.update(
+      { visitor_id: dto.visitor_id },
+      { customer_id: customerId, visitor_id: null },
+    );
+
+    return {
+      message: 'Merge phiên chat thành công',
+      merged_count: visitorSessions.length,
+      customer_id: customerId,
+    };
+  }
+
+  async getSessionsHistory(query: any, authHeader?: string) {
+    const { customer_id, visitor_id, page = 1, limit = 50 } = query;
+
+    // Extract customer_id from JWT if not provided
+    let finalCustomerId = customer_id;
+    if (!finalCustomerId && authHeader) {
+      finalCustomerId = this.extractCustomerIdFromJWT(authHeader);
+    }
+
+    if (!finalCustomerId && !visitor_id) {
+      throw new BadRequestException('Phải cung cấp customer_id, visitor_id hoặc JWT token');
+    }
+
+    const where: any = {};
+    if (finalCustomerId) {
+      where.customer_id = parseInt(finalCustomerId);
+    } else if (visitor_id) {
+      where.visitor_id = visitor_id;
+    }
+
+    const [sessions, total] = await this.sessionRepository.findAndCount({
+      where,
+      order: { updated_at: 'DESC' },
+      take: limit,
+      skip: (page - 1) * limit,
+    });
+
+    // Group sessions by time
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const grouped = {
+      today: [],
+      yesterday: [],
+      last_7_days: [],
+      older: [],
+    };
+
+    for (const session of sessions) {
+      const sessionDate = new Date(session.updated_at);
+
+      if (sessionDate >= today) {
+        grouped.today.push(session);
+      } else if (sessionDate >= yesterday) {
+        grouped.yesterday.push(session);
+      } else if (sessionDate >= sevenDaysAgo) {
+        grouped.last_7_days.push(session);
+      } else {
+        grouped.older.push(session);
+      }
+    }
+
+    return {
+      sessions: grouped,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    };
+  }
+
+  async getActiveSession(query: any, authHeader?: string) {
+    const { customer_id, visitor_id } = query;
+
+    // Extract customer_id from JWT if not provided
+    let finalCustomerId = customer_id;
+    if (!finalCustomerId && authHeader) {
+      finalCustomerId = this.extractCustomerIdFromJWT(authHeader);
+    }
+
+    if (!finalCustomerId && !visitor_id) {
+      throw new BadRequestException('Phải cung cấp customer_id, visitor_id hoặc JWT token');
+    }
+
+    const where: any = {};
+    if (finalCustomerId) {
+      where.customer_id = parseInt(finalCustomerId);
+    } else if (visitor_id) {
+      where.visitor_id = visitor_id;
+    }
+
+    const session = await this.sessionRepository.findOne({
+      where,
+      order: { updated_at: 'DESC' },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Không tìm thấy session active');
+    }
+
+    return {
+      session_id: session.id,
+      customer_id: session.customer_id,
+      visitor_id: session.visitor_id,
+      status: session.status,
+      created_at: session.created_at,
+      updated_at: session.updated_at,
+    };
+  }
+
+  async deleteSession(sessionId: number) {
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Không tìm thấy session');
+    }
+
+    // Delete all messages first
+    await this.messageRepository.delete({ session_id: sessionId });
+
+    // Delete session
+    await this.sessionRepository.delete({ id: sessionId });
+
+    return {
+      message: 'Xóa session thành công',
+      session_id: sessionId,
+    };
+  }
+
+  async uploadImage(file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('Không tìm thấy file');
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      throw new BadRequestException('Chỉ chấp nhận file ảnh (JPEG, PNG, GIF, WebP)');
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      throw new BadRequestException('File quá lớn (tối đa 5MB)');
+    }
+
+    // TODO: Upload to cloud storage (S3, Cloudinary, etc.)
+    // For now, return a placeholder URL
+    const imageUrl = `https://placeholder.com/chat/${Date.now()}-${file.originalname}`;
+
+    return {
+      url: imageUrl,
+      filename: file.originalname,
+      size: file.size,
+    };
+  }
+
+  async markAsRead(messageId: number) {
+    const message = await this.messageRepository.findOne({
+      where: { id: messageId },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Không tìm thấy tin nhắn');
+    }
+
+    message.is_read = true;
+    await this.messageRepository.save(message);
+
+    return {
+      message: 'Đã đánh dấu là đã đọc',
+      message_id: messageId,
+    };
+  }
+
+  /**
+   * Request human handoff - transfer conversation from bot to human agent
+   */
+  async requestHandoff(sessionId: number, reason?: string) {
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (session.status === 'human_pending' || session.status === 'human_active') {
+      throw new BadRequestException(
+        'This conversation is already assigned to or pending human agent',
+      );
+    }
+
+    // Check working hours (8AM - 8PM)
+    const now = new Date();
+    const hour = now.getHours();
+    const isWorkingHours = hour >= 8 && hour < 20;
+
+    // Update session status
+    session.status = 'human_pending';
+    session.handoff_requested_at = new Date();
+    session.handoff_reason = reason || 'customer_request';
+    await this.sessionRepository.save(session);
+
+    this.logger.log(
+      ` Handoff requested for session ${sessionId}. Working hours: ${isWorkingHours}`,
+    );
+
+    // Send bot confirmation message
+    const botMessage = this.messageRepository.create({
+      session_id: sessionId,
+      sender: 'bot',
+      message: isWorkingHours
+        ? "I'm inviting one of our human support agents to assist you. They will respond shortly. This conversation will now be handled by a human agent."
+        : "I've forwarded your request to our support team. Our agents are available from 8:00 AM to 8:00 PM. They will respond during working hours.",
+      is_read: false,
+    });
+    await this.messageRepository.save(botMessage);
+
+    return {
+      success: true,
+      message: 'Handoff request created',
+      session: {
+        id: session.id,
+        status: session.status,
+        handoff_requested_at: session.handoff_requested_at,
+        working_hours: isWorkingHours,
+      },
+    };
+  }
+
+  /**
+   * Admin accepts conversation - assigns admin to conversation
+   */
+  async acceptConversation(sessionId: number, adminId: number) {
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (session.status !== 'human_pending') {
+      throw new BadRequestException(`Cannot accept conversation with status: ${session.status}`);
+    }
+
+    // Assign admin and activate
+    session.status = 'human_active';
+    session.assigned_admin_id = adminId;
+    session.handoff_accepted_at = new Date();
+    await this.sessionRepository.save(session);
+
+    this.logger.log(` Admin ${adminId} accepted conversation ${sessionId}`);
+
+    // Send system message
+    const systemMessage = this.messageRepository.create({
+      session_id: sessionId,
+      sender: 'admin',
+      message: "Hello! I'm here to help you. How can I assist you today?",
+      is_read: false,
+    });
+    await this.messageRepository.save(systemMessage);
+
+    return {
+      success: true,
+      message: 'Conversation accepted',
+      session: {
+        id: session.id,
+        status: session.status,
+        assigned_admin_id: session.assigned_admin_id,
+        handoff_accepted_at: session.handoff_accepted_at,
+      },
+    };
+  }
+
+  /**
+   * Close conversation - end human conversation
+   */
+  async closeConversation(sessionId: number, adminId: number) {
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (Number(session.assigned_admin_id) !== Number(adminId)) {
+      throw new BadRequestException('You are not assigned to this conversation');
+    }
+
+    session.status = 'closed';
+    await this.sessionRepository.save(session);
+
+    this.logger.log(` Conversation ${sessionId} closed by admin ${adminId}`);
+
+    // Send closing message
+    const closingMessage = this.messageRepository.create({
+      session_id: sessionId,
+      sender: 'admin',
+      message:
+        'This conversation has been closed. If you need further assistance, please start a new conversation.',
+      is_read: false,
+    });
+    await this.messageRepository.save(closingMessage);
+
+    return {
+      success: true,
+      message: 'Conversation closed',
+      session_id: sessionId,
+    };
+  }
+
+  /**
+   * Get pending conversations for admin dashboard
+   */
+  async getPendingConversations() {
+    const sessions = await this.sessionRepository.find({
+      where: { status: 'human_pending' },
+      relations: ['customer'],
+      order: { handoff_requested_at: 'ASC' },
+    });
+
+    return {
+      total: sessions.length,
+      conversations: sessions.map(s => ({
+        session_id: s.id,
+        customer: s.customer
+          ? {
+              id: s.customer.id,
+              name: s.customer.name,
+              email: s.customer.email,
+            }
+          : null,
+        visitor_id: s.visitor_id,
+        handoff_reason: s.handoff_reason,
+        handoff_requested_at: s.handoff_requested_at,
+        created_at: s.created_at,
+      })),
+    };
+  }
+
+  /**
+   * Get active conversations assigned to admin
+   */
+  async getAdminConversations(adminId: number) {
+    const sessions = await this.sessionRepository.find({
+      where: {
+        assigned_admin_id: adminId,
+        status: 'human_active',
+      },
+      relations: ['customer'],
+      order: { updated_at: 'DESC' },
+    });
+
+    return {
+      total: sessions.length,
+      conversations: sessions.map(s => ({
+        session_id: s.id,
+        customer: s.customer
+          ? {
+              id: s.customer.id,
+              name: s.customer.name,
+              email: s.customer.email,
+            }
+          : null,
+        visitor_id: s.visitor_id,
+        handoff_reason: s.handoff_reason,
+        handoff_accepted_at: s.handoff_accepted_at,
+        updated_at: s.updated_at,
+      })),
+    };
+  }
+
+  /**
+   * Send admin message to customer
+   */
+  async sendAdminMessage(sessionId: number, adminId: number, message: string) {
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (Number(session.assigned_admin_id) !== Number(adminId)) {
+      throw new BadRequestException('You are not assigned to this conversation');
+    }
+
+    if (session.status !== 'human_active') {
+      throw new BadRequestException('Conversation is not active');
+    }
+
+    // Save admin message
+    const adminMessage = this.messageRepository.create({
+      session_id: sessionId,
+      sender: 'admin',
+      message: message,
+      is_read: false,
+    });
+    await this.messageRepository.save(adminMessage);
+
+    // Update session timestamp
+    session.updated_at = new Date();
+    await this.sessionRepository.save(session);
+
+    return {
+      success: true,
+      message: adminMessage,
+    };
+  }
+
+  /**
+   * Search products by image - for chat image upload
+   */
+  async searchProductsByImage(
+    imageBuffer: Buffer,
+    filename: string,
+  ): Promise<ProductSearchResultDto[]> {
+    this.logger.log(`🖼️ Processing image search request: ${filename}`);
+
+    // 1. Call Image Search Service
+    const searchResult = await this.imageSearchService.searchByImage(imageBuffer, filename);
+
+    if (!searchResult.success || !searchResult.results || searchResult.results.length === 0) {
+      this.logger.warn('No similar products found');
+      return [];
+    }
+
+    // 2. Extract product IDs
+    const productIds = searchResult.results.map(r => r.product_id);
+    this.logger.log(`Found ${productIds.length} similar products: ${productIds.join(', ')}`);
+
+    // 3. Query database for product details
+    this.logger.debug(`Querying database for product IDs: ${JSON.stringify(productIds)}`);
+
+    const products = await this.productRepository
+      .createQueryBuilder('product')
+      .where('product.id IN (:...ids)', { ids: productIds })
+      .andWhere('product.status = :status', { status: 'active' })
+      .andWhere('product.deleted_at IS NULL')
+      .select([
+        'product.id',
+        'product.name',
+        'product.selling_price',
+        'product.thumbnail_url',
+        'product.slug',
+      ])
+      .getMany();
+
+    this.logger.debug(`Database returned ${products.length} products`);
+    if (products.length === 0 && productIds.length > 0) {
+      // Try without filters to debug
+      const allProducts = await this.productRepository.find({
+        where: { id: In(productIds) },
+      });
+      this.logger.warn(
+        `Without filters: found ${allProducts.length} products. Check status/deleted_at`,
+      );
+    }
+
+    // 4. Map products with similarity scores (preserve order from search results)
+    // Convert product IDs to numbers for consistent comparison
+    const productMap = new Map(products.map(p => [Number(p.id), p]));
+    const results: ProductSearchResultDto[] = [];
+
+    this.logger.debug(`Product map keys: ${Array.from(productMap.keys()).join(', ')}`);
+    this.logger.debug(
+      `Search result product IDs: ${searchResult.results.map(r => r.product_id).join(', ')}`,
+    );
+
+    for (const searchItem of searchResult.results) {
+      const productId = Number(searchItem.product_id);
+      const product = productMap.get(productId);
+
+      if (product) {
+        results.push({
+          id: product.id,
+          name: product.name,
+          selling_price: Number(product.selling_price),
+          thumbnail_url: product.thumbnail_url,
+          slug: product.slug,
+          similarity_score: searchItem.similarity_score,
+          matched_image_url: searchItem.image_url,
+        });
+      } else {
+        this.logger.warn(
+          `Product ${productId} not found in map (searched: ${searchItem.product_id}, type: ${typeof searchItem.product_id})`,
+        );
+      }
+    }
+
+    this.logger.log(`✅ Returning ${results.length} products with details`);
+    return results;
+  }
+
+  /**
+   * Handle image search within chat conversation
+   */
+  private async handleImageSearchInChat(dto: SendMessageDto, session: ChatSession) {
+    try {
+      // 1. Download image from URL
+      this.logger.log(`📥 Downloading image from: ${dto.image_url}`);
+      const imageBuffer = await this.downloadImageFromUrl(dto.image_url);
+
+      // 2. Search products by image
+      const products = await this.searchProductsByImage(imageBuffer, 'chat-image.jpg');
+
+      // 3. Create bot response message
+      let botMessage: string;
+      if (products.length === 0) {
+        botMessage =
+          '😔 Xin lỗi, tôi không tìm thấy sản phẩm tương tự nào. Bạn có thể thử với ảnh khác hoặc mô tả sản phẩm bạn muốn tìm.';
+      } else {
+        botMessage = `🔍 Tôi đã tìm thấy ${products.length} sản phẩm tương tự! Đây là những sản phẩm phù hợp nhất:\n\n`;
+
+        products.slice(0, 5).forEach((p, idx) => {
+          const similarity = Math.round(p.similarity_score * 100);
+          botMessage += `${idx + 1}. ${p.name}\n`;
+          botMessage += `   💰 ${Number(p.selling_price).toLocaleString('vi-VN')}đ\n`;
+          botMessage += `   ✨ ${similarity}% tương đồng\n`;
+          botMessage += `   🔗 /products/${p.slug}\n\n`;
+        });
+      }
+
+      // 4. Save bot response
+      const botResponse = this.messageRepository.create({
+        session_id: dto.session_id,
+        sender: 'bot',
+        message: botMessage,
+        custom: {
+          type: 'image_search_results',
+          products: products.map(p => ({
+            id: p.id,
+            name: p.name,
+            price: p.selling_price,
+            image: p.thumbnail_url,
+            slug: p.slug,
+            similarity: Math.round(p.similarity_score * 100),
+          })),
+        },
+        is_read: false,
+      });
+      await this.messageRepository.save(botResponse);
+
+      // 5. Update session timestamp
+      session.updated_at = new Date();
+      await this.sessionRepository.save(session);
+
+      this.logger.log(`✅ Image search completed, found ${products.length} products`);
+
+      return {
+        customer_message: await this.messageRepository.findOne({
+          where: { session_id: dto.session_id },
+          order: { created_at: 'DESC' },
+        }),
+        bot_responses: [botResponse],
+      };
+    } catch (error) {
+      this.logger.error(`❌ Image search in chat failed: ${error.message}`);
+
+      // Return error message as bot response
+      const errorMessage = this.messageRepository.create({
+        session_id: dto.session_id,
+        sender: 'bot',
+        message: 'Xin lỗi, có lỗi xảy ra khi xử lý hình ảnh. Vui lòng thử lại hoặc gửi ảnh khác.',
+        is_read: false,
+      });
+      await this.messageRepository.save(errorMessage);
+
+      return {
+        customer_message: await this.messageRepository.findOne({
+          where: { session_id: dto.session_id },
+          order: { created_at: 'DESC' },
+        }),
+        bot_responses: [errorMessage],
+      };
+    }
+  }
+
+  /**
+   * Download image from URL
+   */
+  private async downloadImageFromUrl(url: string): Promise<Buffer> {
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(url, {
+          responseType: 'arraybuffer',
+          timeout: 10000,
+        }),
+      );
+      return Buffer.from(response.data);
+    } catch (error) {
+      this.logger.error(`Failed to download image from ${url}: ${error.message}`);
+      throw new BadRequestException('Cannot download image from provided URL');
+    }
+  }
+
+  /**
+   * Format image search results as Rasa carousel
+   */
+  formatAsRasaCarousel(products: ProductSearchResultDto[]) {
+    if (!products || products.length === 0) {
+      return {
+        text: 'Xin lỗi, tôi không tìm thấy sản phẩm tương tự nào. Bạn có thể thử với ảnh khác hoặc mô tả sản phẩm bạn muốn tìm.',
+      };
+    }
+
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+
+    return {
+      text: `🔍 Tôi đã tìm thấy ${products.length} sản phẩm tương tự! Đây là những sản phẩm phù hợp nhất:`,
+      custom: {
+        type: 'image_search_results',
+        products: products.map(p => ({
+          id: p.id,
+          name: p.name,
+          price: p.selling_price,
+          image: p.thumbnail_url || p.matched_image_url,
+          similarity: Math.round(p.similarity_score * 100),
+          link: `${frontendUrl}/products/${p.slug}`,
+        })),
+      },
+      attachment: {
+        type: 'template',
+        payload: {
+          template_type: 'generic',
+          elements: products.slice(0, 10).map(p => ({
+            title: p.name,
+            subtitle: `${Number(p.selling_price).toLocaleString('vi-VN')}đ • ${Math.round(p.similarity_score * 100)}% tương đồng`,
+            image_url: p.thumbnail_url || p.matched_image_url,
+            buttons: [
+              {
+                type: 'web_url',
+                url: `${frontendUrl}/products/${p.slug}`,
+                title: 'Xem chi tiết',
+              },
+            ],
+          })),
+        },
+      },
+    };
+  }
 }

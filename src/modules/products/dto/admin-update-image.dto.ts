@@ -2,7 +2,11 @@ import { IsString, IsBoolean, IsNumber, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateImageDto {
-  @ApiProperty({ description: 'URL ảnh', example: 'https://example.com/image.jpg', required: false })
+  @ApiProperty({
+    description: 'URL ảnh',
+    example: 'https://example.com/image.jpg',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   image_url?: string;

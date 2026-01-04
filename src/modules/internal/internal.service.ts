@@ -11,7 +11,6 @@ import { SupportTicket } from '../../entities/support-ticket.entity';
 import { ProductNotification } from '../../entities/product-notification.entity';
 import { IdGenerator } from '../../common/utils/id-generator';
 import { SizingAdviceDto } from './dto/sizing-advice.dto';
-import { ValidateDiscountDto } from './dto/validate-discount.dto';
 import { SubscribeNotificationDto } from './dto/subscribe-notification.dto';
 import { CreateTicketInternalDto } from './dto/create-ticket-internal.dto';
 import { ProductSearchDto } from './dto/product-search.dto';
@@ -35,7 +34,7 @@ export class InternalService {
     private ticketRepository: Repository<SupportTicket>,
     @InjectRepository(ProductNotification)
     private notificationRepository: Repository<ProductNotification>,
-  ) { }
+  ) {}
 
   async getOrderById(orderId: string) {
     throw new BadRequestException('Please use /api/v1/orders endpoints');
@@ -72,8 +71,8 @@ export class InternalService {
       name: 0.45,
       category: 0.15,
       attributes: 0.15,
-      description: 0.10,
-      color: 0.10,
+      description: 0.1,
+      color: 0.1,
       size: 0.05,
     };
 
@@ -91,7 +90,9 @@ export class InternalService {
     const catSlugNorm = this.normalizeText(product.category?.slug as any);
     const descNorm = this.normalizeText(product.description);
     const fullDescNorm = this.normalizeText(product.full_description);
-    const attrsNorm = this.normalizeText(product.attributes ? JSON.stringify(product.attributes) : '');
+    const attrsNorm = this.normalizeText(
+      product.attributes ? JSON.stringify(product.attributes) : '',
+    );
 
     const colorNamesNorm = (product.variants || [])
       .map(v => v.color?.name)
@@ -125,7 +126,10 @@ export class InternalService {
       if (catSlugNorm && catSlugNorm.includes(categoryNorm)) categoryMatchScore = 1;
       else if (catNameNorm && catNameNorm.includes(categoryNorm)) categoryMatchScore = 0.8;
     } else if (qNorm) {
-      if (catNameNorm && (catNameNorm.includes(qNorm) || tokens.some(t => catNameNorm.includes(t)))) {
+      if (
+        catNameNorm &&
+        (catNameNorm.includes(qNorm) || tokens.some(t => catNameNorm.includes(t)))
+      ) {
         categoryMatchScore = 0.6;
       }
     }
@@ -166,7 +170,10 @@ export class InternalService {
           const firstMatch = requested.find(rc => colorNamesNorm.some(pc => pc.includes(rc)));
           if (firstMatch) {
             const matchedIndex = colorNamesNorm.findIndex(pc => pc.includes(firstMatch));
-            matchedColor = matchedIndex >= 0 ? (product.variants || [])[matchedIndex]?.color?.name || null : null;
+            matchedColor =
+              matchedIndex >= 0
+                ? (product.variants || [])[matchedIndex]?.color?.name || null
+                : null;
             if (!matchedColor) {
               matchedColor = firstMatch;
             }
@@ -186,14 +193,21 @@ export class InternalService {
     if (sizes && sizes.length > 0) {
       const requested = sizes.map(s => this.normalizeText(s)).filter(Boolean);
       if (requested.length > 0) {
-        const hits = requested.filter(rs => sizeNamesNorm.some(ps => ps === rs || ps.includes(rs))).length;
+        const hits = requested.filter(rs =>
+          sizeNamesNorm.some(ps => ps === rs || ps.includes(rs)),
+        ).length;
         sizeMatchScore = hits / requested.length;
 
         if (hits > 0) {
-          const firstMatch = requested.find(rs => sizeNamesNorm.some(ps => ps === rs || ps.includes(rs)));
+          const firstMatch = requested.find(rs =>
+            sizeNamesNorm.some(ps => ps === rs || ps.includes(rs)),
+          );
           if (firstMatch) {
-            const matchedIndex = sizeNamesNorm.findIndex(ps => ps === firstMatch || ps.includes(firstMatch));
-            matchedSize = matchedIndex >= 0 ? (product.variants || [])[matchedIndex]?.size?.name || null : null;
+            const matchedIndex = sizeNamesNorm.findIndex(
+              ps => ps === firstMatch || ps.includes(firstMatch),
+            );
+            matchedSize =
+              matchedIndex >= 0 ? (product.variants || [])[matchedIndex]?.size?.name || null : null;
             if (!matchedSize) {
               matchedSize = firstMatch;
             }
@@ -215,9 +229,14 @@ export class InternalService {
 
     // Price explainability when product is within range
     const price = Number(product.selling_price);
-    const withinMin = min_price === undefined || min_price === null ? true : price >= Number(min_price);
-    const withinMax = max_price === undefined || max_price === null ? true : price <= Number(max_price);
-    if ((min_price !== undefined && min_price !== null) || (max_price !== undefined && max_price !== null)) {
+    const withinMin =
+      min_price === undefined || min_price === null ? true : price >= Number(min_price);
+    const withinMax =
+      max_price === undefined || max_price === null ? true : price <= Number(max_price);
+    if (
+      (min_price !== undefined && min_price !== null) ||
+      (max_price !== undefined && max_price !== null)
+    ) {
       if (withinMin && withinMax) matched_on.push('price');
     }
 
@@ -244,11 +263,12 @@ export class InternalService {
         color: matchedColor,
         size: matchedSize,
         price_range:
-          (min_price !== undefined && min_price !== null) || (max_price !== undefined && max_price !== null)
+          (min_price !== undefined && min_price !== null) ||
+          (max_price !== undefined && max_price !== null)
             ? {
-              min: min_price ?? null,
-              max: max_price ?? null,
-            }
+                min: min_price ?? null,
+                max: max_price ?? null,
+              }
             : null,
       },
       in_stock: productInStock,
@@ -258,16 +278,7 @@ export class InternalService {
   async searchProductsForChatbot(dto: ProductSearchDto) {
     const startedAt = Date.now();
     const request_id = `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    const {
-      q,
-      category,
-      colors,
-      sizes,
-      min_price,
-      max_price,
-      in_stock,
-      limit,
-    } = dto;
+    const { q, category, colors, sizes, min_price, max_price, in_stock, limit } = dto;
 
     const safeLimit = limit || 5;
     const candidateLimit = Math.min(50, Math.max(10, safeLimit * 5));
@@ -284,7 +295,10 @@ export class InternalService {
     if (q) {
       // Search on name/category/description/slug/attributes
       // Make matching tolerant to hyphens/underscores/spaces (e.g. "relaxed fit" vs "relaxed-fit")
-      const qWildcard = `%${q.toString().trim().replace(/[\s\-_]+/g, '%')}%`;
+      const qWildcard = `%${q
+        .toString()
+        .trim()
+        .replace(/[\s\-_]+/g, '%')}%`;
       const tokens = q
         .toString()
         .trim()
@@ -324,7 +338,10 @@ export class InternalService {
     }
 
     if (category) {
-      const categoryLike = `%${category.toString().trim().replace(/[\s\-_]+/g, '%')}%`;
+      const categoryLike = `%${category
+        .toString()
+        .trim()
+        .replace(/[\s\-_]+/g, '%')}%`;
       qb.andWhere(
         '(unaccent(cat.slug) ILIKE unaccent(:categoryLike) OR unaccent(cat.name) ILIKE unaccent(:categoryLike))',
         { categoryLike },
@@ -384,8 +401,12 @@ export class InternalService {
           product: p,
         });
 
-        const availableSizes = [...new Set((p.variants || []).map(v => v.size?.name).filter(Boolean))];
-        const availableColors = [...new Set((p.variants || []).map(v => v.color?.id).filter(Boolean))]
+        const availableSizes = [
+          ...new Set((p.variants || []).map(v => v.size?.name).filter(Boolean)),
+        ];
+        const availableColors = [
+          ...new Set((p.variants || []).map(v => v.color?.id).filter(Boolean)),
+        ]
           .map(colorId => {
             const v = (p.variants || []).find(vv => vv.color?.id === colorId);
             if (!v || !v.color) return null;
@@ -497,7 +518,7 @@ export class InternalService {
           '(unaccent(p.name) ILIKE unaccent(:search) OR unaccent(p.description) ILIKE unaccent(:search) OR p.slug ILIKE :search OR p.slug ILIKE :slugSearch)',
           {
             search: `%${search}%`,
-            slugSearch: `%${slugSearch}%`
+            slugSearch: `%${slugSearch}%`,
           },
         );
       } else {
@@ -520,15 +541,20 @@ export class InternalService {
         const totalStock = p.variants?.reduce((sum, v) => sum + (v.total_stock || 0), 0) || 0;
         const availableSizes = [...new Set(p.variants?.map(v => v.size?.name).filter(Boolean))];
         const availableColors = [...new Set(p.variants?.map(v => v.color?.name).filter(Boolean))];
-        const images = p.variants?.flatMap(v => v.images || []).slice(0, 3).map(img => img.image_url) || [];
+        const images =
+          p.variants
+            ?.flatMap(v => v.images || [])
+            .slice(0, 3)
+            .map(img => img.image_url) || [];
 
-        const variants = p.variants?.map(v => ({
-          id: v.id,
-          variant_id: v.id,
-          size: v.size?.name || null,
-          color: v.color?.name || null,
-          stock: v.total_stock - v.reserved_stock,
-        })) || [];
+        const variants =
+          p.variants?.map(v => ({
+            id: v.id,
+            variant_id: v.id,
+            size: v.size?.name || null,
+            color: v.color?.name || null,
+            stock: v.total_stock - v.reserved_stock,
+          })) || [];
 
         return {
           id: p.id,
@@ -538,7 +564,7 @@ export class InternalService {
           selling_price: p.selling_price,
           total_stock: totalStock,
           category_name: p.category?.name || null,
-          thumbnail_url: p.thumbnail_url || (images[0] || null),
+          thumbnail_url: p.thumbnail_url || images[0] || null,
           available_sizes: availableSizes,
           available_colors: availableColors,
           images: images,
@@ -638,11 +664,12 @@ export class InternalService {
         total_amount: order.total_amount,
         created_at: order.created_at,
         items_count: order.items?.length || 0,
-        items: order.items?.map(item => ({
-          product_name: item.variant?.product?.name || 'N/A',
-          quantity: item.quantity,
-          price_at_purchase: item.price_at_purchase,
-        })) || [],
+        items:
+          order.items?.map(item => ({
+            product_name: item.variant?.product?.name || 'N/A',
+            quantity: item.quantity,
+            price_at_purchase: item.price_at_purchase,
+          })) || [],
       })),
       total_orders: orders.length,
     };
@@ -711,7 +738,8 @@ export class InternalService {
         price: v.product?.selling_price,
         category: v.product?.category?.name,
         images: v.images?.map(img => img.image_url) || [],
-        main_image: v.images?.find(img => img.is_main)?.image_url || v.images?.[0]?.image_url || null,
+        main_image:
+          v.images?.find(img => img.is_main)?.image_url || v.images?.[0]?.image_url || null,
       })),
       count: variants.length,
     };
@@ -743,7 +771,11 @@ export class InternalService {
     let reason: string;
 
     // LOGIC PHÂN BIỆT THEO CATEGORY
-    if (categoryName.includes('áo') || categoryName.includes('shirt') || categoryName.includes('jacket')) {
+    if (
+      categoryName.includes('áo') ||
+      categoryName.includes('shirt') ||
+      categoryName.includes('jacket')
+    ) {
       // LOGIC CHO ÁO
       if (bmi < 18.5) {
         recommendedSize = height < 165 ? 'S' : height < 175 ? 'M' : 'L';
@@ -755,7 +787,11 @@ export class InternalService {
         recommendedSize = height < 165 ? 'M' : height < 175 ? 'L' : 'XL';
         reason = `Size ${recommendedSize} sẽ thoải mái nhất, đảm bảo không bị chật ở vòng ngực và bụng.`;
       }
-    } else if (categoryName.includes('quần') || categoryName.includes('pant') || categoryName.includes('jean')) {
+    } else if (
+      categoryName.includes('quần') ||
+      categoryName.includes('pant') ||
+      categoryName.includes('jean')
+    ) {
       // LOGIC CHO QUẦN
       if (bmi < 18.5) {
         recommendedSize = height < 165 ? 'S' : height < 175 ? 'M' : 'L';
@@ -797,9 +833,8 @@ export class InternalService {
     }
 
     // Check stock
-    const availableVariants = product.variants?.filter(v =>
-      v.size?.name === recommendedSize && v.total_stock > 0
-    ) || [];
+    const availableVariants =
+      product.variants?.filter(v => v.size?.name === recommendedSize && v.total_stock > 0) || [];
 
     if (availableVariants.length === 0) {
       const allSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
@@ -811,8 +846,8 @@ export class InternalService {
         const prevIdx = currentIndex - i;
 
         if (nextIdx < allSizes.length) {
-          const hasStock = product.variants?.some(v =>
-            v.size?.name === allSizes[nextIdx] && v.total_stock > 0
+          const hasStock = product.variants?.some(
+            v => v.size?.name === allSizes[nextIdx] && v.total_stock > 0,
           );
           if (hasStock) {
             alternativeSize = allSizes[nextIdx];
@@ -821,8 +856,8 @@ export class InternalService {
         }
 
         if (prevIdx >= 0) {
-          const hasStock = product.variants?.some(v =>
-            v.size?.name === allSizes[prevIdx] && v.total_stock > 0
+          const hasStock = product.variants?.some(
+            v => v.size?.name === allSizes[prevIdx] && v.total_stock > 0,
           );
           if (hasStock) {
             alternativeSize = allSizes[prevIdx];
@@ -876,25 +911,29 @@ export class InternalService {
     if (categoryName.includes('áo sơ mi') || categoryName.includes('shirt')) {
       recommendations.push(
         { type: 'category', value: 'Quần Tây', reason: 'Phối quần tây tạo phong cách lịch sự' },
-        { type: 'category', value: 'Quần Jeans', reason: 'Kết hợp quần jeans phong cách trẻ trung' },
-        { type: 'category', value: 'Giày Da', reason: 'Hoàn thiện với giày da thanh lịch' }
+        {
+          type: 'category',
+          value: 'Quần Jeans',
+          reason: 'Kết hợp quần jeans phong cách trẻ trung',
+        },
+        { type: 'category', value: 'Giày Da', reason: 'Hoàn thiện với giày da thanh lịch' },
       );
     } else if (categoryName.includes('áo thun') || categoryName.includes('t-shirt')) {
       recommendations.push(
         { type: 'category', value: 'Quần Jeans', reason: 'Combo kinh điển' },
         { type: 'category', value: 'Quần Short', reason: 'Năng động cho ngày hè' },
-        { type: 'category', value: 'Áo Khoác', reason: 'Thêm áo khoác tạo điểm nhấn' }
+        { type: 'category', value: 'Áo Khoác', reason: 'Thêm áo khoác tạo điểm nhấn' },
       );
     } else if (categoryName.includes('quần jean') || categoryName.includes('jeans')) {
       recommendations.push(
         { type: 'category', value: 'Áo Thun', reason: 'Đơn giản luôn hợp mốt' },
         { type: 'category', value: 'Áo Sơ Mi', reason: 'Phong cách smart casual' },
-        { type: 'category', value: 'Áo Khoác', reason: 'Layer cho ngày lạnh' }
+        { type: 'category', value: 'Áo Khoác', reason: 'Layer cho ngày lạnh' },
       );
     } else {
       recommendations.push(
         { type: 'category', value: 'Áo Thun', reason: 'Món basic dễ phối' },
-        { type: 'category', value: 'Quần Jeans', reason: 'Không lỗi mốt' }
+        { type: 'category', value: 'Quần Jeans', reason: 'Không lỗi mốt' },
       );
     }
 
@@ -998,7 +1037,8 @@ export class InternalService {
     let message = 'Mình sẽ báo bạn khi ';
     if (size) message += `có hàng size ${size}`;
     else message += 'sản phẩm có hàng';
-    if (price_condition) message += ` hoặc giá giảm xuống ${price_condition.toLocaleString('vi-VN')}₫`;
+    if (price_condition)
+      message += ` hoặc giá giảm xuống ${price_condition.toLocaleString('vi-VN')}₫`;
     message += '!';
 
     return {

@@ -8,14 +8,15 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @ApiTags('⭐ Reviews')
 @Controller('reviews')
 export class ReviewsController {
-  constructor(private readonly reviewsService: ReviewsService) { }
+  constructor(private readonly reviewsService: ReviewsService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: '[UC-C08] Gửi đánh giá sản phẩm',
-    description: 'Khách hàng gửi đánh giá cho sản phẩm đã mua. Review sẽ ở trạng thái pending cho đến khi admin duyệt.',
+    description:
+      'Khách hàng gửi đánh giá cho sản phẩm đã mua. Review sẽ ở trạng thái pending cho đến khi admin duyệt.',
   })
   @ApiResponse({ status: 201, description: 'Gửi review thành công' })
   @ApiResponse({ status: 403, description: 'Bạn không có quyền đánh giá sản phẩm này' })

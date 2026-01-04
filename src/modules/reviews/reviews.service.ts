@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Review } from '../../entities/review.entity';
@@ -22,7 +28,7 @@ export class ReviewsService {
     private variantRepository: Repository<ProductVariant>,
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
-  ) { }
+  ) {}
 
   // Customer creates a review
   async createReview(customerId: number, createReviewDto: CreateReviewDto) {
@@ -154,10 +160,7 @@ export class ReviewsService {
       queryBuilder.andWhere('r.status = :status', { status });
     }
 
-    const [reviews, total] = await queryBuilder
-      .skip(skip)
-      .take(parseInt(limit))
-      .getManyAndCount();
+    const [reviews, total] = await queryBuilder.skip(skip).take(parseInt(limit)).getManyAndCount();
 
     return {
       data: reviews,

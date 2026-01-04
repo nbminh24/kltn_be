@@ -13,7 +13,7 @@ class ChatbotRequestDto {
 @ApiTags('AI')
 @Controller('ai')
 export class AiController {
-  constructor(private readonly aiService: AiService) { }
+  constructor(private readonly aiService: AiService) {}
 
   @Post('chatbot')
   @Public()

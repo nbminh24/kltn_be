@@ -6,13 +6,18 @@ import {
   UseInterceptors,
   UploadedFiles,
   UseGuards,
-  Body,
-  ParseBoolPipe,
   Query,
   BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { ProductImagesService } from './product-images.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
@@ -21,12 +26,13 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AdminImagesController {
-  constructor(private readonly imagesService: ProductImagesService) { }
+  constructor(private readonly imagesService: ProductImagesService) {}
 
   @Post('variants/:id/images')
   @ApiOperation({
     summary: 'Upload hình ảnh cho variant',
-    description: 'Upload 1 hoặc nhiều hình ảnh. Trigger fn_update_product_thumbnail sẽ tự động cập nhật ảnh bìa sản phẩm.',
+    description:
+      'Upload 1 hoặc nhiều hình ảnh. Trigger fn_update_product_thumbnail sẽ tự động cập nhật ảnh bìa sản phẩm.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -54,9 +60,7 @@ export class AdminImagesController {
     schema: {
       example: {
         message: 'Upload thành công',
-        images: [
-          { id: 101, image_url: 'https://...', is_main: true },
-        ],
+        images: [{ id: 101, image_url: 'https://...', is_main: true }],
       },
     },
   })
@@ -78,7 +82,8 @@ export class AdminImagesController {
   @Delete('images/:id')
   @ApiOperation({
     summary: 'Xóa hình ảnh',
-    description: 'Xóa ảnh khỏi variant và Supabase Storage. Trigger fn_update_product_thumbnail sẽ tự động cập nhật ảnh bìa.',
+    description:
+      'Xóa ảnh khỏi variant và Supabase Storage. Trigger fn_update_product_thumbnail sẽ tự động cập nhật ảnh bìa.',
   })
   @ApiResponse({
     status: 200,

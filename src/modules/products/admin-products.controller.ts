@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Patch, Param, Body, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminProductsService } from './admin-products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -11,7 +22,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AdminProductsController {
-  constructor(private readonly adminProductsService: AdminProductsService) { }
+  constructor(private readonly adminProductsService: AdminProductsService) {}
 
   @Get()
   @ApiOperation({
@@ -81,10 +92,7 @@ export class AdminProductsController {
     description: 'Daily sales data theo period',
   })
   @ApiResponse({ status: 200, description: 'Sales trend data' })
-  async getProductSalesTrend(
-    @Param('id') id: string,
-    @Query('period') period?: string,
-  ) {
+  async getProductSalesTrend(@Param('id') id: string, @Query('period') period?: string) {
     try {
       return await this.adminProductsService.getProductSalesTrend(parseInt(id), period);
     } catch (error) {
@@ -166,10 +174,7 @@ export class AdminProductsController {
   })
   @ApiResponse({ status: 200, description: 'Cập nhật thành công' })
   @ApiResponse({ status: 404, description: 'Sản phẩm không tồn tại' })
-  updateStatus(
-    @Param('id') id: string,
-    @Body() updateStatusDto: UpdateProductStatusDto,
-  ) {
+  updateStatus(@Param('id') id: string, @Body() updateStatusDto: UpdateProductStatusDto) {
     const productId = parseInt(id, 10);
     if (isNaN(productId)) {
       throw new BadRequestException('ID sản phẩm không hợp lệ');

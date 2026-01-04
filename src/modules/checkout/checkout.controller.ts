@@ -15,7 +15,7 @@ export class CheckoutController {
   constructor(
     private readonly checkoutService: CheckoutService,
     private readonly paymentService: PaymentService,
-  ) { }
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -35,7 +35,8 @@ Nếu có lỗi, rollback toàn bộ transaction.
   })
   @ApiResponse({
     status: 201,
-    description: 'Tạo đơn hàng thành công. Nếu payment_method=vnpay, cần gọi API create-payment-url tiếp theo.',
+    description:
+      'Tạo đơn hàng thành công. Nếu payment_method=vnpay, cần gọi API create-payment-url tiếp theo.',
   })
   @ApiResponse({ status: 400, description: 'Giỏ hàng trống hoặc không đủ hàng' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy địa chỉ giao hàng' })

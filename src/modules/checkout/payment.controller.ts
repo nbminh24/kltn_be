@@ -38,11 +38,13 @@ API này được VNPAY gọi, không cần authentication.
 
     // Redirect về frontend
     const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
-    
+
     if (result.success) {
       return res.redirect(`${frontendUrl}/checkout/success?orderId=${result.orderId}`);
     } else {
-      return res.redirect(`${frontendUrl}/checkout/failure?message=${encodeURIComponent(result.message)}`);
+      return res.redirect(
+        `${frontendUrl}/checkout/failure?message=${encodeURIComponent(result.message)}`,
+      );
     }
   }
 }

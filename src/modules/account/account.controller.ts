@@ -41,7 +41,10 @@ export class AccountController {
   // ==================== ADDRESSES ====================
   @Get('addresses')
   @ApiOperation({ summary: '[UC-C13] Danh sách địa chỉ giao hàng' })
-  @ApiResponse({ status: 200, description: 'Danh sách địa chỉ. Địa chỉ mặc định (is_default=true) được đánh dấu' })
+  @ApiResponse({
+    status: 200,
+    description: 'Danh sách địa chỉ. Địa chỉ mặc định (is_default=true) được đánh dấu',
+  })
   getAddresses(@CurrentUser() user: any) {
     return this.accountService.getAddresses(user.sub);
   }

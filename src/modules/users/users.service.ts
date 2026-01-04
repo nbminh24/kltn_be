@@ -11,7 +11,7 @@ export class UsersService {
   constructor(
     @InjectRepository(Customer)
     private customerRepository: Repository<Customer>,
-  ) { }
+  ) {}
 
   async getProfile(userId: number) {
     const customer = await this.customerRepository.findOne({

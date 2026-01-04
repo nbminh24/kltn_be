@@ -13,13 +13,14 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @ApiTags('🔐 Auth - Admin')
 @Controller('api/v1/admin/auth')
 export class AdminAuthController {
-  constructor(private readonly adminAuthService: AdminAuthService) { }
+  constructor(private readonly adminAuthService: AdminAuthService) {}
 
   @Post('login')
   @Public()
   @ApiOperation({
     summary: 'Đăng nhập Admin',
-    description: 'Admin đăng nhập bằng email/password và nhận Access Token (8 giờ). Không có Refresh Token.',
+    description:
+      'Admin đăng nhập bằng email/password và nhận Access Token (8 giờ). Không có Refresh Token.',
   })
   @ApiResponse({
     status: 200,
@@ -129,7 +130,8 @@ export class AdminAuthController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Reset password admin (Cần auth)',
-    description: 'Admin đã login có thể reset password cho admin khác (hoặc chính mình). Dùng khi quên password.',
+    description:
+      'Admin đã login có thể reset password cho admin khác (hoặc chính mình). Dùng khi quên password.',
   })
   @ApiResponse({
     status: 200,
@@ -161,7 +163,8 @@ export class AdminAuthController {
   @Public()
   @ApiOperation({
     summary: 'Reset password admin (Public - Không cần auth)',
-    description: 'Reset password admin KHÔNG cần đăng nhập. Dành cho backoffice. Có thể yêu cầu secret code tùy cấu hình.',
+    description:
+      'Reset password admin KHÔNG cần đăng nhập. Dành cho backoffice. Có thể yêu cầu secret code tùy cấu hình.',
   })
   @ApiResponse({
     status: 200,

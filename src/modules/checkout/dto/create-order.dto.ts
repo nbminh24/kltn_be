@@ -3,7 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class CreateOrderDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'ID địa chỉ giao hàng đã lưu',
     example: 1,
   })
@@ -12,7 +12,7 @@ export class CreateOrderDto {
   @IsPositive()
   customer_address_id: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Phương thức thanh toán',
     example: 'cod',
     enum: ['cod', 'vnpay'],
@@ -21,7 +21,7 @@ export class CreateOrderDto {
   @IsIn(['cod', 'vnpay'])
   payment_method: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Phí vận chuyển',
     example: 30000,
     required: false,

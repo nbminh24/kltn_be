@@ -22,29 +22,15 @@ export class ColorsService {
     const queryBuilder = this.colorRepository.createQueryBuilder('color');
 
     // Apply sorting
-    this.queryBuilderService.applySort(
-      queryBuilder,
-      query.sort,
-      'color',
-      ['name', 'id'],
-    );
+    this.queryBuilderService.applySort(queryBuilder, query.sort, 'color', ['name', 'id']);
 
     // Apply search
-    this.queryBuilderService.applySearch(
-      queryBuilder,
-      query.search,
-      'color',
-      ['name', 'hex_code'],
-    );
+    this.queryBuilderService.applySearch(queryBuilder, query.search, 'color', ['name', 'hex_code']);
 
     // Apply pagination
     this.queryBuilderService.applyPagination(queryBuilder, { page, limit });
 
-    return await this.queryBuilderService.executePaginatedQuery(
-      queryBuilder,
-      page,
-      limit,
-    );
+    return await this.queryBuilderService.executePaginatedQuery(queryBuilder, page, limit);
   }
 
   // GET /api/v1/admin/colors/all - All colors (for dropdown)
@@ -53,7 +39,7 @@ export class ColorsService {
       order: { name: 'ASC' },
     });
 
-    return colors.map((color) => ({
+    return colors.map(color => ({
       id: color.id,
       name: color.name,
       hex_code: color.hex_code,

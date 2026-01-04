@@ -10,7 +10,8 @@ export class PagesController {
   @Get(':slug')
   @ApiOperation({
     summary: 'Xem nội dung trang tĩnh',
-    description: 'API công khai để khách hàng xem nội dung các trang như "Về chúng tôi", "Chính sách đổi trả", v.v.',
+    description:
+      'API công khai để khách hàng xem nội dung các trang như "Về chúng tôi", "Chính sách đổi trả", v.v.',
   })
   @ApiResponse({ status: 200, description: 'Nội dung trang' })
   @ApiResponse({ status: 404, description: 'Trang không tồn tại hoặc chưa publish' })

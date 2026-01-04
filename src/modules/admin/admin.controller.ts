@@ -1,4 +1,18 @@
-import { Controller, Get, Post, Put, Delete, Patch, Param, Query, Body, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Patch,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminService } from './admin.service';
@@ -23,7 +37,7 @@ import { UpdatePageDto } from './dto/update-page.dto';
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) { }
+  constructor(private readonly adminService: AdminService) {}
 
   // ==================== DASHBOARD ====================
   @Get('dashboard/stats')
@@ -130,7 +144,12 @@ export class AdminController {
     summary: '[Admin] Dashboard - Revenue & Orders Trend',
     description: 'Lấy dữ liệu biểu đồ xu hướng doanh thu và đơn hàng theo ngày (7, 30, 90 ngày)',
   })
-  @ApiQuery({ name: 'days', required: false, example: 30, description: 'Số ngày cần lấy dữ liệu (7, 30, 90)' })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    example: 30,
+    description: 'Số ngày cần lấy dữ liệu (7, 30, 90)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Dữ liệu xu hướng doanh thu và đơn hàng',
@@ -174,7 +193,12 @@ export class AdminController {
     summary: '[Admin] Dashboard - Order Status Distribution',
     description: 'Lấy dữ liệu phân bổ đơn hàng theo trạng thái (7, 30, 90 ngày)',
   })
-  @ApiQuery({ name: 'days', required: false, example: 30, description: 'Số ngày cần lấy dữ liệu (7, 30, 90)' })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    example: 30,
+    description: 'Số ngày cần lấy dữ liệu (7, 30, 90)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Dữ liệu phân bổ trạng thái đơn hàng',
@@ -407,7 +431,12 @@ export class AdminController {
       'Lấy danh sách TẤT CẢ mã giảm giá với phân trang, filter theo trạng thái, tìm kiếm theo code',
   })
   @ApiQuery({ name: 'page', required: false, example: 1, description: 'Trang hiện tại' })
-  @ApiQuery({ name: 'limit', required: false, example: 20, description: 'Số mã giảm giá mỗi trang' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    example: 20,
+    description: 'Số mã giảm giá mỗi trang',
+  })
   @ApiQuery({
     name: 'status',
     required: false,
@@ -536,7 +565,8 @@ export class AdminController {
   @ApiTags('Admin - Orders')
   @ApiOperation({
     summary: '[Admin] Quản lý đơn hàng - Thống kê',
-    description: 'Lấy thống kê tổng quan về đơn hàng: tổng số, theo trạng thái, doanh thu, giá trị trung bình',
+    description:
+      'Lấy thống kê tổng quan về đơn hàng: tổng số, theo trạng thái, doanh thu, giá trị trung bình',
   })
   @ApiResponse({
     status: 200,
@@ -562,7 +592,8 @@ export class AdminController {
   @ApiTags('Admin - Orders')
   @ApiOperation({
     summary: '[Admin] Quản lý đơn hàng - Chi tiết',
-    description: 'Lấy thông tin chi tiết đơn hàng bao gồm: items, customer, địa chỉ, lịch sử trạng thái',
+    description:
+      'Lấy thông tin chi tiết đơn hàng bao gồm: items, customer, địa chỉ, lịch sử trạng thái',
   })
   @ApiResponse({
     status: 200,
@@ -586,12 +617,21 @@ export class AdminController {
   })
   @ApiResponse({ status: 200, description: 'Cập nhật trạng thái thành công' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
-  updateOrderStatus(@CurrentUser() user: any, @Param('id') id: string, @Body() updateStatusDto: UpdateOrderStatusDto) {
+  updateOrderStatus(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() updateStatusDto: UpdateOrderStatusDto,
+  ) {
     const orderId = parseInt(id, 10);
     if (isNaN(orderId)) {
       throw new BadRequestException('ID đơn hàng không hợp lệ');
     }
-    return this.adminService.updateOrderStatusWithEmail(orderId, updateStatusDto.status, user.sub, updateStatusDto.note);
+    return this.adminService.updateOrderStatusWithEmail(
+      orderId,
+      updateStatusDto.status,
+      user.sub,
+      updateStatusDto.note,
+    );
   }
 
   // ==================== CUSTOMERS MANAGEMENT ====================
@@ -619,7 +659,8 @@ export class AdminController {
   @ApiTags('Admin - Customers')
   @ApiOperation({
     summary: '[Admin] Quản lý khách hàng - Thống kê',
-    description: 'Lấy thống kê tổng quan về khách hàng: tổng số, active/inactive, mới trong tháng, top khách hàng',
+    description:
+      'Lấy thống kê tổng quan về khách hàng: tổng số, active/inactive, mới trong tháng, top khách hàng',
   })
   @ApiResponse({
     status: 200,
@@ -699,18 +740,23 @@ export class AdminController {
       'Xem tất cả conversations của chatbot với filter theo resolved status, phân trang và search',
   })
   @ApiQuery({ name: 'page', required: false, example: 1, description: 'Trang hiện tại' })
-  @ApiQuery({ name: 'limit', required: false, example: 20, description: 'Số conversations mỗi trang' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    example: 20,
+    description: 'Số conversations mỗi trang',
+  })
   @ApiQuery({
     name: 'resolved',
     required: false,
     example: 'false',
-    description: 'Filter theo resolved (true/false)'
+    description: 'Filter theo resolved (true/false)',
   })
   @ApiQuery({
     name: 'search',
     required: false,
     example: 'order tracking',
-    description: 'Tìm trong last_message'
+    description: 'Tìm trong last_message',
   })
   @ApiResponse({ status: 200, description: 'Danh sách conversations' })
   getChatbotConversations(@Query() query: any) {
@@ -773,7 +819,12 @@ export class AdminController {
     description: 'Xem tất cả AI recommendations với filter theo user_id, product_id, phân trang',
   })
   @ApiQuery({ name: 'page', required: false, example: 1, description: 'Trang hiện tại' })
-  @ApiQuery({ name: 'limit', required: false, example: 50, description: 'Số recommendations mỗi trang' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    example: 50,
+    description: 'Số recommendations mỗi trang',
+  })
   @ApiQuery({ name: 'user_id', required: false, description: 'Filter theo user' })
   @ApiQuery({ name: 'product_id', required: false, description: 'Filter theo product' })
   @ApiResponse({ status: 200, description: 'Danh sách AI recommendations' })
@@ -785,8 +836,7 @@ export class AdminController {
   @ApiTags('Admin - AI')
   @ApiOperation({
     summary: '[Admin] AI - Thống kê recommendations',
-    description:
-      'Thống kê AI recommendations: tổng số, top products, top users, reason counts',
+    description: 'Thống kê AI recommendations: tổng số, top products, top users, reason counts',
   })
   @ApiResponse({ status: 200, description: 'Thống kê AI recommendations' })
   getAiRecommendationStats() {
@@ -800,9 +850,24 @@ export class AdminController {
     summary: '[Admin] Danh sách giao dịch thanh toán',
     description: 'Query bảng payments để đối soát. Lọc theo ngày và trạng thái.',
   })
-  @ApiQuery({ name: 'start_date', required: false, example: '2024-01-01', description: 'Ngày bắt đầu (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'end_date', required: false, example: '2024-12-31', description: 'Ngày kết thúc (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'status', required: false, example: 'success', description: 'Trạng thái: pending | success | failed' })
+  @ApiQuery({
+    name: 'start_date',
+    required: false,
+    example: '2024-01-01',
+    description: 'Ngày bắt đầu (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'end_date',
+    required: false,
+    example: '2024-12-31',
+    description: 'Ngày kết thúc (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    example: 'success',
+    description: 'Trạng thái: pending | success | failed',
+  })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiResponse({ status: 200, description: 'Danh sách transactions' })
@@ -845,7 +910,8 @@ export class AdminController {
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
     summary: '[UC-A04] Nhập kho (Excel hoặc JSON)',
-    description: 'Upload file Excel HOẶC gửi JSON body với danh sách variants. Excel: 2 cột (sku, quantity). JSON: {items: [{variant_id, quantity}]}',
+    description:
+      'Upload file Excel HOẶC gửi JSON body với danh sách variants. Excel: 2 cột (sku, quantity). JSON: {items: [{variant_id, quantity}]}',
   })
   @ApiResponse({ status: 201, description: 'Import thành công' })
   restockInventoryBatch(
@@ -863,14 +929,17 @@ export class AdminController {
       return this.adminService.restockInventory(user.sub, body);
     }
 
-    throw new BadRequestException('Vui lòng cung cấp file Excel hoặc JSON body với danh sách items');
+    throw new BadRequestException(
+      'Vui lòng cung cấp file Excel hoặc JSON body với danh sách items',
+    );
   }
 
   @Get('inventory/restock-history')
   @ApiTags('Admin - Inventory')
   @ApiOperation({
     summary: '[UC-A04] Lịch sử nhập kho',
-    description: 'Xem lịch sử các lần nhập kho với phân trang, filter theo type (Manual/Excel) và khoảng thời gian',
+    description:
+      'Xem lịch sử các lần nhập kho với phân trang, filter theo type (Manual/Excel) và khoảng thời gian',
   })
   @ApiQuery({
     name: 'page',

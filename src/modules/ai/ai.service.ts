@@ -8,7 +8,6 @@ import { ProductImage } from '../../entities/product-image.entity';
 import { Product } from '../../entities/product.entity';
 import { ChatSession } from '../../entities/chat-session.entity';
 import { ChatMessage } from '../../entities/chat-message.entity';
-import { IdGenerator } from '../../common/utils/id-generator';
 
 @Injectable()
 export class AiService {
@@ -23,7 +22,7 @@ export class AiService {
     private sessionRepository: Repository<ChatSession>,
     @InjectRepository(ChatMessage)
     private messageRepository: Repository<ChatMessage>,
-  ) { }
+  ) {}
 
   async chatbot(message: string, sessionId: string, customerId?: number) {
     const rasaUrl = this.configService.get<string>('RASA_SERVER_URL');

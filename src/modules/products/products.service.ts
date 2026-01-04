@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Product } from '../../entities/product.entity';
 import { ProductVariant } from '../../entities/product-variant.entity';
 import { Category } from '../../entities/category.entity';
@@ -26,7 +26,7 @@ export class ProductsService {
     private reviewRepository: Repository<Review>,
     @InjectRepository(ProductNotification)
     private notificationRepository: Repository<ProductNotification>,
-  ) { }
+  ) {}
 
   async findAll(query: any) {
     const {
@@ -92,10 +92,10 @@ export class ProductsService {
       try {
         const attrsObj = typeof attrs === 'string' ? JSON.parse(attrs) : attrs;
         Object.keys(attrsObj).forEach((key, index) => {
-          queryBuilder.andWhere(
-            `product.attributes->>:key${index} = :value${index}`,
-            { [`key${index}`]: key, [`value${index}`]: attrsObj[key] },
-          );
+          queryBuilder.andWhere(`product.attributes->>:key${index} = :value${index}`, {
+            [`key${index}`]: key,
+            [`value${index}`]: attrsObj[key],
+          });
         });
       } catch (error) {
         throw new BadRequestException('Invalid attrs format. Expected JSON string or object.');
@@ -159,11 +159,7 @@ export class ProductsService {
 
     // Filter on-sale products (has active promotion)
     if (is_on_sale === 'true' || is_on_sale === true) {
-      queryBuilder.innerJoin(
-        'promotion_products',
-        'pp',
-        'pp.product_id = product.id',
-      );
+      queryBuilder.innerJoin('promotion_products', 'pp', 'pp.product_id = product.id');
       queryBuilder.innerJoin(
         'promotions',
         'promo',
@@ -244,7 +240,6 @@ export class ProductsService {
   }
 
   private async getProductDetails(product: Product) {
-
     // Get all variants with size, color, and images
     const variants = await this.variantRepository.find({
       where: {
@@ -263,17 +258,17 @@ export class ProductsService {
     }));
 
     // Get available colors and sizes
-    const availableColors = [...new Map(
-      variantsWithStock
-        .filter(v => v.available_stock > 0)
-        .map(v => [v.color_id, v.color])
-    ).values()];
+    const availableColors = [
+      ...new Map(
+        variantsWithStock.filter(v => v.available_stock > 0).map(v => [v.color_id, v.color]),
+      ).values(),
+    ];
 
-    const availableSizes = [...new Map(
-      variantsWithStock
-        .filter(v => v.available_stock > 0)
-        .map(v => [v.size_id, v.size])
-    ).values()];
+    const availableSizes = [
+      ...new Map(
+        variantsWithStock.filter(v => v.available_stock > 0).map(v => [v.size_id, v.size]),
+      ).values(),
+    ];
 
     // Get promotion if exists
     const promotions = await this.getActivePromotionsForProducts([product.id]);
@@ -291,7 +286,7 @@ export class ProductsService {
     const relatedWithPromotions = await Promise.all(
       relatedProducts
         .filter(p => p.id !== product.id)
-        .map(async (p) => {
+        .map(async p => {
           const promos = await this.getActivePromotionsForProducts([p.id]);
           return {
             ...p,
@@ -320,25 +315,30 @@ export class ProductsService {
           id: variant.id,
           variant_id: variant.id,
           sku: variant.sku,
-          size: variant.size ? {
-            id: variant.size.id,
-            name: variant.size.name,
-          } : null,
-          color: variant.color ? {
-            id: variant.color.id,
-            name: variant.color.name,
-            hex_code: variant.color.hex_code,
-          } : null,
+          size: variant.size
+            ? {
+                id: variant.size.id,
+                name: variant.size.name,
+              }
+            : null,
+          color: variant.color
+            ? {
+                id: variant.color.id,
+                name: variant.color.name,
+                hex_code: variant.color.hex_code,
+              }
+            : null,
           total_stock: variant.total_stock,
           reserved_stock: variant.reserved_stock,
           available_stock: variant.available_stock,
           stock: variant.available_stock,
           status: variant.status,
-          images: variant.images?.map(img => ({
-            id: img.id,
-            image_url: img.image_url,
-            is_main: img.is_main,
-          })) || [],
+          images:
+            variant.images?.map(img => ({
+              id: img.id,
+              image_url: img.image_url,
+              is_main: img.is_main,
+            })) || [],
         })),
         colors: availableColors.map(color => color.name),
         available_options: {
@@ -472,19 +472,19 @@ export class ProductsService {
 
       if (size) {
         matchedVariants = matchedVariants.filter(
-          v => v.size?.name?.toLowerCase() === size.toLowerCase()
+          v => v.size?.name?.toLowerCase() === size.toLowerCase(),
         );
       }
 
       if (color) {
-        matchedVariants = matchedVariants.filter(
-          v => v.color?.name?.toLowerCase().includes(color.toLowerCase())
+        matchedVariants = matchedVariants.filter(v =>
+          v.color?.name?.toLowerCase().includes(color.toLowerCase()),
         );
       }
 
       const totalAvailable = matchedVariants.reduce(
         (sum, v) => sum + (v.total_stock - v.reserved_stock),
-        0
+        0,
       );
 
       return {
@@ -544,10 +544,7 @@ export class ProductsService {
       sizesQuery.andWhere('product.category_id = :categoryId', { categoryId });
     }
 
-    const sizes = await sizesQuery
-      .select(['size.id', 'size.name'])
-      .distinct(true)
-      .getRawMany();
+    const sizes = await sizesQuery.select(['size.id', 'size.name']).distinct(true).getRawMany();
 
     // Get distinct colors
     const colorsQuery = this.variantRepository

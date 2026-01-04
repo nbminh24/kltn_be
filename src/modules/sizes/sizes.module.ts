@@ -11,4 +11,4 @@ import { SizesController } from './sizes.controller';
   providers: [SizesService],
   exports: [SizesService],
 })
-export class SizesModule { }
+export class SizesModule {}

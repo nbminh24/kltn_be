@@ -56,12 +56,20 @@ export class UpdateProductDto {
   @IsString()
   name?: string;
 
-  @ApiProperty({ description: 'Mô tả ngắn', example: 'Điện thoại iPhone 15 Pro Max', required: false })
+  @ApiProperty({
+    description: 'Mô tả ngắn',
+    example: 'Điện thoại iPhone 15 Pro Max',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiProperty({ description: 'Mô tả đầy đủ', example: 'Điện thoại iPhone 15 Pro Max 256GB màu đen với chip A17 Pro...', required: false })
+  @ApiProperty({
+    description: 'Mô tả đầy đủ',
+    example: 'Điện thoại iPhone 15 Pro Max 256GB màu đen với chip A17 Pro...',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   full_description?: string;

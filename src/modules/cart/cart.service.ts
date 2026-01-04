@@ -14,7 +14,7 @@ export class CartService {
     private cartItemRepository: Repository<CartItem>,
     @InjectRepository(ProductVariant)
     private variantRepository: Repository<ProductVariant>,
-  ) { }
+  ) {}
 
   async getOrCreateCart(customerId: number): Promise<Cart> {
     let cart = await this.cartRepository.findOne({
@@ -39,7 +39,10 @@ export class CartService {
     });
 
     const subtotal = items.reduce((sum, item) => {
-      return sum + parseFloat((item.variant.product as any).selling_price?.toString() || '0') * item.quantity;
+      return (
+        sum +
+        parseFloat((item.variant.product as any).selling_price?.toString() || '0') * item.quantity
+      );
     }, 0);
 
     return {

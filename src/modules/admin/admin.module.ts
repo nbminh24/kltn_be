@@ -62,4 +62,4 @@ import { EmailModule } from '../email/email.module';
   providers: [AdminService, AdminAuthService],
   exports: [AdminService, AdminAuthService],
 })
-export class AdminModule { }
+export class AdminModule {}

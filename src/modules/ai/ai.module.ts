@@ -17,4 +17,4 @@ import { ChatMessage } from '../../entities/chat-message.entity';
   providers: [AiService],
   exports: [AiService],
 })
-export class AiModule { }
+export class AiModule {}

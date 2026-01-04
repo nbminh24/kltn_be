@@ -21,16 +21,19 @@ export class PaymentService {
     // VNPAY Sandbox config - User cần thêm vào .env
     this.vnpTmnCode = this.configService.get('VNPAY_TMN_CODE') || '';
     this.vnpHashSecret = this.configService.get('VNPAY_HASH_SECRET') || '';
-    this.vnpUrl = this.configService.get('VNPAY_URL') || 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
-    this.vnpReturnUrl = this.configService.get('VNPAY_RETURN_URL') || 'http://localhost:3001/api/v1/payment/vnpay-return';
-    
+    this.vnpUrl =
+      this.configService.get('VNPAY_URL') || 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
+    this.vnpReturnUrl =
+      this.configService.get('VNPAY_RETURN_URL') ||
+      'http://localhost:3001/api/v1/payment/vnpay-return';
+
     // Debug logging
     console.log('🔧 VNPAY Config loaded:');
     console.log('  - TMN Code:', this.vnpTmnCode || '❌ MISSING');
     console.log('  - Hash Secret:', this.vnpHashSecret ? '✅ EXISTS' : '❌ MISSING');
     console.log('  - URL:', this.vnpUrl);
     console.log('  - Return URL:', this.vnpReturnUrl);
-    
+
     if (!this.vnpTmnCode || !this.vnpHashSecret) {
       console.error('⚠️ WARNING: VNPAY credentials missing in .env file!');
       console.error('Please add: VNPAY_TMN_CODE and VNPAY_HASH_SECRET');
@@ -109,7 +112,9 @@ export class PaymentService {
   /**
    * UC-C11 Step 3: Handle VNPAY return/callback
    */
-  async handleVnpayReturn(vnpParams: any): Promise<{ success: boolean; orderId: number; message: string }> {
+  async handleVnpayReturn(
+    vnpParams: any,
+  ): Promise<{ success: boolean; orderId: number; message: string }> {
     const secureHash = vnpParams['vnp_SecureHash'];
     delete vnpParams['vnp_SecureHash'];
     delete vnpParams['vnp_SecureHashType'];

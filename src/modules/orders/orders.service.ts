@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -32,7 +38,7 @@ export class OrdersService {
     private statusHistoryRepository: Repository<OrderStatusHistory>,
     private jwtService: JwtService,
     private deliveryEstimationService: DeliveryEstimationService,
-  ) { }
+  ) {}
 
   async createOrder(customerId: number, orderData: any) {
     // Get customer's cart
@@ -49,7 +55,10 @@ export class OrdersService {
 
     // Calculate totals
     const subtotal = cart.items.reduce((sum, item) => {
-      return sum + parseFloat((item.variant.product as any).selling_price?.toString() || '0') * item.quantity;
+      return (
+        sum +
+        parseFloat((item.variant.product as any).selling_price?.toString() || '0') * item.quantity
+      );
     }, 0);
 
     const shipping_fee = orderData.shipping_fee || 0;
@@ -75,7 +84,9 @@ export class OrdersService {
         order_id: order.id,
         variant_id: cartItem.variant_id,
         quantity: cartItem.quantity,
-        price_at_purchase: parseFloat((cartItem.variant.product as any).selling_price?.toString() || '0'),
+        price_at_purchase: parseFloat(
+          (cartItem.variant.product as any).selling_price?.toString() || '0',
+        ),
       });
 
       await this.orderItemRepository.save(orderItem);
@@ -131,7 +142,8 @@ export class OrdersService {
       order.items = order.items.map(item => ({
         ...item,
         product_name: item.variant?.product?.name || item.variant?.name || 'N/A',
-        thumbnail_url: item.variant?.product?.thumbnail_url || item.variant?.images?.[0]?.image_url || null,
+        thumbnail_url:
+          item.variant?.product?.thumbnail_url || item.variant?.images?.[0]?.image_url || null,
       })) as any;
     }
 
@@ -269,7 +281,7 @@ export class OrdersService {
     await this.orderRepository.save(order);
 
     this.logger.log(
-      `✅ Order #${order.order_number} cancelled by customer ${customerId}. Reason: ${cancelReason}`
+      `✅ Order #${order.order_number} cancelled by customer ${customerId}. Reason: ${cancelReason}`,
     );
 
     return {
@@ -330,7 +342,13 @@ export class OrdersService {
     if (!isNaN(parsedId)) {
       order = await this.orderRepository.findOne({
         where: { id: parsedId },
-        relations: ['items', 'items.variant', 'items.variant.product', 'items.variant.size', 'items.variant.color'],
+        relations: [
+          'items',
+          'items.variant',
+          'items.variant.product',
+          'items.variant.size',
+          'items.variant.color',
+        ],
       });
     }
 
@@ -338,7 +356,13 @@ export class OrdersService {
     if (!order) {
       order = await this.orderRepository.findOne({
         where: { order_number: orderIdStr },
-        relations: ['items', 'items.variant', 'items.variant.product', 'items.variant.size', 'items.variant.color'],
+        relations: [
+          'items',
+          'items.variant',
+          'items.variant.product',
+          'items.variant.size',
+          'items.variant.color',
+        ],
       });
     }
 
@@ -346,7 +370,13 @@ export class OrdersService {
     if (!order && !orderIdStr.startsWith('#')) {
       order = await this.orderRepository.findOne({
         where: { order_number: `#${orderIdStr}` },
-        relations: ['items', 'items.variant', 'items.variant.product', 'items.variant.size', 'items.variant.color'],
+        relations: [
+          'items',
+          'items.variant',
+          'items.variant.product',
+          'items.variant.size',
+          'items.variant.color',
+        ],
       });
     }
 
@@ -357,7 +387,7 @@ export class OrdersService {
     // 🚨 CRITICAL: Verify ownership
     if (order.customer_id !== authenticatedCustomerId) {
       this.logger.warn(
-        `[SECURITY] Customer ${authenticatedCustomerId} attempted to access order ${order.order_number} belonging to customer ${order.customer_id}`
+        `[SECURITY] Customer ${authenticatedCustomerId} attempted to access order ${order.order_number} belonging to customer ${order.customer_id}`,
       );
       throw new ForbiddenException('Bạn không có quyền xem đơn hàng này');
     }
@@ -437,7 +467,7 @@ export class OrdersService {
 
     if (order.customer_id !== authenticatedCustomerId) {
       this.logger.warn(
-        `[SECURITY] Customer ${authenticatedCustomerId} attempted to access delivery estimation for order ${order.order_number} belonging to customer ${order.customer_id}`
+        `[SECURITY] Customer ${authenticatedCustomerId} attempted to access delivery estimation for order ${order.order_number} belonging to customer ${order.customer_id}`,
       );
       throw new NotFoundException('Order not found');
     }
@@ -491,7 +521,7 @@ export class OrdersService {
     const deliveryEstimate = this.deliveryEstimationService.estimateDeliveryDate(
       order.created_at,
       order.shipping_method || 'standard',
-      location
+      location,
     );
 
     return {
@@ -505,7 +535,9 @@ export class OrdersService {
         is_major_city: isMajorCity,
       },
       estimated_delivery: deliveryEstimate,
-      tracking_url: order.tracking_number ? `https://tracking.example.com/${order.tracking_number}` : null,
+      tracking_url: order.tracking_number
+        ? `https://tracking.example.com/${order.tracking_number}`
+        : null,
       delivery_status_message: this.deliveryEstimationService.getDeliveryStatusMessage(status),
     };
   }

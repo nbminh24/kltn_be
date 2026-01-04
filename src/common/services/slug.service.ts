@@ -56,7 +56,7 @@ export class SlugService {
     excludeId?: number,
   ): Promise<string> {
     const baseSlug = this.generateSlug(text);
-    
+
     // Tạo wrapper function để truyền excludeId
     const checkFn = async (slug: string) => {
       return await checkExistsFn(slug, excludeId);

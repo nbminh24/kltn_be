@@ -99,7 +99,7 @@ export class AnalyticsService {
       .getRawMany();
 
     return {
-      data: salesData.map((row) => ({
+      data: salesData.map(row => ({
         date: row.date.toISOString().split('T')[0],
         daily_revenue: parseFloat(row.daily_revenue) || 0,
       })),
@@ -144,7 +144,7 @@ export class AnalyticsService {
       .getRawMany();
 
     return {
-      data: variantSales.map((row) => ({
+      data: variantSales.map(row => ({
         variantName: row.variantName,
         totalSold: parseInt(row.totalSold),
       })),
@@ -165,7 +165,7 @@ export class AnalyticsService {
       .getRawMany();
 
     return {
-      data: distribution.map((row) => ({
+      data: distribution.map(row => ({
         rating: row.rating,
         count: parseInt(row.count),
       })),
@@ -185,7 +185,7 @@ export class AnalyticsService {
 
     const result: any = { totalOrders };
 
-    statusCounts.forEach((row) => {
+    statusCounts.forEach(row => {
       result[row.status.toLowerCase()] = parseInt(row.count);
     });
 
@@ -237,7 +237,7 @@ export class AnalyticsService {
 
     const result: any = { aiEscalated };
 
-    statusCounts.forEach((row) => {
+    statusCounts.forEach(row => {
       result[row.status] = parseInt(row.count);
     });
 

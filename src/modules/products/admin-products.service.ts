@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In } from 'typeorm';
 import { Product } from '../../entities/product.entity';
@@ -34,7 +39,7 @@ export class AdminProductsService {
     private dataSource: DataSource,
     private queryBuilderService: QueryBuilderService,
     private slugService: SlugService,
-  ) { }
+  ) {}
 
   // GET /api/v1/admin/products - Paginated list with filters
   async findAll(query: any) {
@@ -61,20 +66,14 @@ export class AdminProductsService {
     );
 
     // Apply search
-    this.queryBuilderService.applySearch(
-      queryBuilder,
-      query.search,
-      'product',
-      ['name', 'slug'],
-    );
+    this.queryBuilderService.applySearch(queryBuilder, query.search, 'product', ['name', 'slug']);
 
     // Apply sorting
-    this.queryBuilderService.applySort(
-      queryBuilder,
-      query.sort,
-      'product',
-      ['name', 'selling_price', 'created_at'],
-    );
+    this.queryBuilderService.applySort(queryBuilder, query.sort, 'product', [
+      'name',
+      'selling_price',
+      'created_at',
+    ]);
 
     // Apply pagination
     this.queryBuilderService.applyPagination(queryBuilder, { page, limit });
@@ -136,22 +135,28 @@ export class AdminProductsService {
       reorder_point: v.reorder_point,
       status: v.status,
       version: v.version,
-      size: v.size ? {
-        id: v.size.id,
-        name: v.size.name,
-        sort_order: v.size.sort_order,
-      } : null,
-      color: v.color ? {
-        id: v.color.id,
-        name: v.color.name,
-        hex_code: v.color.hex_code,
-      } : null,
-      images: v.images ? v.images.map(img => ({
-        id: img.id,
-        variant_id: img.variant_id,
-        image_url: img.image_url,
-        is_main: img.is_main,
-      })) : [],
+      size: v.size
+        ? {
+            id: v.size.id,
+            name: v.size.name,
+            sort_order: v.size.sort_order,
+          }
+        : null,
+      color: v.color
+        ? {
+            id: v.color.id,
+            name: v.color.name,
+            hex_code: v.color.hex_code,
+          }
+        : null,
+      images: v.images
+        ? v.images.map(img => ({
+            id: img.id,
+            variant_id: img.variant_id,
+            image_url: img.image_url,
+            is_main: img.is_main,
+          }))
+        : [],
     }));
 
     const variantIds = variants.map(v => v.id);
@@ -301,11 +306,7 @@ export class AdminProductsService {
       const productName = updateProductDto.name || product.name;
       for (const variant of updateProductDto.variants) {
         if (!variant.sku) {
-          variant.sku = await this.generateSKU(
-            productName,
-            variant.color_id,
-            variant.size_id,
-          );
+          variant.sku = await this.generateSKU(productName, variant.color_id, variant.size_id);
         }
       }
 
@@ -336,11 +337,16 @@ export class AdminProductsService {
         );
       }
 
-      if (updateProductDto.description !== undefined) product.description = updateProductDto.description;
-      if (updateProductDto.full_description !== undefined) product.full_description = updateProductDto.full_description;
-      if (updateProductDto.cost_price !== undefined) product.cost_price = updateProductDto.cost_price;
-      if (updateProductDto.selling_price !== undefined) product.selling_price = updateProductDto.selling_price;
-      if (updateProductDto.category_id !== undefined) product.category_id = updateProductDto.category_id;
+      if (updateProductDto.description !== undefined)
+        product.description = updateProductDto.description;
+      if (updateProductDto.full_description !== undefined)
+        product.full_description = updateProductDto.full_description;
+      if (updateProductDto.cost_price !== undefined)
+        product.cost_price = updateProductDto.cost_price;
+      if (updateProductDto.selling_price !== undefined)
+        product.selling_price = updateProductDto.selling_price;
+      if (updateProductDto.category_id !== undefined)
+        product.category_id = updateProductDto.category_id;
       if (updateProductDto.status !== undefined) product.status = updateProductDto.status;
 
       await queryRunner.manager.save(product);
@@ -352,13 +358,10 @@ export class AdminProductsService {
           .update(ProductVariant)
           .set({ status: 'inactive' })
           .where('product_id = :productId', { productId: id })
-          .andWhere(
-            '(size_id NOT IN (:...sizeIds) OR color_id NOT IN (:...colorIds))',
-            {
-              sizeIds: updateProductDto.selected_size_ids || [],
-              colorIds: updateProductDto.selected_color_ids || [],
-            },
-          )
+          .andWhere('(size_id NOT IN (:...sizeIds) OR color_id NOT IN (:...colorIds))', {
+            sizeIds: updateProductDto.selected_size_ids || [],
+            colorIds: updateProductDto.selected_color_ids || [],
+          })
           .execute();
       }
 
@@ -454,9 +457,7 @@ export class AdminProductsService {
 
     if (existingVariants.length > 0) {
       const duplicateSKUs = existingVariants.map(v => v.sku);
-      throw new ConflictException(
-        `SKU đã tồn tại: ${duplicateSKUs.join(', ')}`,
-      );
+      throw new ConflictException(`SKU đã tồn tại: ${duplicateSKUs.join(', ')}`);
     }
   }
 
@@ -489,7 +490,7 @@ export class AdminProductsService {
     const sizeCode = size.name.toUpperCase();
 
     // Generate base SKU
-    let baseSku = `${normalizedName}-${colorCode}-${sizeCode}`;
+    const baseSku = `${normalizedName}-${colorCode}-${sizeCode}`;
 
     // Check if SKU exists, if yes, append counter
     let sku = baseSku;
@@ -580,7 +581,10 @@ export class AdminProductsService {
     // Inventory data
     const inventory = {
       total_stock: variants.reduce((sum, v) => sum + (v.total_stock || 0), 0),
-      available_stock: variants.reduce((sum, v) => sum + ((v.total_stock || 0) - (v.reserved_stock || 0)), 0),
+      available_stock: variants.reduce(
+        (sum, v) => sum + ((v.total_stock || 0) - (v.reserved_stock || 0)),
+        0,
+      ),
       reserved_stock: variants.reduce((sum, v) => sum + (v.reserved_stock || 0), 0),
       variants_count: variants.length,
       low_stock_variants: variants.filter(v => v.total_stock <= v.reorder_point).length,
@@ -605,28 +609,41 @@ export class AdminProductsService {
     }
 
     const totalReviews = parseInt(ratingsResult?.total_reviews || '0');
-    const ratingDistribution = totalReviews > 0 ? {
-      5: {
-        count: parseInt(ratingsResult.rating_5 || '0'),
-        percentage: Math.round((parseInt(ratingsResult.rating_5 || '0') / totalReviews) * 100),
-      },
-      4: {
-        count: parseInt(ratingsResult.rating_4 || '0'),
-        percentage: Math.round((parseInt(ratingsResult.rating_4 || '0') / totalReviews) * 100),
-      },
-      3: {
-        count: parseInt(ratingsResult.rating_3 || '0'),
-        percentage: Math.round((parseInt(ratingsResult.rating_3 || '0') / totalReviews) * 100),
-      },
-      2: {
-        count: parseInt(ratingsResult.rating_2 || '0'),
-        percentage: Math.round((parseInt(ratingsResult.rating_2 || '0') / totalReviews) * 100),
-      },
-      1: {
-        count: parseInt(ratingsResult.rating_1 || '0'),
-        percentage: Math.round((parseInt(ratingsResult.rating_1 || '0') / totalReviews) * 100),
-      },
-    } : null;
+    const ratingDistribution =
+      totalReviews > 0
+        ? {
+            5: {
+              count: parseInt(ratingsResult.rating_5 || '0'),
+              percentage: Math.round(
+                (parseInt(ratingsResult.rating_5 || '0') / totalReviews) * 100,
+              ),
+            },
+            4: {
+              count: parseInt(ratingsResult.rating_4 || '0'),
+              percentage: Math.round(
+                (parseInt(ratingsResult.rating_4 || '0') / totalReviews) * 100,
+              ),
+            },
+            3: {
+              count: parseInt(ratingsResult.rating_3 || '0'),
+              percentage: Math.round(
+                (parseInt(ratingsResult.rating_3 || '0') / totalReviews) * 100,
+              ),
+            },
+            2: {
+              count: parseInt(ratingsResult.rating_2 || '0'),
+              percentage: Math.round(
+                (parseInt(ratingsResult.rating_2 || '0') / totalReviews) * 100,
+              ),
+            },
+            1: {
+              count: parseInt(ratingsResult.rating_1 || '0'),
+              percentage: Math.round(
+                (parseInt(ratingsResult.rating_1 || '0') / totalReviews) * 100,
+              ),
+            },
+          }
+        : null;
 
     return {
       sales: {
@@ -656,11 +673,12 @@ export class AdminProductsService {
       return { period, data: [], total_revenue: 0, total_units_sold: 0 };
     }
 
-    const days = period === '7days' ? 7 : period === '30days' ? 30 : period === '3months' ? 90 : 365;
+    const days =
+      period === '7days' ? 7 : period === '30days' ? 30 : period === '3months' ? 90 : 365;
 
     const salesData = await this.orderItemRepository
       .createQueryBuilder('oi')
-      .select("DATE(o.created_at)", 'date')
+      .select('DATE(o.created_at)', 'date')
       .addSelect('SUM(oi.quantity * oi.price_at_purchase)', 'revenue')
       .addSelect('SUM(oi.quantity)', 'units_sold')
       .addSelect('COUNT(DISTINCT oi.order_id)', 'orders')
@@ -773,10 +791,7 @@ export class AdminProductsService {
     queryBuilder.orderBy(sortField, sortOrder);
 
     // Get paginated results
-    const [reviews, total] = await queryBuilder
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
+    const [reviews, total] = await queryBuilder.skip(skip).take(limit).getManyAndCount();
 
     // Get summary stats
     const summaryResult = await this.reviewRepository

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from '../../entities/customer.entity';
@@ -16,7 +21,7 @@ export class AccountService {
     private customerRepository: Repository<Customer>,
     @InjectRepository(CustomerAddress)
     private addressRepository: Repository<CustomerAddress>,
-  ) {}
+  ) { }
 
   async getProfile(userId: number) {
     const customer = await this.customerRepository.findOne({
@@ -33,7 +38,7 @@ export class AccountService {
 
   async updateProfile(userId: number, updateData: UpdateProfileDto) {
     const customer = await this.customerRepository.findOne({ where: { id: userId } });
-    
+
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
@@ -52,11 +57,11 @@ export class AccountService {
   }
 
   async changePassword(userId: number, changePasswordDto: ChangePasswordDto) {
-    const customer = await this.customerRepository.findOne({ 
+    const customer = await this.customerRepository.findOne({
       where: { id: userId },
       select: ['id', 'email', 'password_hash'],
     });
-    
+
     if (!customer) {
       throw new NotFoundException('Customer not found');
     }
@@ -100,8 +105,14 @@ export class AccountService {
 
     const address = this.addressRepository.create({
       customer_id: userId,
-      detailed_address: createAddressDto.detailed_address,
+      province: createAddressDto.province,
+      district: createAddressDto.district,
+      ward: createAddressDto.ward,
+      street_address: createAddressDto.street_address,
       phone_number: createAddressDto.phone_number,
+      latitude: createAddressDto.latitude,
+      longitude: createAddressDto.longitude,
+      address_source: createAddressDto.address_source || 'manual',
       address_type: createAddressDto.address_type || 'Home',
       is_default: createAddressDto.is_default || false,
     });

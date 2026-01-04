@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ProductVariant } from '../../entities/product-variant.entity';
@@ -14,7 +19,7 @@ export class ProductVariantsService {
     private variantRepository: Repository<ProductVariant>,
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
-  ) { }
+  ) {}
 
   // GET /api/v1/admin/products/:id/variants - Get all variants of a product
   async findByProduct(productId: number) {
@@ -29,7 +34,7 @@ export class ProductVariantsService {
       .getMany();
 
     return {
-      data: variants.map((variant) => ({
+      data: variants.map(variant => ({
         id: variant.id,
         sku: variant.sku,
         size_name: variant.size?.name || null,
@@ -38,7 +43,7 @@ export class ProductVariantsService {
         total_stock: variant.total_stock,
         reserved_stock: variant.reserved_stock,
         status: variant.status,
-        images: variant.images.map((img) => ({
+        images: variant.images.map(img => ({
           id: img.id,
           image_url: img.image_url,
           is_main: img.is_main,
@@ -84,11 +89,7 @@ export class ProductVariantsService {
   }
 
   // PUT /api/v1/admin/products/:productId/variants/:id - Update variant stock & status
-  async updateVariantStock(
-    productId: number,
-    variantId: number,
-    updateDto: UpdateVariantStockDto,
-  ) {
+  async updateVariantStock(productId: number, variantId: number, updateDto: UpdateVariantStockDto) {
     // Find variant with product validation
     const variant = await this.variantRepository.findOne({
       where: { id: variantId as any },
@@ -99,14 +100,11 @@ export class ProductVariantsService {
     }
 
     // Validate variant belongs to product (convert bigint to number for comparison)
-    const variantProductId = typeof variant.product_id === 'string'
-      ? parseInt(variant.product_id)
-      : variant.product_id;
+    const variantProductId =
+      typeof variant.product_id === 'string' ? parseInt(variant.product_id) : variant.product_id;
 
     if (variantProductId !== productId) {
-      throw new BadRequestException(
-        `Variant ${variantId} không thuộc về product ${productId}`,
-      );
+      throw new BadRequestException(`Variant ${variantId} không thuộc về product ${productId}`);
     }
 
     // Update total_stock if provided
@@ -145,7 +143,8 @@ export class ProductVariantsService {
     }
 
     // Generate SKU if not provided
-    const sku = createDto.sku || `PRODUCT-${productId}-SIZE-${createDto.size_id}-COLOR-${createDto.color_id}`;
+    const sku =
+      createDto.sku || `PRODUCT-${productId}-SIZE-${createDto.size_id}-COLOR-${createDto.color_id}`;
 
     // Check SKU uniqueness
     const existingSKU = await this.variantRepository.findOne({

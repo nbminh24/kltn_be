@@ -1,10 +1,4 @@
-import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Customer } from './customer.entity';
 
 @Entity('customer_addresses')
@@ -21,11 +15,29 @@ export class CustomerAddress {
   @Column({ type: 'varchar', default: 'Home' })
   address_type: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  province: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  district: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  ward: string;
+
   @Column({ type: 'text' })
-  detailed_address: string;
+  street_address: string;
 
   @Column({ type: 'varchar' })
   phone_number: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 8, nullable: true })
+  latitude: number;
+
+  @Column({ type: 'decimal', precision: 11, scale: 8, nullable: true })
+  longitude: number;
+
+  @Column({ type: 'varchar', default: 'manual' })
+  address_source: string; // 'manual' | 'gps'
 
   // Relations
   @ManyToOne(() => Customer, { onDelete: 'CASCADE' })

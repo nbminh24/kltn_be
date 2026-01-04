@@ -1,4 +1,14 @@
-import { Controller, Get, Query, Param, UseGuards, Post, Body, UseFilters, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  Param,
+  UseGuards,
+  Post,
+  Body,
+  UseFilters,
+  BadRequestException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiSecurity } from '@nestjs/swagger';
 import { InternalService } from './internal.service';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
@@ -11,7 +21,7 @@ import { InternalApiExceptionFilter } from './filters/internal-api-exception.fil
 @UseFilters(InternalApiExceptionFilter)
 @Controller('internal')
 export class InternalController {
-  constructor(private readonly internalService: InternalService) { }
+  constructor(private readonly internalService: InternalService) {}
 
   @Get('orders/:id')
   @ApiOperation({
@@ -51,16 +61,12 @@ export class InternalController {
             thumbnail_url: 'https://...jpg',
             available_sizes: ['S', 'M', 'L', 'XL'],
             available_colors: ['Xanh Denim', 'Đen'],
-            images: [
-              'https://image1.jpg',
-              'https://image2.jpg',
-              'https://image3.jpg'
-            ]
-          }
+            images: ['https://image1.jpg', 'https://image2.jpg', 'https://image3.jpg'],
+          },
         ],
-        count: 1
-      }
-    }
+        count: 1,
+      },
+    },
   })
   searchProducts(
     @Query('search') search?: string,
@@ -121,9 +127,9 @@ export class InternalController {
       example: {
         slug: 'chinh-sach-doi-tra',
         title: 'Chính Sách Đổi Trả',
-        body_content: '<p>Nội dung chính sách đổi trả...</p>'
-      }
-    }
+        body_content: '<p>Nội dung chính sách đổi trả...</p>',
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Không tìm thấy trang' })
   getPageBySlug(@Param('slug') slug: string) {
@@ -167,7 +173,7 @@ export class InternalController {
       example: {
         customer: {
           name: 'Nguyễn Văn A',
-          email: 'customer@gmail.com'
+          email: 'customer@gmail.com',
         },
         orders: [
           {
@@ -182,14 +188,14 @@ export class InternalController {
               {
                 product_name: 'Áo Khoác Denim',
                 quantity: 1,
-                price_at_purchase: 450000
-              }
-            ]
-          }
+                price_at_purchase: 450000,
+              },
+            ],
+          },
         ],
-        total_orders: 1
-      }
-    }
+        total_orders: 1,
+      },
+    },
   })
   getCustomerOrders(@Query('email') email: string) {
     return this.internalService.getCustomerOrders({ email });
@@ -232,12 +238,12 @@ export class InternalController {
             price: 450000,
             category: 'Áo Khoác',
             images: ['https://image1.jpg', 'https://image2.jpg'],
-            main_image: 'https://image1.jpg'
-          }
+            main_image: 'https://image1.jpg',
+          },
         ],
-        count: 1
-      }
-    }
+        count: 1,
+      },
+    },
   })
   searchVariants(
     @Query('product_id') product_id?: number,
@@ -252,7 +258,7 @@ export class InternalController {
       sku,
       size,
       color,
-      in_stock: in_stock === true || in_stock === 'true' as any,
+      in_stock: in_stock === true || in_stock === ('true' as any),
       limit: limit ? Number(limit) : 20,
     });
   }

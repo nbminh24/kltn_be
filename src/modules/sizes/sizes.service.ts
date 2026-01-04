@@ -22,29 +22,15 @@ export class SizesService {
     const queryBuilder = this.sizeRepository.createQueryBuilder('size');
 
     // Apply sorting
-    this.queryBuilderService.applySort(
-      queryBuilder,
-      query.sort,
-      'size',
-      ['name', 'sort_order'],
-    );
+    this.queryBuilderService.applySort(queryBuilder, query.sort, 'size', ['name', 'sort_order']);
 
     // Apply search
-    this.queryBuilderService.applySearch(
-      queryBuilder,
-      query.search,
-      'size',
-      ['name'],
-    );
+    this.queryBuilderService.applySearch(queryBuilder, query.search, 'size', ['name']);
 
     // Apply pagination
     this.queryBuilderService.applyPagination(queryBuilder, { page, limit });
 
-    return await this.queryBuilderService.executePaginatedQuery(
-      queryBuilder,
-      page,
-      limit,
-    );
+    return await this.queryBuilderService.executePaginatedQuery(queryBuilder, page, limit);
   }
 
   // GET /api/v1/admin/sizes/all - All sizes (for dropdown)
@@ -53,7 +39,7 @@ export class SizesService {
       order: { sort_order: 'ASC', name: 'ASC' },
     });
 
-    return sizes.map((size) => ({
+    return sizes.map(size => ({
       id: size.id,
       name: size.name,
       sort_order: size.sort_order,

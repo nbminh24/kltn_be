@@ -1,10 +1,10 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddDeliveryFieldsToOrders1734325000000 implements MigrationInterface {
-    name = 'AddDeliveryFieldsToOrders1734325000000';
+  name = 'AddDeliveryFieldsToOrders1734325000000';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             ALTER TABLE "orders" 
             ADD COLUMN "shipping_method" varchar DEFAULT 'standard',
             ADD COLUMN "tracking_number" varchar NULL,
@@ -14,11 +14,11 @@ export class AddDeliveryFieldsToOrders1734325000000 implements MigrationInterfac
             ADD COLUMN "actual_delivery_date" date NULL
         `);
 
-        console.log('✅ Added delivery-related fields to orders table');
-    }
+    console.log('✅ Added delivery-related fields to orders table');
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
             ALTER TABLE "orders" 
             DROP COLUMN "shipping_method",
             DROP COLUMN "tracking_number",
@@ -28,6 +28,6 @@ export class AddDeliveryFieldsToOrders1734325000000 implements MigrationInterfac
             DROP COLUMN "actual_delivery_date"
         `);
 
-        console.log('✅ Removed delivery-related fields from orders table');
-    }
+    console.log('✅ Removed delivery-related fields from orders table');
+  }
 }

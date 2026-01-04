@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Patch, Param, Body, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Param,
+  Body,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ProductVariantsService } from './product-variants.service';
 import { UpdateVariantDto } from './dto/update-variant.dto';
@@ -11,7 +21,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AdminVariantsController {
-  constructor(private readonly variantsService: ProductVariantsService) { }
+  constructor(private readonly variantsService: ProductVariantsService) {}
 
   @Get('products/:id/variants')
   @ApiOperation({
@@ -33,9 +43,7 @@ export class AdminVariantsController {
             total_stock: 50,
             reserved_stock: 5,
             status: 'active',
-            images: [
-              { id: 101, image_url: 'https://...', is_main: true },
-            ],
+            images: [{ id: 101, image_url: 'https://...', is_main: true }],
           },
         ],
       },
@@ -52,7 +60,8 @@ export class AdminVariantsController {
   @Post('products/:productId/variants')
   @ApiOperation({
     summary: 'Tạo variant mới cho sản phẩm',
-    description: 'Tạo 1 variant mới với size_id, color_id, và stock. SKU tự động generate nếu không cung cấp.',
+    description:
+      'Tạo 1 variant mới với size_id, color_id, và stock. SKU tự động generate nếu không cung cấp.',
   })
   @ApiResponse({
     status: 201,
@@ -73,10 +82,7 @@ export class AdminVariantsController {
   })
   @ApiResponse({ status: 404, description: 'Sản phẩm không tồn tại' })
   @ApiResponse({ status: 409, description: 'SKU đã tồn tại' })
-  createVariant(
-    @Param('productId') productId: string,
-    @Body() createDto: CreateSingleVariantDto,
-  ) {
+  createVariant(@Param('productId') productId: string, @Body() createDto: CreateSingleVariantDto) {
     const parsedProductId = parseInt(productId, 10);
     if (isNaN(parsedProductId)) {
       throw new BadRequestException('ID sản phẩm không hợp lệ');
@@ -87,7 +93,8 @@ export class AdminVariantsController {
   @Put('products/:productId/variants/:id')
   @ApiOperation({
     summary: 'Cập nhật stock và status của variant',
-    description: 'Chỉ cho phép update total_stock và status. SKU, size_id, color_id KHÔNG được thay đổi.',
+    description:
+      'Chỉ cho phép update total_stock và status. SKU, size_id, color_id KHÔNG được thay đổi.',
   })
   @ApiResponse({
     status: 200,
@@ -122,11 +129,7 @@ export class AdminVariantsController {
       throw new BadRequestException('ID variant không hợp lệ');
     }
 
-    return this.variantsService.updateVariantStock(
-      parsedProductId,
-      parsedVariantId,
-      updateDto,
-    );
+    return this.variantsService.updateVariantStock(parsedProductId, parsedVariantId, updateDto);
   }
 
   @Put('variants/:id')
@@ -141,10 +144,7 @@ export class AdminVariantsController {
   })
   @ApiResponse({ status: 404, description: 'Variant không tồn tại' })
   @ApiResponse({ status: 409, description: 'SKU đã tồn tại' })
-  updateVariant(
-    @Param('id') id: string,
-    @Body() updateVariantDto: UpdateVariantDto,
-  ) {
+  updateVariant(@Param('id') id: string, @Body() updateVariantDto: UpdateVariantDto) {
     const variantId = parseInt(id, 10);
     if (isNaN(variantId)) {
       throw new BadRequestException('ID variant không hợp lệ');

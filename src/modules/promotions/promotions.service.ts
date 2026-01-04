@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, In } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Promotion } from '../../entities/promotion.entity';
 import { ValidatePromotionDto } from './dto/validate-promotion.dto';
 
@@ -9,21 +9,15 @@ export class PromotionsService {
   constructor(
     @InjectRepository(Promotion)
     private promotionRepository: Repository<Promotion>,
-  ) { }
+  ) {}
 
   async getActivePromotions(query: any = {}) {
     const queryBuilder = this.promotionRepository
       .createQueryBuilder('promotion')
       .where('promotion.status = :status', { status: 'Active' })
-      .andWhere(
-        '(promotion.expiry_date IS NULL OR promotion.expiry_date >= CURRENT_DATE)',
-      )
-      .andWhere(
-        '(promotion.start_date IS NULL OR promotion.start_date <= CURRENT_DATE)',
-      )
-      .andWhere(
-        '(promotion.usage_limit IS NULL OR promotion.usage_count < promotion.usage_limit)',
-      )
+      .andWhere('(promotion.expiry_date IS NULL OR promotion.expiry_date >= CURRENT_DATE)')
+      .andWhere('(promotion.start_date IS NULL OR promotion.start_date <= CURRENT_DATE)')
+      .andWhere('(promotion.usage_limit IS NULL OR promotion.usage_count < promotion.usage_limit)')
       .orderBy('promotion.discount_value', 'DESC');
 
     // Filter by type if specified
@@ -184,7 +178,8 @@ export class PromotionsService {
         return {
           can_mix: false,
           message: 'Không thể dùng nhiều mã giảm % cùng lúc',
-          explanation: 'Hệ thống chỉ cho phép áp dụng 1 mã giảm theo phần trăm. Bạn có thể kết hợp 1 mã giảm % với 1 mã giảm cố định.',
+          explanation:
+            'Hệ thống chỉ cho phép áp dụng 1 mã giảm theo phần trăm. Bạn có thể kết hợp 1 mã giảm % với 1 mã giảm cố định.',
           valid_codes: validCodes.map(p => p.name),
           invalid_reasons: invalidReasons,
         };
@@ -194,7 +189,8 @@ export class PromotionsService {
         return {
           can_mix: false,
           message: 'Không thể dùng nhiều mã giảm cố định cùng lúc',
-          explanation: 'Hệ thống chỉ cho phép áp dụng 1 mã giảm giá cố định. Bạn có thể kết hợp 1 mã giảm % với 1 mã giảm cố định.',
+          explanation:
+            'Hệ thống chỉ cho phép áp dụng 1 mã giảm giá cố định. Bạn có thể kết hợp 1 mã giảm % với 1 mã giảm cố định.',
           valid_codes: validCodes.map(p => p.name),
           invalid_reasons: invalidReasons,
         };
@@ -218,12 +214,14 @@ export class PromotionsService {
 
     return {
       can_mix: validCodes.length > 1,
-      message: validCodes.length > 1
-        ? `Có thể dùng ${validCodes.length} mã cùng lúc`
-        : 'Chỉ có 1 mã hợp lệ',
-      explanation: validCodes.length > 1
-        ? `Bạn có thể kết hợp ${validCodes.map(p => p.name).join(' và ')} để được giảm tổng cộng ${totalDiscount.toLocaleString()}đ.`
-        : `Mã ${validCodes[0]?.name} hợp lệ, giảm ${totalDiscount.toLocaleString()}đ.`,
+      message:
+        validCodes.length > 1
+          ? `Có thể dùng ${validCodes.length} mã cùng lúc`
+          : 'Chỉ có 1 mã hợp lệ',
+      explanation:
+        validCodes.length > 1
+          ? `Bạn có thể kết hợp ${validCodes.map(p => p.name).join(' và ')} để được giảm tổng cộng ${totalDiscount.toLocaleString()}đ.`
+          : `Mã ${validCodes[0]?.name} hợp lệ, giảm ${totalDiscount.toLocaleString()}đ.`,
       valid_codes: validCodes.map(p => ({
         code: p.name,
         type: p.discount_type,

@@ -65,11 +65,7 @@ export class AuthService {
     await this.customerRepository.save(customer);
 
     // Send activation email
-    await this.emailService.sendActivationEmail(
-      customer.email,
-      customer.name,
-      activationToken,
-    );
+    await this.emailService.sendActivationEmail(customer.email, customer.name, activationToken);
 
     return {
       message: 'Đăng ký thành công. Vui lòng kiểm tra email để kích hoạt tài khoản.',
@@ -147,10 +143,7 @@ export class AuthService {
     }
 
     // Check password
-    const isPasswordValid = await bcrypt.compare(
-      loginDto.password,
-      customer.password_hash,
-    );
+    const isPasswordValid = await bcrypt.compare(loginDto.password, customer.password_hash);
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
@@ -158,9 +151,7 @@ export class AuthService {
 
     // Check if account is active
     if (customer.status !== 'active') {
-      throw new UnauthorizedException(
-        'Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email.',
-      );
+      throw new UnauthorizedException('Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email.');
     }
 
     // Generate tokens
@@ -330,11 +321,7 @@ export class AuthService {
     );
 
     // Send reset email
-    await this.emailService.sendPasswordResetEmail(
-      customer.email,
-      customer.name,
-      resetToken,
-    );
+    await this.emailService.sendPasswordResetEmail(customer.email, customer.name, resetToken);
 
     return {
       message: 'Nếu email của bạn tồn tại, một link đặt lại mật khẩu đã được gửi.',
@@ -392,8 +379,8 @@ export class AuthService {
         {
           password_hash: hashedPassword,
           refresh_token: null, // Clear refresh token for security
-          refresh_token_expires: null
-        }
+          refresh_token_expires: null,
+        },
       );
 
       return {

@@ -23,36 +23,32 @@ import { WishlistService } from '../wishlist/wishlist.service';
 import { OrdersModule } from '../orders/orders.module';
 
 @Module({
-    imports: [
-        ConfigModule,
-        HttpModule,
-        OrdersModule,
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            inject: [ConfigService],
-            useFactory: (configService: ConfigService) => ({
-                secret: configService.get<string>('JWT_SECRET'),
-                signOptions: { expiresIn: '15m' },
-            }),
-        }),
-        TypeOrmModule.forFeature([
-            Customer,
-            ProductVariant,
-            Product,
-            Order,
-            OrderItem,
-            OrderStatusHistory,
-            Cart,
-            CartItem,
-            WishlistItem,
-        ]),
-    ],
-    controllers: [ChatbotController],
-    providers: [
-        ChatbotService,
-        CartService,
-        WishlistService,
-    ],
-    exports: [ChatbotService],
+  imports: [
+    ConfigModule,
+    HttpModule,
+    OrdersModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'),
+        signOptions: { expiresIn: '15m' },
+      }),
+    }),
+    TypeOrmModule.forFeature([
+      Customer,
+      ProductVariant,
+      Product,
+      Order,
+      OrderItem,
+      OrderStatusHistory,
+      Cart,
+      CartItem,
+      WishlistItem,
+    ]),
+  ],
+  controllers: [ChatbotController],
+  providers: [ChatbotService, CartService, WishlistService],
+  exports: [ChatbotService],
 })
-export class ChatbotModule { }
+export class ChatbotModule {}

@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -27,531 +33,525 @@ import { GeminiAskDto } from './dto/gemini-ask.dto';
 
 @Injectable()
 export class ChatbotService {
-    private readonly logger = new Logger(ChatbotService.name);
+  private readonly logger = new Logger(ChatbotService.name);
 
-    constructor(
-        @InjectRepository(Customer)
-        private readonly customerRepo: Repository<Customer>,
-        @InjectRepository(ProductVariant)
-        private readonly variantRepo: Repository<ProductVariant>,
-        @InjectRepository(Order)
-        private readonly orderRepo: Repository<Order>,
-        @InjectRepository(Product)
-        private readonly productRepo: Repository<Product>,
-        private readonly cartService: CartService,
-        private readonly ordersService: OrdersService,
-        private readonly wishlistService: WishlistService,
-        private readonly configService: ConfigService,
-        private readonly httpService: HttpService,
-        private readonly jwtService: JwtService,
-    ) { }
+  constructor(
+    @InjectRepository(Customer)
+    private readonly customerRepo: Repository<Customer>,
+    @InjectRepository(ProductVariant)
+    private readonly variantRepo: Repository<ProductVariant>,
+    @InjectRepository(Order)
+    private readonly orderRepo: Repository<Order>,
+    @InjectRepository(Product)
+    private readonly productRepo: Repository<Product>,
+    private readonly cartService: CartService,
+    private readonly ordersService: OrdersService,
+    private readonly wishlistService: WishlistService,
+    private readonly configService: ConfigService,
+    private readonly httpService: HttpService,
+    private readonly jwtService: JwtService,
+  ) {}
 
-    /**
-     * Get cart by customer ID (internal API for Rasa)
-     * Returns cart with detailed product information for chatbot display
-     */
-    async getCart(customerId: number) {
-        const customer = await this.customerRepo.findOne({
-            where: { id: customerId }
-        });
+  /**
+   * Get cart by customer ID (internal API for Rasa)
+   * Returns cart with detailed product information for chatbot display
+   */
+  async getCart(customerId: number) {
+    const customer = await this.customerRepo.findOne({
+      where: { id: customerId },
+    });
 
-        if (!customer) {
-            throw new NotFoundException(`Customer with ID ${customerId} not found`);
-        }
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${customerId} not found`);
+    }
 
-        const cartData = await this.cartService.getCart(customerId);
+    const cartData = await this.cartService.getCart(customerId);
 
-        const items = await Promise.all(
-            cartData.items.map(async (item) => {
-                const variant = item.variant;
-                const product = variant.product;
-                const size = variant.size;
-                const color = variant.color;
+    const items = await Promise.all(
+      cartData.items.map(async item => {
+        const variant = item.variant;
+        const product = variant.product;
+        const size = variant.size;
+        const color = variant.color;
 
-                const firstImage = variant.images?.[0]?.image_url || product.thumbnail_url || null;
-
-                return {
-                    id: item.id,
-                    product_id: product.id,
-                    product_name: product.name,
-                    variant_id: variant.id,
-                    size: size?.name || null,
-                    color: color?.name || null,
-                    quantity: item.quantity,
-                    price: parseFloat(product.selling_price?.toString() || '0'),
-                    image_url: firstImage,
-                };
-            })
-        );
+        const firstImage = variant.images?.[0]?.image_url || product.thumbnail_url || null;
 
         return {
-            customer_id: customerId,
-            items,
-            total_items: cartData.totalItems,
-            subtotal: cartData.subtotal,
-            total: cartData.subtotal,
+          id: item.id,
+          product_id: product.id,
+          product_name: product.name,
+          variant_id: variant.id,
+          size: size?.name || null,
+          color: color?.name || null,
+          quantity: item.quantity,
+          price: parseFloat(product.selling_price?.toString() || '0'),
+          image_url: firstImage,
         };
+      }),
+    );
+
+    return {
+      customer_id: customerId,
+      items,
+      total_items: cartData.totalItems,
+      subtotal: cartData.subtotal,
+      total: cartData.subtotal,
+    };
+  }
+
+  /**
+   * Add item to cart (internal API for Rasa)
+   * Validates customer and variant before calling CartService
+   */
+  async addToCart(dto: AddToCartInternalDto) {
+    // Validate customer exists
+    const customer = await this.customerRepo.findOne({
+      where: { id: dto.customer_id },
+    });
+
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${dto.customer_id} not found`);
     }
 
-    /**
-     * Add item to cart (internal API for Rasa)
-     * Validates customer and variant before calling CartService
-     */
-    async addToCart(dto: AddToCartInternalDto) {
-        // Validate customer exists
-        const customer = await this.customerRepo.findOne({
-            where: { id: dto.customer_id }
-        });
+    // Validate variant exists and has stock
+    const variant = await this.variantRepo.findOne({
+      where: { id: dto.variant_id },
+      relations: ['product'],
+    });
 
-        if (!customer) {
-            throw new NotFoundException(`Customer with ID ${dto.customer_id} not found`);
-        }
-
-        // Validate variant exists and has stock
-        const variant = await this.variantRepo.findOne({
-            where: { id: dto.variant_id },
-            relations: ['product']
-        });
-
-        if (!variant) {
-            throw new NotFoundException(`Product variant with ID ${dto.variant_id} not found`);
-        }
-
-        const availableStock = variant.total_stock - variant.reserved_stock;
-        if (availableStock < dto.quantity) {
-            throw new BadRequestException(
-                `Insufficient stock. Only ${availableStock} items available`
-            );
-        }
-
-        // Call existing CartService
-        const result = await this.cartService.addItem(dto.customer_id, {
-            variant_id: dto.variant_id,
-            quantity: dto.quantity || 1,
-        });
-
-        return result;
+    if (!variant) {
+      throw new NotFoundException(`Product variant with ID ${dto.variant_id} not found`);
     }
 
-    /**
-     * Add item to wishlist (internal API for Rasa)
-     */
-    async addToWishlist(dto: AddToWishlistInternalDto) {
-        // Validate customer exists
-        const customer = await this.customerRepo.findOne({
-            where: { id: dto.customer_id }
-        });
-
-        if (!customer) {
-            throw new NotFoundException(`Customer with ID ${dto.customer_id} not found`);
-        }
-
-        // Validate variant exists
-        const variant = await this.variantRepo.findOne({
-            where: { id: dto.variant_id }
-        });
-
-        if (!variant) {
-            throw new NotFoundException(`Product variant with ID ${dto.variant_id} not found`);
-        }
-
-        // Call existing WishlistService
-        const result = await this.wishlistService.addToWishlist(
-            dto.customer_id,
-            dto.variant_id
-        );
-
-        return result;
+    const availableStock = variant.total_stock - variant.reserved_stock;
+    if (availableStock < dto.quantity) {
+      throw new BadRequestException(`Insufficient stock. Only ${availableStock} items available`);
     }
 
-    /**
-     * Cancel order (internal API for Rasa)
-     * Verifies order ownership before cancelling
-     */
-    async cancelOrder(orderId: number, dto: CancelOrderInternalDto) {
-        // Verify order exists and belongs to customer
-        const order = await this.orderRepo.findOne({
-            where: {
-                id: orderId,
-                customer_id: dto.customer_id
-            }
-        });
+    // Call existing CartService
+    const result = await this.cartService.addItem(dto.customer_id, {
+      variant_id: dto.variant_id,
+      quantity: dto.quantity || 1,
+    });
 
-        if (!order) {
-            throw new NotFoundException(
-                'Order not found or does not belong to this customer'
-            );
-        }
+    return result;
+  }
 
-        // Check if order can be cancelled (only pending orders)
-        if (order.fulfillment_status !== 'pending') {
-            throw new BadRequestException(
-                `Cannot cancel order with status: ${order.fulfillment_status}. Only pending orders can be cancelled.`
-            );
-        }
+  /**
+   * Add item to wishlist (internal API for Rasa)
+   */
+  async addToWishlist(dto: AddToWishlistInternalDto) {
+    // Validate customer exists
+    const customer = await this.customerRepo.findOne({
+      where: { id: dto.customer_id },
+    });
 
-        // Call existing OrdersService with cancel_reason (default to 'other' if not provided)
-        const cancelReason = dto.cancel_reason || 'other';
-        const result = await this.ordersService.cancelOrder(dto.customer_id, orderId, cancelReason);
-
-        return result;
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${dto.customer_id} not found`);
     }
 
-    /**
-     * Get size chart image URL for category
-     */
-    async getSizeChart(category: string) {
-        const categoryLower = category.toLowerCase();
+    // Validate variant exists
+    const variant = await this.variantRepo.findOne({
+      where: { id: dto.variant_id },
+    });
 
-        const sizeCharts = {
-            shirt: this.configService.get('SIZE_CHART_SHIRT_URL'),
-            pants: this.configService.get('SIZE_CHART_PANTS_URL'),
-            shoes: this.configService.get('SIZE_CHART_SHOES_URL'),
-        };
-
-        const imageUrl = sizeCharts[categoryLower];
-
-        if (!imageUrl) {
-            throw new NotFoundException(
-                `Size chart not found for category: ${category}. ` +
-                `Valid categories: ${Object.keys(sizeCharts).join(', ')}`
-            );
-        }
-
-        return {
-            category: categoryLower,
-            image_url: imageUrl,
-            description: `Size chart for ${categoryLower}`
-        };
+    if (!variant) {
+      throw new NotFoundException(`Product variant with ID ${dto.variant_id} not found`);
     }
 
-    /**
-     * Get size recommendation based on height and weight
-     * Simple rule-based logic (can be enhanced with ML later)
-     */
-    async getSizeAdvice(dto: SizeAdviceDto) {
-        const { height, weight, category } = dto;
+    // Call existing WishlistService
+    const result = await this.wishlistService.addToWishlist(dto.customer_id, dto.variant_id);
 
-        let recommendedSize: string;
-        let confidence: string;
-        let reason: string;
+    return result;
+  }
 
-        // Rule-based sizing logic
-        if (height >= 160 && height <= 170 && weight >= 50 && weight <= 60) {
-            recommendedSize = 'M';
-            confidence = 'high';
-            reason = 'Based on your height and weight measurements';
-        } else if (height > 170 && height <= 180 && weight > 60 && weight <= 75) {
-            recommendedSize = 'L';
-            confidence = 'high';
-            reason = 'Based on your height and weight measurements';
-        } else if (height > 180 || weight > 75) {
-            recommendedSize = 'XL';
-            confidence = 'medium';
-            reason = 'Based on your height and weight measurements';
-        } else if (height < 160 || weight < 50) {
-            recommendedSize = 'S';
-            confidence = 'medium';
-            reason = 'Based on your height and weight measurements';
-        } else {
-            recommendedSize = 'M';
-            confidence = 'low';
-            reason = 'General recommendation - please check size chart for accuracy';
-        }
+  /**
+   * Cancel order (internal API for Rasa)
+   * Verifies order ownership before cancelling
+   */
+  async cancelOrder(orderId: number, dto: CancelOrderInternalDto) {
+    // Verify order exists and belongs to customer
+    const order = await this.orderRepo.findOne({
+      where: {
+        id: orderId,
+        customer_id: dto.customer_id,
+      },
+    });
 
-        return {
-            recommended_size: recommendedSize,
-            confidence,
-            reason,
-            note: 'This is a general recommendation. Please check the size chart for accurate measurements.',
-            measurements: {
-                height: `${height} cm`,
-                weight: `${weight} kg`
-            }
-        };
+    if (!order) {
+      throw new NotFoundException('Order not found or does not belong to this customer');
     }
 
-    /**
-     * Search products by keyword
-     * Prioritizes products matching all keywords over partial matches
-     */
-    async searchProducts(dto: any) {
-        const { query, limit = 5, category } = dto;
-
-        if (!query || query.trim().length === 0) {
-            return {
-                query: query || '',
-                total: 0,
-                products: [],
-            };
-        }
-
-        // Split query into individual keywords
-        const keywords = query.toLowerCase().trim().split(/\s+/);
-
-        // Build base query
-        const queryBuilder = this.productRepo
-            .createQueryBuilder('product')
-            .leftJoinAndSelect('product.variants', 'variants')
-            .leftJoinAndSelect('product.category', 'category')
-            .where('product.status = :status', { status: 'active' })
-            .andWhere('product.deleted_at IS NULL');
-
-        // Filter by category if provided
-        if (category) {
-            queryBuilder.andWhere('category.slug = :category', { category: category.toLowerCase() });
-        }
-
-        // Build search conditions for each keyword
-        // Search in product name and description
-        const searchConditions = keywords.map((keyword, index) => {
-            return `(LOWER(product.name) LIKE :keyword${index} OR LOWER(product.description) LIKE :keyword${index})`;
-        });
-
-        // Require ALL keywords to match (AND logic)
-        if (searchConditions.length > 0) {
-            queryBuilder.andWhere(`(${searchConditions.join(' AND ')})`);
-
-            // Set parameters for each keyword
-            keywords.forEach((keyword, index) => {
-                queryBuilder.setParameter(`keyword${index}`, `%${keyword}%`);
-            });
-        }
-
-        // Order by rating and reviews (simple approach to avoid SQL complexity)
-        queryBuilder
-            .orderBy('product.average_rating', 'DESC')
-            .addOrderBy('product.total_reviews', 'DESC')
-            .addOrderBy('product.created_at', 'DESC')
-            .take(limit);
-
-        const products = await queryBuilder.getMany();
-
-        // Format response
-        const formattedProducts = products.map(product => {
-            const firstVariant = product.variants?.[0];
-            const availableStock = firstVariant
-                ? firstVariant.total_stock - firstVariant.reserved_stock
-                : 0;
-
-            return {
-                product_id: product.id,
-                name: product.name,
-                slug: product.slug,
-                description: product.description,
-                price: product.selling_price,
-                thumbnail: product.thumbnail_url,
-                rating: product.average_rating,
-                reviews: product.total_reviews,
-                category: product.category?.name,
-                in_stock: availableStock > 0,
-            };
-        });
-
-        return {
-            query,
-            total: formattedProducts.length,
-            products: formattedProducts,
-        };
+    // Check if order can be cancelled (only pending orders)
+    if (order.fulfillment_status !== 'pending') {
+      throw new BadRequestException(
+        `Cannot cancel order with status: ${order.fulfillment_status}. Only pending orders can be cancelled.`,
+      );
     }
 
-    /**
-     * Get product recommendations based on context/occasion
-     * Uses JSONB attributes to match products with specific tags
-     */
-    async getProductRecommendations(dto: ProductRecommendDto) {
-        const { context, category, limit = 5 } = dto;
+    // Call existing OrdersService with cancel_reason (default to 'other' if not provided)
+    const cancelReason = dto.cancel_reason || 'other';
+    const result = await this.ordersService.cancelOrder(dto.customer_id, orderId, cancelReason);
 
-        // Build query
-        const queryBuilder = this.productRepo
-            .createQueryBuilder('product')
-            .leftJoinAndSelect('product.variants', 'variants')
-            .leftJoinAndSelect('product.category', 'category')
-            .where('product.status = :status', { status: 'active' })
-            .andWhere('product.deleted_at IS NULL');
+    return result;
+  }
 
-        // Filter by category if provided
-        if (category) {
-            queryBuilder.andWhere('category.slug = :category', { category: category.toLowerCase() });
-        }
+  /**
+   * Get size chart image URL for category
+   */
+  async getSizeChart(category: string) {
+    const categoryLower = category.toLowerCase();
 
-        // Filter by context using JSONB attributes
-        if (context) {
-            const contextLower = context.toLowerCase();
+    const sizeCharts = {
+      shirt: this.configService.get('SIZE_CHART_SHIRT_URL'),
+      pants: this.configService.get('SIZE_CHART_PANTS_URL'),
+      shoes: this.configService.get('SIZE_CHART_SHOES_URL'),
+    };
 
-            // Map context to attribute tags
-            const contextMapping = {
-                wedding: ['wedding', 'formal', 'elegant', 'occasion'],
-                beach: ['beach', 'summer', 'casual', 'light'],
-                work: ['work', 'office', 'formal', 'professional'],
-                party: ['party', 'evening', 'elegant', 'special'],
-                casual: ['casual', 'everyday', 'comfortable'],
-                sport: ['sport', 'athletic', 'active', 'gym'],
-            };
+    const imageUrl = sizeCharts[categoryLower];
 
-            const searchTags = contextMapping[contextLower] || [contextLower];
+    if (!imageUrl) {
+      throw new NotFoundException(
+        `Size chart not found for category: ${category}. ` +
+          `Valid categories: ${Object.keys(sizeCharts).join(', ')}`,
+      );
+    }
 
-            // Use JSONB operator to search for tags in attributes
-            queryBuilder.andWhere(
-                `product.attributes::jsonb @> :tags OR 
+    return {
+      category: categoryLower,
+      image_url: imageUrl,
+      description: `Size chart for ${categoryLower}`,
+    };
+  }
+
+  /**
+   * Get size recommendation based on height and weight
+   * Simple rule-based logic (can be enhanced with ML later)
+   */
+  async getSizeAdvice(dto: SizeAdviceDto) {
+    const { height, weight, category } = dto;
+
+    let recommendedSize: string;
+    let confidence: string;
+    let reason: string;
+
+    // Rule-based sizing logic
+    if (height >= 160 && height <= 170 && weight >= 50 && weight <= 60) {
+      recommendedSize = 'M';
+      confidence = 'high';
+      reason = 'Based on your height and weight measurements';
+    } else if (height > 170 && height <= 180 && weight > 60 && weight <= 75) {
+      recommendedSize = 'L';
+      confidence = 'high';
+      reason = 'Based on your height and weight measurements';
+    } else if (height > 180 || weight > 75) {
+      recommendedSize = 'XL';
+      confidence = 'medium';
+      reason = 'Based on your height and weight measurements';
+    } else if (height < 160 || weight < 50) {
+      recommendedSize = 'S';
+      confidence = 'medium';
+      reason = 'Based on your height and weight measurements';
+    } else {
+      recommendedSize = 'M';
+      confidence = 'low';
+      reason = 'General recommendation - please check size chart for accuracy';
+    }
+
+    return {
+      recommended_size: recommendedSize,
+      confidence,
+      reason,
+      note: 'This is a general recommendation. Please check the size chart for accurate measurements.',
+      measurements: {
+        height: `${height} cm`,
+        weight: `${weight} kg`,
+      },
+    };
+  }
+
+  /**
+   * Search products by keyword
+   * Prioritizes products matching all keywords over partial matches
+   */
+  async searchProducts(dto: any) {
+    const { query, limit = 5, category } = dto;
+
+    if (!query || query.trim().length === 0) {
+      return {
+        query: query || '',
+        total: 0,
+        products: [],
+      };
+    }
+
+    // Split query into individual keywords
+    const keywords = query.toLowerCase().trim().split(/\s+/);
+
+    // Build base query
+    const queryBuilder = this.productRepo
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.variants', 'variants')
+      .leftJoinAndSelect('product.category', 'category')
+      .where('product.status = :status', { status: 'active' })
+      .andWhere('product.deleted_at IS NULL');
+
+    // Filter by category if provided
+    if (category) {
+      queryBuilder.andWhere('category.slug = :category', { category: category.toLowerCase() });
+    }
+
+    // Build search conditions for each keyword
+    // Search in product name and description
+    const searchConditions = keywords.map((keyword, index) => {
+      return `(LOWER(product.name) LIKE :keyword${index} OR LOWER(product.description) LIKE :keyword${index})`;
+    });
+
+    // Require ALL keywords to match (AND logic)
+    if (searchConditions.length > 0) {
+      queryBuilder.andWhere(`(${searchConditions.join(' AND ')})`);
+
+      // Set parameters for each keyword
+      keywords.forEach((keyword, index) => {
+        queryBuilder.setParameter(`keyword${index}`, `%${keyword}%`);
+      });
+    }
+
+    // Order by rating and reviews (simple approach to avoid SQL complexity)
+    queryBuilder
+      .orderBy('product.average_rating', 'DESC')
+      .addOrderBy('product.total_reviews', 'DESC')
+      .addOrderBy('product.created_at', 'DESC')
+      .take(limit);
+
+    const products = await queryBuilder.getMany();
+
+    // Format response
+    const formattedProducts = products.map(product => {
+      const firstVariant = product.variants?.[0];
+      const availableStock = firstVariant
+        ? firstVariant.total_stock - firstVariant.reserved_stock
+        : 0;
+
+      return {
+        product_id: product.id,
+        name: product.name,
+        slug: product.slug,
+        description: product.description,
+        price: product.selling_price,
+        thumbnail: product.thumbnail_url,
+        rating: product.average_rating,
+        reviews: product.total_reviews,
+        category: product.category?.name,
+        in_stock: availableStock > 0,
+      };
+    });
+
+    return {
+      query,
+      total: formattedProducts.length,
+      products: formattedProducts,
+    };
+  }
+
+  /**
+   * Get product recommendations based on context/occasion
+   * Uses JSONB attributes to match products with specific tags
+   */
+  async getProductRecommendations(dto: ProductRecommendDto) {
+    const { context, category, limit = 5 } = dto;
+
+    // Build query
+    const queryBuilder = this.productRepo
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.variants', 'variants')
+      .leftJoinAndSelect('product.category', 'category')
+      .where('product.status = :status', { status: 'active' })
+      .andWhere('product.deleted_at IS NULL');
+
+    // Filter by category if provided
+    if (category) {
+      queryBuilder.andWhere('category.slug = :category', { category: category.toLowerCase() });
+    }
+
+    // Filter by context using JSONB attributes
+    if (context) {
+      const contextLower = context.toLowerCase();
+
+      // Map context to attribute tags
+      const contextMapping = {
+        wedding: ['wedding', 'formal', 'elegant', 'occasion'],
+        beach: ['beach', 'summer', 'casual', 'light'],
+        work: ['work', 'office', 'formal', 'professional'],
+        party: ['party', 'evening', 'elegant', 'special'],
+        casual: ['casual', 'everyday', 'comfortable'],
+        sport: ['sport', 'athletic', 'active', 'gym'],
+      };
+
+      const searchTags = contextMapping[contextLower] || [contextLower];
+
+      // Use JSONB operator to search for tags in attributes
+      queryBuilder.andWhere(
+        `product.attributes::jsonb @> :tags OR 
                  product.attributes::jsonb->>'occasion' = :context OR
                  product.attributes::jsonb->>'style' = :context`,
-                {
-                    tags: JSON.stringify({ tags: searchTags }),
-                    context: contextLower
-                }
-            );
-        }
-
-        // Order by rating and limit results
-        queryBuilder
-            .orderBy('product.average_rating', 'DESC')
-            .addOrderBy('product.total_reviews', 'DESC')
-            .take(limit);
-
-        const products = await queryBuilder.getMany();
-
-        // Format response
-        const recommendations = products.map(product => {
-            const firstVariant = product.variants?.[0];
-            const availableStock = firstVariant
-                ? firstVariant.total_stock - firstVariant.reserved_stock
-                : 0;
-
-            return {
-                product_id: product.id,
-                name: product.name,
-                slug: product.slug,
-                description: product.description,
-                price: product.selling_price,
-                thumbnail: product.thumbnail_url,
-                rating: product.average_rating,
-                reviews: product.total_reviews,
-                category: product.category?.name,
-                in_stock: availableStock > 0,
-                attributes: product.attributes,
-            };
-        });
-
-        return {
-            context: context || 'general',
-            total: recommendations.length,
-            recommendations,
-        };
+        {
+          tags: JSON.stringify({ tags: searchTags }),
+          context: contextLower,
+        },
+      );
     }
 
-    /**
-     * Verify JWT token and return customer information
-     * Used by chatbot to get customer_id from JWT token
-     */
-    async verifyToken(jwtToken: string) {
-        try {
-            const decoded = this.jwtService.verify(jwtToken);
+    // Order by rating and limit results
+    queryBuilder
+      .orderBy('product.average_rating', 'DESC')
+      .addOrderBy('product.total_reviews', 'DESC')
+      .take(limit);
 
-            const customerId = decoded.sub || decoded.customerId;
-            if (!customerId) {
-                throw new UnauthorizedException('Invalid token: missing customer ID');
-            }
+    const products = await queryBuilder.getMany();
 
-            const customer = await this.customerRepo.findOne({
-                where: { id: customerId },
-                select: ['id', 'name', 'email']
-            });
+    // Format response
+    const recommendations = products.map(product => {
+      const firstVariant = product.variants?.[0];
+      const availableStock = firstVariant
+        ? firstVariant.total_stock - firstVariant.reserved_stock
+        : 0;
 
-            if (!customer) {
-                throw new NotFoundException(`Customer with ID ${customerId} not found`);
-            }
+      return {
+        product_id: product.id,
+        name: product.name,
+        slug: product.slug,
+        description: product.description,
+        price: product.selling_price,
+        thumbnail: product.thumbnail_url,
+        rating: product.average_rating,
+        reviews: product.total_reviews,
+        category: product.category?.name,
+        in_stock: availableStock > 0,
+        attributes: product.attributes,
+      };
+    });
 
-            return {
-                customer_id: customer.id,
-                email: customer.email,
-                name: customer.name
-            };
+    return {
+      context: context || 'general',
+      total: recommendations.length,
+      recommendations,
+    };
+  }
 
-        } catch (error) {
-            if (error instanceof NotFoundException) {
-                throw error;
-            }
+  /**
+   * Verify JWT token and return customer information
+   * Used by chatbot to get customer_id from JWT token
+   */
+  async verifyToken(jwtToken: string) {
+    try {
+      const decoded = this.jwtService.verify(jwtToken);
 
-            this.logger.error(`JWT verification failed: ${error.message}`);
-            throw new UnauthorizedException('Invalid or expired token');
-        }
+      const customerId = decoded.sub || decoded.customerId;
+      if (!customerId) {
+        throw new UnauthorizedException('Invalid token: missing customer ID');
+      }
+
+      const customer = await this.customerRepo.findOne({
+        where: { id: customerId },
+        select: ['id', 'name', 'email'],
+      });
+
+      if (!customer) {
+        throw new NotFoundException(`Customer with ID ${customerId} not found`);
+      }
+
+      return {
+        customer_id: customer.id,
+        email: customer.email,
+        name: customer.name,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      this.logger.error(`JWT verification failed: ${error.message}`);
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+  }
+
+  /**
+   * Ask Gemini AI for questions outside chatbot scope
+   * Uses Google Gemini API
+   */
+  async askGemini(dto: GeminiAskDto) {
+    const apiKey = this.configService.get<string>('GEMINI_API_KEY');
+
+    if (!apiKey) {
+      throw new BadRequestException('Gemini API is not configured. Please contact administrator.');
     }
 
-    /**
-     * Ask Gemini AI for questions outside chatbot scope
-     * Uses Google Gemini API
-     */
-    async askGemini(dto: GeminiAskDto) {
-        const apiKey = this.configService.get<string>('GEMINI_API_KEY');
+    const { question } = dto;
 
-        if (!apiKey) {
-            throw new BadRequestException(
-                'Gemini API is not configured. Please contact administrator.'
-            );
-        }
+    try {
+      // Prepare system prompt for fashion e-commerce context
+      const systemPrompt =
+        'You are a helpful fashion assistant for an e-commerce store. ' +
+        'Provide concise, friendly advice about fashion, clothing, styles, and shopping. ' +
+        'Keep responses brief (2-3 sentences max). ' +
+        'If asked about specific products, prices, or orders, politely direct users to browse the store or contact support.';
 
-        const { question } = dto;
+      const fullPrompt = `${systemPrompt}\n\nUser question: ${question}`;
 
-        try {
-            // Prepare system prompt for fashion e-commerce context
-            const systemPrompt =
-                'You are a helpful fashion assistant for an e-commerce store. ' +
-                'Provide concise, friendly advice about fashion, clothing, styles, and shopping. ' +
-                'Keep responses brief (2-3 sentences max). ' +
-                'If asked about specific products, prices, or orders, politely direct users to browse the store or contact support.';
+      // Call Gemini API
+      const response = await firstValueFrom(
+        this.httpService.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
+          {
+            contents: [
+              {
+                parts: [
+                  {
+                    text: fullPrompt,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 200,
+              topP: 0.8,
+            },
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            timeout: 10000,
+          },
+        ),
+      );
 
-            const fullPrompt = `${systemPrompt}\n\nUser question: ${question}`;
+      const answer = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-            // Call Gemini API
-            const response = await firstValueFrom(
-                this.httpService.post(
-                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
-                    {
-                        contents: [{
-                            parts: [{
-                                text: fullPrompt
-                            }]
-                        }],
-                        generationConfig: {
-                            temperature: 0.7,
-                            maxOutputTokens: 200,
-                            topP: 0.8,
-                        }
-                    },
-                    {
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        timeout: 10000,
-                    }
-                )
-            );
+      if (!answer) {
+        throw new Error('No response from Gemini API');
+      }
 
-            const answer = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      this.logger.log(`Gemini answered: "${question}" -> "${answer.substring(0, 50)}..."`);
 
-            if (!answer) {
-                throw new Error('No response from Gemini API');
-            }
+      return {
+        question,
+        answer,
+        source: 'Gemini AI',
+      };
+    } catch (error) {
+      this.logger.error(`Gemini API error: ${error.message}`, error.stack);
 
-            this.logger.log(`Gemini answered: "${question}" -> "${answer.substring(0, 50)}..."`);
-
-            return {
-                question,
-                answer,
-                source: 'Gemini AI',
-            };
-
-        } catch (error) {
-            this.logger.error(`Gemini API error: ${error.message}`, error.stack);
-
-            // Return fallback response
-            return {
-                question,
-                answer: "I'm sorry, I couldn't process your question right now. Please try asking something else or contact our support team for assistance.",
-                source: 'Fallback',
-                error: true,
-            };
-        }
+      // Return fallback response
+      return {
+        question,
+        answer:
+          "I'm sorry, I couldn't process your question right now. Please try asking something else or contact our support team for assistance.",
+        source: 'Fallback',
+        error: true,
+      };
     }
+  }
 }

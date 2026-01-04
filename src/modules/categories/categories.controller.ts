@@ -7,7 +7,7 @@ import { Public } from '../../common/decorators/public.decorator';
 @Controller('api/v1/categories')
 @Public()
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) { }
+  constructor(private readonly categoriesService: CategoriesService) {}
 
   @Get()
   @ApiOperation({ summary: 'Danh sách categories (Public - chỉ active)' })

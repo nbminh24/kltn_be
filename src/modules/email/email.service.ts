@@ -18,7 +18,7 @@ export class EmailService {
         pass: this.configService.get('EMAIL_PASS'),
       },
     });
-    
+
     // Log configuration (without password)
     this.logger.log(`Email service initialized with ${this.configService.get('EMAIL_USER')}`);
   }
@@ -303,7 +303,13 @@ export class EmailService {
   }
 
   // ==================== GENERIC SEND MAIL METHOD ====================
-  async sendMail(options: { to: string; subject: string; template?: string; context?: any; html?: string }) {
+  async sendMail(options: {
+    to: string;
+    subject: string;
+    template?: string;
+    context?: any;
+    html?: string;
+  }) {
     try {
       let htmlContent = options.html || '';
 

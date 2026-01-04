@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Param, Body, Query, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ColorsService } from './colors.service';
 import { CreateColorDto } from './dto/create-color.dto';
@@ -10,7 +20,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AdminColorsController {
-  constructor(private readonly colorsService: ColorsService) { }
+  constructor(private readonly colorsService: ColorsService) {}
 
   @Get()
   @ApiOperation({

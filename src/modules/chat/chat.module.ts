@@ -12,20 +12,20 @@ import { ChatMessage } from '../../entities/chat-message.entity';
 import { Product } from '../../entities/product.entity';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([ChatSession, ChatMessage, Product]),
-        HttpModule,
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            inject: [ConfigService],
-            useFactory: (configService: ConfigService) => ({
-                secret: configService.get<string>('JWT_SECRET'),
-                signOptions: { expiresIn: '15m' },
-            }),
-        }),
-    ],
-    controllers: [ChatController],
-    providers: [ChatService, ImageSearchService, CloudinaryService],
-    exports: [ChatService],
+  imports: [
+    TypeOrmModule.forFeature([ChatSession, ChatMessage, Product]),
+    HttpModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'),
+        signOptions: { expiresIn: '15m' },
+      }),
+    }),
+  ],
+  controllers: [ChatController],
+  providers: [ChatService, ImageSearchService, CloudinaryService],
+  exports: [ChatService],
 })
-export class ChatModule { }
+export class ChatModule {}

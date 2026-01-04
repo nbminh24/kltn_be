@@ -30,4 +30,4 @@ import { Size } from '../../entities/size.entity';
   providers: [InternalService],
   exports: [InternalService],
 })
-export class InternalModule { }
+export class InternalModule {}

@@ -56,12 +56,12 @@ export class QueryBuilderService {
 
     for (const sortItem of sorts) {
       const [field, direction] = sortItem.split('_');
-      
+
       if (!allowedFields.includes(field)) continue;
       if (direction !== 'asc' && direction !== 'desc') continue;
 
       const column = `${alias}.${field}`;
-      
+
       if (isFirst) {
         queryBuilder.orderBy(column, direction.toUpperCase() as 'ASC' | 'DESC');
         isFirst = false;
@@ -83,7 +83,7 @@ export class QueryBuilderService {
     if (!searchTerm || !searchTerm.trim()) return;
 
     const conditions = searchableFields
-      .map((field) => `LOWER(${alias}.${field}) LIKE LOWER(:searchTerm)`)
+      .map(field => `LOWER(${alias}.${field}) LIKE LOWER(:searchTerm)`)
       .join(' OR ');
 
     if (conditions) {
@@ -113,11 +113,7 @@ export class QueryBuilderService {
   /**
    * Build pagination metadata
    */
-  buildMetadata(
-    total: number,
-    page: number,
-    limit: number,
-  ): PaginationMetadata {
+  buildMetadata(total: number, page: number, limit: number): PaginationMetadata {
     return {
       total,
       page,

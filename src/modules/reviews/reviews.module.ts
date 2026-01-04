@@ -10,15 +10,7 @@ import { ProductVariant } from '../../entities/product-variant.entity';
 import { Product } from '../../entities/product.entity';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      Review,
-      Order,
-      OrderItem,
-      ProductVariant,
-      Product,
-    ]),
-  ],
+  imports: [TypeOrmModule.forFeature([Review, Order, OrderItem, ProductVariant, Product])],
   controllers: [ReviewsController, AdminReviewsController],
   providers: [ReviewsService],
   exports: [ReviewsService],

@@ -35,11 +35,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         throw new UnauthorizedException('Admin không tồn tại');
       }
 
-      return { 
-        sub: admin.id, 
-        email: admin.email, 
+      return {
+        sub: admin.id,
+        email: admin.email,
         role: admin.role,
-        type: 'admin'
+        type: 'admin',
       };
     } else {
       // Customer authentication
@@ -51,10 +51,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         throw new UnauthorizedException('Tài khoản không tồn tại hoặc chưa được kích hoạt');
       }
 
-      return { 
-        sub: customer.id, 
+      return {
+        sub: customer.id,
         email: customer.email,
-        type: 'customer'
+        type: 'customer',
       };
     }
   }

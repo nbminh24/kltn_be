@@ -103,7 +103,7 @@ export class CheckoutService {
       const order = queryRunner.manager.create(Order, {
         customer_id: customerId,
         customer_email: customer.email,
-        shipping_address: address.detailed_address,
+        shipping_address: address.street_address,
         shipping_phone: address.phone_number,
         total_amount: totalAmount,
         shipping_fee: shippingFee,

@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -10,7 +20,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AdminCategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) { }
+  constructor(private readonly categoriesService: CategoriesService) {}
 
   @Get('stats')
   @ApiOperation({
@@ -115,7 +125,8 @@ export class AdminCategoriesController {
   @Put(':id')
   @ApiOperation({
     summary: 'Cập nhật category',
-    description: 'Cập nhật name và/hoặc status của category. Slug sẽ tự động cập nhật nếu name thay đổi.',
+    description:
+      'Cập nhật name và/hoặc status của category. Slug sẽ tự động cập nhật nếu name thay đổi.',
   })
   @ApiResponse({
     status: 200,

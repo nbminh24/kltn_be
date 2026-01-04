@@ -2,7 +2,11 @@ import { IsString, IsEmail, IsOptional, IsNumber, IsNotEmpty } from 'class-valid
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateTicketDto {
-  @ApiProperty({ description: 'Email liên hệ (tự động lấy nếu đã đăng nhập)', example: 'customer@example.com', required: false })
+  @ApiProperty({
+    description: 'Email liên hệ (tự động lấy nếu đã đăng nhập)',
+    example: 'customer@example.com',
+    required: false,
+  })
   @IsOptional()
   @IsEmail()
   customer_email?: string;
@@ -11,7 +15,10 @@ export class CreateTicketDto {
   @IsString()
   subject: string;
 
-  @ApiProperty({ description: 'Nội dung yêu cầu hỗ trợ', example: 'Tôi cần hỗ trợ về đơn hàng #123...' })
+  @ApiProperty({
+    description: 'Nội dung yêu cầu hỗ trợ',
+    example: 'Tôi cần hỗ trợ về đơn hàng #123...',
+  })
   @IsString()
   @IsNotEmpty()
   message: string;
@@ -19,7 +26,7 @@ export class CreateTicketDto {
   @ApiProperty({
     description: 'ID khách hàng (nếu đã đăng nhập)',
     example: 1,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsNumber()

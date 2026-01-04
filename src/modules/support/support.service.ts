@@ -1,11 +1,15 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SupportTicket } from '../../entities/support-ticket.entity';
 import { SupportTicketReply } from '../../entities/support-ticket-reply.entity';
 import { Customer } from '../../entities/customer.entity';
 import { Page } from '../../entities/page.entity';
-import { IdGenerator } from '../../common/utils/id-generator';
 
 @Injectable()
 export class SupportService {
@@ -18,7 +22,7 @@ export class SupportService {
     private customerRepository: Repository<Customer>,
     @InjectRepository(Page)
     private pageRepository: Repository<Page>,
-  ) { }
+  ) {}
 
   async createTicket(data: any, customerId?: number) {
     console.log('📋 CreateTicket - customerId from token:', customerId);
@@ -134,11 +138,13 @@ export class SupportService {
         priority: ticket.priority,
         source: ticket.source,
         created_at: ticket.created_at,
-        customer: ticket.customer ? {
-          id: ticket.customer.id,
-          name: ticket.customer.name,
-          email: ticket.customer.email,
-        } : null,
+        customer: ticket.customer
+          ? {
+              id: ticket.customer.id,
+              name: ticket.customer.name,
+              email: ticket.customer.email,
+            }
+          : null,
       },
       replies,
     };

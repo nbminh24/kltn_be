@@ -15,11 +15,15 @@ export class StorageService {
 
     // Debug log
     this.logger.log(`🔍 DEBUG - SUPABASE_URL: ${supabaseUrl ? 'EXISTS' : 'MISSING'}`);
-    this.logger.log(`🔍 DEBUG - SUPABASE_SERVICE_KEY: ${supabaseKey ? 'EXISTS (length: ' + supabaseKey.length + ')' : 'MISSING'}`);
+    this.logger.log(
+      `🔍 DEBUG - SUPABASE_SERVICE_KEY: ${supabaseKey ? 'EXISTS (length: ' + supabaseKey.length + ')' : 'MISSING'}`,
+    );
     this.logger.log(`🔍 DEBUG - SUPABASE_STORAGE_BUCKET: ${this.bucket}`);
 
     if (!supabaseUrl || !supabaseKey) {
-      this.logger.warn('⚠️ Supabase credentials not configured - Storage features will be disabled');
+      this.logger.warn(
+        '⚠️ Supabase credentials not configured - Storage features will be disabled',
+      );
       return;
     }
 
@@ -35,7 +39,9 @@ export class StorageService {
    */
   async uploadFile(file: Express.Multer.File, folder: string): Promise<string> {
     if (!this.supabase) {
-      throw new Error('Storage service not configured - please set SUPABASE_URL and SUPABASE_SERVICE_KEY in .env');
+      throw new Error(
+        'Storage service not configured - please set SUPABASE_URL and SUPABASE_SERVICE_KEY in .env',
+      );
     }
 
     try {
@@ -56,9 +62,7 @@ export class StorageService {
       }
 
       // Get public URL
-      const { data: urlData } = this.supabase.storage
-        .from(this.bucket)
-        .getPublicUrl(data.path);
+      const { data: urlData } = this.supabase.storage.from(this.bucket).getPublicUrl(data.path);
 
       this.logger.log(`✅ File uploaded successfully: ${urlData.publicUrl}`);
       return urlData.publicUrl;
@@ -72,7 +76,7 @@ export class StorageService {
    * Upload multiple files
    */
   async uploadFiles(files: Express.Multer.File[], folder: string): Promise<string[]> {
-    const uploadPromises = files.map((file) => this.uploadFile(file, folder));
+    const uploadPromises = files.map(file => this.uploadFile(file, folder));
     return await Promise.all(uploadPromises);
   }
 
@@ -82,23 +86,23 @@ export class StorageService {
    */
   async deleteFile(fileUrl: string): Promise<void> {
     if (!this.supabase) {
-      throw new Error('Storage service not configured - please set SUPABASE_URL and SUPABASE_SERVICE_KEY in .env');
+      throw new Error(
+        'Storage service not configured - please set SUPABASE_URL and SUPABASE_SERVICE_KEY in .env',
+      );
     }
 
     try {
       // Extract file path from URL
       const url = new URL(fileUrl);
       const pathParts = url.pathname.split(`/storage/v1/object/public/${this.bucket}/`);
-      
+
       if (pathParts.length < 2) {
         throw new Error('Invalid file URL format');
       }
 
       const filePath = pathParts[1];
 
-      const { error } = await this.supabase.storage
-        .from(this.bucket)
-        .remove([filePath]);
+      const { error } = await this.supabase.storage.from(this.bucket).remove([filePath]);
 
       if (error) {
         this.logger.error(`Failed to delete file: ${error.message}`);
@@ -116,7 +120,7 @@ export class StorageService {
    * Delete multiple files
    */
   async deleteFiles(fileUrls: string[]): Promise<void> {
-    const deletePromises = fileUrls.map((url) => this.deleteFile(url));
+    const deletePromises = fileUrls.map(url => this.deleteFile(url));
     await Promise.all(deletePromises);
   }
 }

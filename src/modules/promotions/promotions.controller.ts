@@ -8,7 +8,7 @@ import { ValidatePromotionDto } from './dto/validate-promotion.dto';
 @Controller('promotions')
 @Public()
 export class PromotionsController {
-  constructor(private readonly promotionsService: PromotionsService) { }
+  constructor(private readonly promotionsService: PromotionsService) {}
 
   @Get('public')
   @ApiOperation({
@@ -16,7 +16,12 @@ export class PromotionsController {
     description:
       'Lấy danh sách các mã giảm giá đang hoạt động, chưa hết hạn và còn lượt sử dụng. Dành cho customer xem.',
   })
-  @ApiQuery({ name: 'type', required: false, example: 'percentage', description: 'Lọc theo loại giảm giá' })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    example: 'percentage',
+    description: 'Lọc theo loại giảm giá',
+  })
   @ApiResponse({ status: 200, description: 'Danh sách mã giảm giá active' })
   getActivePromotions(@Query() query: any) {
     return this.promotionsService.getActivePromotions(query);
@@ -25,7 +30,8 @@ export class PromotionsController {
   @Post('validate')
   @ApiOperation({
     summary: 'Validate mã giảm giá',
-    description: 'Kiểm tra tính hợp lệ của mã giảm giá: còn hạn, còn lượt dùng, có áp dụng gộp không. Dùng cho chatbot và checkout.',
+    description:
+      'Kiểm tra tính hợp lệ của mã giảm giá: còn hạn, còn lượt dùng, có áp dụng gộp không. Dùng cho chatbot và checkout.',
   })
   @ApiResponse({ status: 200, description: 'Kết quả validate' })
   validatePromotions(@Body() dto: ValidatePromotionDto) {
@@ -35,7 +41,8 @@ export class PromotionsController {
   @Post('validate-mix')
   @ApiOperation({
     summary: '[Chatbot] Kiểm tra logic gộp mã giảm giá',
-    description: 'Kiểm tra xem có thể dùng nhiều mã giảm giá cùng lúc không. Dùng cho intent: check_discount_logic',
+    description:
+      'Kiểm tra xem có thể dùng nhiều mã giảm giá cùng lúc không. Dùng cho intent: check_discount_logic',
   })
   @ApiResponse({ status: 200, description: 'Kết quả kiểm tra logic gộp mã' })
   validateMix(@Body() dto: any) {

@@ -69,7 +69,7 @@ export class AdminService {
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
     private emailService: EmailService,
-  ) { }
+  ) {}
 
   // ==================== DASHBOARD ====================
   async getDashboardStats() {
@@ -156,7 +156,7 @@ export class AdminService {
 
     const revenueData = await this.orderRepository
       .createQueryBuilder('o')
-      .select("DATE(o.created_at)", 'date')
+      .select('DATE(o.created_at)', 'date')
       .addSelect('COUNT(o.id)', 'orders')
       .addSelect('SUM(o.total_amount)', 'revenue')
       .where('o.created_at >= :startDate', { startDate })
@@ -186,9 +186,8 @@ export class AdminService {
       .getRawOne();
 
     const previousTotal = parseFloat(prevRevenue?.total || 0);
-    const growthPercentage = previousTotal > 0
-      ? ((totalRevenue - previousTotal) / previousTotal) * 100
-      : 0;
+    const growthPercentage =
+      previousTotal > 0 ? ((totalRevenue - previousTotal) / previousTotal) * 100 : 0;
 
     return {
       chart_data: chartData,
@@ -206,7 +205,7 @@ export class AdminService {
 
     const dailyData = await this.orderRepository
       .createQueryBuilder('o')
-      .select("DATE(o.created_at)", 'date')
+      .select('DATE(o.created_at)', 'date')
       .addSelect('COUNT(o.id)', 'ordersCount')
       .addSelect('SUM(o.total_amount)', 'revenue')
       .where('o.created_at >= :startDate', { startDate })
@@ -247,12 +246,8 @@ export class AdminService {
     const prevRevenue = parseFloat(prevPeriodData?.revenue || 0);
     const prevOrders = parseInt(prevPeriodData?.ordersCount || 0);
 
-    const revenueGrowth = prevRevenue > 0
-      ? ((totalRevenue - prevRevenue) / prevRevenue) * 100
-      : 0;
-    const ordersGrowth = prevOrders > 0
-      ? ((totalOrders - prevOrders) / prevOrders) * 100
-      : 0;
+    const revenueGrowth = prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0;
+    const ordersGrowth = prevOrders > 0 ? ((totalOrders - prevOrders) / prevOrders) * 100 : 0;
 
     return {
       success: true,
@@ -306,7 +301,7 @@ export class AdminService {
       const percentage = totalOrders > 0 ? (count / totalOrders) * 100 : 0;
       const statusInfo = statusColorMap[s.status] || {
         label: s.status.charAt(0).toUpperCase() + s.status.slice(1),
-        color: '#6b7280'
+        color: '#6b7280',
       };
 
       return {
@@ -477,7 +472,9 @@ export class AdminService {
 
     // Filter by customer email
     if (query.customer_email) {
-      queryBuilder.andWhere('(customer.email ILIKE :email OR o.customer_email ILIKE :email)', { email: `%${query.customer_email}%` });
+      queryBuilder.andWhere('(customer.email ILIKE :email OR o.customer_email ILIKE :email)', {
+        email: `%${query.customer_email}%`,
+      });
     }
 
     const [orders, total] = await queryBuilder
@@ -516,7 +513,14 @@ export class AdminService {
   async getOrderById(orderId: number) {
     const order = await this.orderRepository.findOne({
       where: { id: orderId },
-      relations: ['customer', 'items', 'items.variant', 'items.variant.product', 'items.variant.size', 'items.variant.color'],
+      relations: [
+        'customer',
+        'items',
+        'items.variant',
+        'items.variant.product',
+        'items.variant.size',
+        'items.variant.color',
+      ],
     });
 
     if (!order) {
@@ -537,11 +541,13 @@ export class AdminService {
         status: h.status,
         note: h.note,
         created_at: h.created_at,
-        admin: h.admin ? {
-          id: h.admin.id,
-          name: h.admin.name,
-          email: h.admin.email,
-        } : null,
+        admin: h.admin
+          ? {
+              id: h.admin.id,
+              name: h.admin.name,
+              email: h.admin.email,
+            }
+          : null,
       })),
     };
   }
@@ -601,7 +607,13 @@ export class AdminService {
 
     const queryBuilder = this.customerRepository
       .createQueryBuilder('customer')
-      .select(['customer.id', 'customer.name', 'customer.email', 'customer.status', 'customer.created_at']);
+      .select([
+        'customer.id',
+        'customer.name',
+        'customer.email',
+        'customer.status',
+        'customer.created_at',
+      ]);
 
     // Search
     if (query.search) {
@@ -769,9 +781,7 @@ export class AdminService {
       queryBuilder.where('variant.total_stock < :threshold', { threshold: 10 });
     }
 
-    const variants = await queryBuilder
-      .orderBy('variant.total_stock', 'ASC')
-      .getMany();
+    const variants = await queryBuilder.orderBy('variant.total_stock', 'ASC').getMany();
 
     return {
       data: variants.map(v => ({
@@ -852,10 +862,7 @@ export class AdminService {
         .andWhere('promotion.end_date >= CURRENT_DATE');
     }
 
-    const [promotions, total] = await queryBuilder
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
+    const [promotions, total] = await queryBuilder.skip(skip).take(limit).getManyAndCount();
 
     return {
       promotions,
@@ -868,7 +875,7 @@ export class AdminService {
     };
   }
 
-  /* 
+  /*
    * ==================== PROMOTIONS ====================
    * DEPRECATED: Promotion schema changed - these methods disabled
    * Use PromotionsModule for new promotion management
@@ -914,16 +921,12 @@ export class AdminService {
 
     // Search by customer email or visitor_id
     if (query.search) {
-      queryBuilder.andWhere(
-        '(customer.email ILIKE :search OR session.visitor_id ILIKE :search)',
-        { search: `%${query.search}%` }
-      );
+      queryBuilder.andWhere('(customer.email ILIKE :search OR session.visitor_id ILIKE :search)', {
+        search: `%${query.search}%`,
+      });
     }
 
-    const [sessions, total] = await queryBuilder
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
+    const [sessions, total] = await queryBuilder.skip(skip).take(limit).getManyAndCount();
 
     return {
       conversations: sessions,
@@ -967,9 +970,8 @@ export class AdminService {
     const totalMessages = await this.messageRepository.count();
 
     // Average messages per session
-    const avgMessagesPerSession = totalSessions > 0
-      ? parseFloat((totalMessages / totalSessions).toFixed(2))
-      : 0;
+    const avgMessagesPerSession =
+      totalSessions > 0 ? parseFloat((totalMessages / totalSessions).toFixed(2)) : 0;
 
     // Count by sender type
     const customerMessages = await this.messageRepository.count({
@@ -1047,10 +1049,7 @@ export class AdminService {
       queryBuilder.andWhere('rec.product_id = :productId', { productId: query.product_id });
     }
 
-    const [recommendations, total] = await queryBuilder
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
+    const [recommendations, total] = await queryBuilder.skip(skip).take(limit).getManyAndCount();
 
     return {
       recommendations,
@@ -1275,14 +1274,11 @@ export class AdminService {
       });
     }
 
-    const [batches, total] = await queryBuilder
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
+    const [batches, total] = await queryBuilder.skip(skip).take(limit).getManyAndCount();
 
     // Count items for each batch
     const batchesWithCount = await Promise.all(
-      batches.map(async (batch) => {
+      batches.map(async batch => {
         const itemsCount = await this.restockItemRepository.count({
           where: { batch_id: batch.id as any },
         });
@@ -1320,10 +1316,7 @@ export class AdminService {
       queryBuilder.andWhere('t.status = :status', { status });
     }
 
-    const [tickets, total] = await queryBuilder
-      .skip(skip)
-      .take(parseInt(limit))
-      .getManyAndCount();
+    const [tickets, total] = await queryBuilder.skip(skip).take(parseInt(limit)).getManyAndCount();
 
     return {
       data: tickets,
@@ -1422,7 +1415,12 @@ export class AdminService {
   }
 
   // ==================== ORDER STATUS WITH EMAIL ====================
-  async updateOrderStatusWithEmail(orderId: number, status: string, adminId?: number, note?: string) {
+  async updateOrderStatusWithEmail(
+    orderId: number,
+    status: string,
+    adminId?: number,
+    note?: string,
+  ) {
     const order = await this.orderRepository.findOne({
       where: { id: orderId },
     });
@@ -1548,10 +1546,7 @@ export class AdminService {
       queryBuilder.andWhere('payment.status = :status', { status });
     }
 
-    const [transactions, total] = await queryBuilder
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
+    const [transactions, total] = await queryBuilder.skip(skip).take(limit).getManyAndCount();
 
     // Calculate summary
     const summary = await this.paymentRepository

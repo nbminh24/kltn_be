@@ -15,7 +15,7 @@ export class CategoriesService {
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
     private slugService: SlugService,
-  ) { }
+  ) {}
 
   // API 1: Lấy thống kê categories
   async getStats() {
@@ -42,14 +42,14 @@ export class CategoriesService {
   async findAllForAdmin() {
     const categories = await this.categoryRepository
       .createQueryBuilder('category')
-      .leftJoin('category.products', 'product', 'product.status = :status AND product.deleted_at IS NULL', { status: 'active' })
+      .leftJoin(
+        'category.products',
+        'product',
+        'product.status = :status AND product.deleted_at IS NULL',
+        { status: 'active' },
+      )
       .where('category.deleted_at IS NULL')
-      .select([
-        'category.id',
-        'category.name',
-        'category.slug',
-        'category.status',
-      ])
+      .select(['category.id', 'category.name', 'category.slug', 'category.status'])
       .addSelect('COUNT(product.id)', 'product_count')
       .groupBy('category.id')
       .orderBy('category.id', 'ASC')
@@ -106,7 +106,9 @@ export class CategoriesService {
 
   // API 3.5: Lấy category by ID
   async findOne(id: number) {
-    const category = await this.categoryRepository.findOne({ where: { id: id as any, deleted_at: null } });
+    const category = await this.categoryRepository.findOne({
+      where: { id: id as any, deleted_at: null },
+    });
 
     if (!category) {
       throw new NotFoundException('Category không tồn tại');
@@ -132,7 +134,9 @@ export class CategoriesService {
 
   // API 4: Cập nhật category (name hoặc status)
   async update(id: number, updateCategoryDto: UpdateCategoryDto) {
-    const category = await this.categoryRepository.findOne({ where: { id: id as any, deleted_at: null } });
+    const category = await this.categoryRepository.findOne({
+      where: { id: id as any, deleted_at: null },
+    });
 
     if (!category) {
       throw new NotFoundException('Category không tồn tại');
@@ -241,7 +245,9 @@ export class CategoriesService {
 
   // API 5: Xóa category
   async delete(id: number) {
-    const category = await this.categoryRepository.findOne({ where: { id: id as any, deleted_at: null } });
+    const category = await this.categoryRepository.findOne({
+      where: { id: id as any, deleted_at: null },
+    });
 
     if (!category) {
       throw new NotFoundException('Category không tồn tại');
@@ -254,7 +260,7 @@ export class CategoriesService {
 
     if (productCount > 0) {
       throw new ConflictException(
-        `Không thể xóa category vì còn ${productCount} sản phẩm. Vui lòng chuyển hoặc xóa sản phẩm trước.`
+        `Không thể xóa category vì còn ${productCount} sản phẩm. Vui lòng chuyển hoặc xóa sản phẩm trước.`,
       );
     }
 

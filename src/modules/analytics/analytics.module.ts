@@ -15,20 +15,9 @@ import { SupportTicket } from '../../entities/support-ticket.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Order,
-      OrderItem,
-      ProductVariant,
-      Product,
-      Review,
-      SupportTicket,
-    ]),
+    TypeOrmModule.forFeature([Order, OrderItem, ProductVariant, Product, Review, SupportTicket]),
   ],
-  controllers: [
-    AnalyticsController,
-    ProductAnalyticsController,
-    OperationsAnalyticsController,
-  ],
+  controllers: [AnalyticsController, ProductAnalyticsController, OperationsAnalyticsController],
   providers: [AnalyticsService],
   exports: [AnalyticsService],
 })

@@ -43,7 +43,7 @@ export class Product {
   @Column({ type: 'text', nullable: true })
   thumbnail_url: string;
 
-  @Column({ type: 'numeric', default: 0.00 })
+  @Column({ type: 'numeric', default: 0.0 })
   average_rating: number;
 
   @Column({ type: 'int', default: 0 })
