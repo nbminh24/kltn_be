@@ -8,9 +8,7 @@ async function bootstrap() {
 
   // Enable CORS for Frontend
   app.enableCors({
-    origin: process.env.NODE_ENV === 'production'
-      ? ['https://your-frontend-domain.com']
-      : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: true, // Allow all origins for development/testing
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
