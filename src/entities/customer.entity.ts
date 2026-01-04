@@ -4,7 +4,6 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
-  OneToMany,
 } from 'typeorm';
 
 @Entity('customers')
@@ -27,7 +26,7 @@ export class Customer {
   @Column({ type: 'text', nullable: true, select: false })
   refresh_token: string;
 
-  @Column({ type: 'timestamp', nullable: true, select: false })
+  @Column({ type: 'timestamp with time zone', nullable: true, select: false })
   refresh_token_expires: Date;
 
   @CreateDateColumn({ type: 'timestamp with time zone' })
@@ -35,4 +34,7 @@ export class Customer {
 
   @UpdateDateColumn({ type: 'timestamp with time zone' })
   updated_at: Date;
+
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  deleted_at: Date;
 }

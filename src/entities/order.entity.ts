@@ -1,86 +1,104 @@
 import {
   Entity,
   Column,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
   OneToMany,
   JoinColumn,
 } from 'typeorm';
-import { User } from './user.entity';
+import { Customer } from './customer.entity';
 import { OrderItem } from './order-item.entity';
 
 @Entity('orders')
 export class Order {
-  @PrimaryColumn({ type: 'varchar', length: 50 })
-  id: string;
+  @PrimaryGeneratedColumn('identity')
+  id: number;
 
-  @Column({ type: 'varchar', length: 50 })
-  user_id: string;
+  @Column({ type: 'bigint', nullable: true })
+  customer_id: number;
 
-  @CreateDateColumn()
-  order_date: Date;
+  @Column({ type: 'varchar', unique: true, nullable: true })
+  order_number: string;
 
-  @Column({ type: 'varchar', length: 20, default: 'Pending' })
-  status: string;
+  @Column({ type: 'varchar', nullable: true })
+  customer_email: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  subtotal: number;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
-  discount: number;
-
-  @Column({ type: 'varchar', length: 50, nullable: true })
-  promo_code: string;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
-  delivery_fee: number;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  total: number;
-
-  @Column({ type: 'varchar', length: 20 })
-  payment_method: string;
-
-  @Column({ type: 'varchar', length: 20, default: 'Pending' })
-  payment_status: string;
-
-  @Column({ type: 'varchar', length: 255 })
-  shipping_name: string;
-
-  @Column({ type: 'varchar', length: 20 })
-  shipping_phone: string;
-
-  @Column({ type: 'varchar', length: 500 })
+  @Column({ type: 'text' })
   shipping_address: string;
 
-  @Column({ type: 'varchar', length: 100 })
+  @Column({ type: 'varchar' })
+  shipping_phone: string;
+
+  @Column({ type: 'varchar', nullable: true })
   shipping_city: string;
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  shipping_state: string;
+  @Column({ type: 'varchar', nullable: true })
+  shipping_district: string;
 
-  @Column({ type: 'varchar', length: 20 })
-  shipping_postal_code: string;
+  @Column({ type: 'varchar', nullable: true })
+  shipping_ward: string;
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
+  @Column({ type: 'varchar', default: 'pending' })
+  fulfillment_status: string;
+
+  @Column({ type: 'varchar', default: 'unpaid' })
+  payment_status: string;
+
+  @Column({ type: 'varchar', default: 'cod' })
+  payment_method: string;
+
+  @Column({ type: 'varchar', default: 'standard', nullable: true })
+  shipping_method: string;
+
+  @Column({ type: 'varchar', nullable: true })
   tracking_number: string;
 
-  @Column({ type: 'timestamp', nullable: true })
-  delivered_date: Date;
+  @Column({ type: 'varchar', nullable: true })
+  carrier_name: string;
 
-  @CreateDateColumn()
+  @Column({ type: 'date', nullable: true })
+  estimated_delivery_from: Date;
+
+  @Column({ type: 'date', nullable: true })
+  estimated_delivery_to: Date;
+
+  @Column({ type: 'date', nullable: true })
+  actual_delivery_date: Date;
+
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  cancelled_at: Date;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  cancel_reason: string;
+
+  @Column({ type: 'bigint', nullable: true })
+  cancelled_by_customer_id: number;
+
+  @Column({ type: 'varchar', length: 20, default: 'pending', nullable: true })
+  refund_status: string;
+
+  @Column({ type: 'numeric', nullable: true })
+  refund_amount: number;
+
+  @Column({ type: 'numeric', default: 0 })
+  shipping_fee: number;
+
+  @Column({ type: 'numeric' })
+  total_amount: number;
+
+  @CreateDateColumn({ type: 'timestamp with time zone' })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
   updated_at: Date;
 
   // Relations
-  @ManyToOne(() => User, user => user.orders, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id' })
-  user: User;
+  @ManyToOne(() => Customer, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'customer_id' })
+  customer: Customer;
 
-  @OneToMany(() => OrderItem, orderItem => orderItem.order)
+  @OneToMany(() => OrderItem, item => item.order)
   items: OrderItem[];
 }

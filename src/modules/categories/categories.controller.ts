@@ -3,16 +3,22 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
 import { Public } from '../../common/decorators/public.decorator';
 
-@ApiTags('Categories')
-@Controller('categories')
+@ApiTags('📂 Categories')
+@Controller('api/v1/categories')
 @Public()
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Danh sách categories' })
+  @ApiOperation({ summary: 'Danh sách categories (Public - chỉ active)' })
   findAll() {
-    return this.categoriesService.findAll();
+    return this.categoriesService.findAllActive();
+  }
+
+  @Get('all')
+  @ApiOperation({ summary: 'Lấy tất cả categories (cho dropdown/filter)' })
+  findAllForDropdown() {
+    return this.categoriesService.findAllActive();
   }
 
   @Get(':slug/products')

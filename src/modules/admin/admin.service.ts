@@ -1,18 +1,23 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThanOrEqual } from 'typeorm';
 import { Order } from '../../entities/order.entity';
-import { User } from '../../entities/user.entity';
 import { Product } from '../../entities/product.entity';
 import { Category } from '../../entities/category.entity';
 import { SupportTicket } from '../../entities/support-ticket.entity';
-import { StaticPage } from '../../entities/static-page.entity';
+import { Page } from '../../entities/page.entity';
 import { ProductVariant } from '../../entities/product-variant.entity';
 import { ProductImage } from '../../entities/product-image.entity';
 import { Promotion } from '../../entities/promotion.entity';
-import { ChatbotConversation } from '../../entities/chatbot-conversation.entity';
-import { ChatbotMessage } from '../../entities/chatbot-message.entity';
+import { ChatSession } from '../../entities/chat-session.entity';
+import { ChatMessage } from '../../entities/chat-message.entity';
 import { AiRecommendation } from '../../entities/ai-recommendation.entity';
+import { Customer } from '../../entities/customer.entity';
+import { SupportTicketReply } from '../../entities/support-ticket-reply.entity';
+import { RestockBatch } from '../../entities/restock-batch.entity';
+import { RestockItem } from '../../entities/restock-item.entity';
+import { OrderStatusHistory } from '../../entities/order-status-history.entity';
+import { Payment } from '../../entities/payment.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { IdGenerator } from '../../common/utils/id-generator';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -20,62 +25,316 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { UpdatePageDto } from './dto/update-page.dto';
+import { RestockDto } from './dto/restock.dto';
+import { ReplyTicketDto } from './dto/reply-ticket.dto';
+import { UpdateCustomerStatusDto } from './dto/update-customer-status.dto';
+import { EmailService } from '../email/email.service';
+import * as XLSX from 'xlsx';
 
 @Injectable()
 export class AdminService {
   constructor(
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
     @InjectRepository(SupportTicket)
     private ticketRepository: Repository<SupportTicket>,
-    @InjectRepository(StaticPage)
-    private pageRepository: Repository<StaticPage>,
+    @InjectRepository(Page)
+    private pageRepository: Repository<Page>,
     @InjectRepository(ProductVariant)
     private variantRepository: Repository<ProductVariant>,
     @InjectRepository(ProductImage)
     private imageRepository: Repository<ProductImage>,
     @InjectRepository(Promotion)
     private promotionRepository: Repository<Promotion>,
-    @InjectRepository(ChatbotConversation)
-    private conversationRepository: Repository<ChatbotConversation>,
-    @InjectRepository(ChatbotMessage)
-    private messageRepository: Repository<ChatbotMessage>,
+    @InjectRepository(ChatSession)
+    private sessionRepository: Repository<ChatSession>,
+    @InjectRepository(ChatMessage)
+    private messageRepository: Repository<ChatMessage>,
     @InjectRepository(AiRecommendation)
     private recommendationRepository: Repository<AiRecommendation>,
+    @InjectRepository(Customer)
+    private customerRepository: Repository<Customer>,
+    @InjectRepository(SupportTicketReply)
+    private ticketReplyRepository: Repository<SupportTicketReply>,
+    @InjectRepository(RestockBatch)
+    private restockBatchRepository: Repository<RestockBatch>,
+    @InjectRepository(RestockItem)
+    private restockItemRepository: Repository<RestockItem>,
+    @InjectRepository(OrderStatusHistory)
+    private statusHistoryRepository: Repository<OrderStatusHistory>,
+    @InjectRepository(Payment)
+    private paymentRepository: Repository<Payment>,
+    private emailService: EmailService,
   ) {}
 
   // ==================== DASHBOARD ====================
   async getDashboardStats() {
     const totalOrders = await this.orderRepository.count();
-    const totalUsers = await this.userRepository.count();
+    const totalCustomers = await this.customerRepository.count();
     const totalProducts = await this.productRepository.count();
 
     const orders = await this.orderRepository.find({
       order: { created_at: 'DESC' },
       take: 10,
-      relations: ['user'],
     });
 
     const totalRevenue = await this.orderRepository
-      .createQueryBuilder('order')
-      .select('SUM(order.total)', 'total')
-      .where('order.status != :status', { status: 'Cancelled' })
+      .createQueryBuilder('o')
+      .select('SUM(o.total_amount)', 'total')
+      .where('o.fulfillment_status != :status', { status: 'cancelled' })
       .getRawOne();
 
     return {
       stats: {
         totalOrders,
-        totalUsers,
+        totalCustomers,
         totalProducts,
         totalRevenue: parseFloat(totalRevenue?.total || 0),
       },
       recentOrders: orders,
+    };
+  }
+
+  async getRecentOrders(limit: number = 10) {
+    const orders = await this.orderRepository.find({
+      order: { created_at: 'DESC' },
+      take: limit,
+      relations: ['customer', 'items', 'items.variant', 'items.variant.product'],
+    });
+
+    return orders.map(order => ({
+      id: order.id,
+      customer_name: order.customer?.name || 'Guest',
+      customer_email: order.customer?.email || order.customer_email,
+      total_amount: order.total_amount,
+      status: order.fulfillment_status,
+      payment_status: order.payment_status,
+      created_at: order.created_at,
+      items_count: order.items?.length || 0,
+    }));
+  }
+
+  async getTopProducts(limit: number = 10) {
+    const topProducts = await this.orderRepository
+      .createQueryBuilder('o')
+      .innerJoin('o.items', 'item')
+      .innerJoin('item.variant', 'variant')
+      .innerJoin('variant.product', 'product')
+      .select('product.id', 'product_id')
+      .addSelect('product.name', 'product_name')
+      .addSelect('product.thumbnail_url', 'thumbnail_url')
+      .addSelect('SUM(item.quantity)', 'total_sold')
+      .addSelect('SUM(item.quantity * item.price_at_purchase)', 'revenue')
+      .where('o.fulfillment_status != :status', { status: 'cancelled' })
+      .groupBy('product.id')
+      .addGroupBy('product.name')
+      .addGroupBy('product.thumbnail_url')
+      .orderBy('total_sold', 'DESC')
+      .limit(limit)
+      .getRawMany();
+
+    return topProducts.map(p => ({
+      product_id: p.product_id,
+      product_name: p.product_name,
+      thumbnail_url: p.thumbnail_url,
+      total_sold: parseInt(p.total_sold),
+      revenue: parseFloat(p.revenue),
+    }));
+  }
+
+  async getRevenueChart(period: string = '7d') {
+    let daysBack = 7;
+    if (period === '30d') daysBack = 30;
+    else if (period === '90d') daysBack = 90;
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    const revenueData = await this.orderRepository
+      .createQueryBuilder('o')
+      .select('DATE(o.created_at)', 'date')
+      .addSelect('COUNT(o.id)', 'orders')
+      .addSelect('SUM(o.total_amount)', 'revenue')
+      .where('o.created_at >= :startDate', { startDate })
+      .andWhere('o.fulfillment_status != :status', { status: 'cancelled' })
+      .groupBy('DATE(o.created_at)')
+      .orderBy('date', 'ASC')
+      .getRawMany();
+
+    const chartData = revenueData.map(d => ({
+      date: d.date,
+      orders: parseInt(d.orders),
+      revenue: parseFloat(d.revenue),
+    }));
+
+    const totalRevenue = chartData.reduce((sum, d) => sum + d.revenue, 0);
+
+    // Calculate growth percentage (compare with previous period)
+    const prevStartDate = new Date(startDate);
+    prevStartDate.setDate(prevStartDate.getDate() - daysBack);
+
+    const prevRevenue = await this.orderRepository
+      .createQueryBuilder('o')
+      .select('SUM(o.total_amount)', 'total')
+      .where('o.created_at >= :prevStart', { prevStart: prevStartDate })
+      .andWhere('o.created_at < :startDate', { startDate })
+      .andWhere('o.fulfillment_status != :status', { status: 'cancelled' })
+      .getRawOne();
+
+    const previousTotal = parseFloat(prevRevenue?.total || 0);
+    const growthPercentage =
+      previousTotal > 0 ? ((totalRevenue - previousTotal) / previousTotal) * 100 : 0;
+
+    return {
+      chart_data: chartData,
+      total_revenue: totalRevenue,
+      growth_percentage: parseFloat(growthPercentage.toFixed(2)),
+    };
+  }
+
+  async getRevenueOrdersTrend(days: number = 30) {
+    const validDays = [7, 30, 90].includes(days) ? days : 30;
+
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - validDays);
+
+    const dailyData = await this.orderRepository
+      .createQueryBuilder('o')
+      .select('DATE(o.created_at)', 'date')
+      .addSelect('COUNT(o.id)', 'ordersCount')
+      .addSelect('SUM(o.total_amount)', 'revenue')
+      .where('o.created_at >= :startDate', { startDate })
+      .andWhere('o.created_at <= :endDate', { endDate })
+      .andWhere('o.fulfillment_status != :status', { status: 'cancelled' })
+      .groupBy('DATE(o.created_at)')
+      .orderBy('date', 'ASC')
+      .getRawMany();
+
+    const dailyStats = dailyData.map((d, index) => {
+      const revenue = parseFloat(d.revenue || 0);
+      return {
+        date: d.date,
+        day: `Day ${index + 1}`,
+        revenue: revenue,
+        revenueInMillions: parseFloat((revenue / 1000000).toFixed(1)),
+        ordersCount: parseInt(d.ordersCount),
+      };
+    });
+
+    const totalRevenue = dailyStats.reduce((sum, d) => sum + d.revenue, 0);
+    const totalOrders = dailyStats.reduce((sum, d) => sum + d.ordersCount, 0);
+    const averageDailyRevenue = validDays > 0 ? totalRevenue / validDays : 0;
+    const averageDailyOrders = validDays > 0 ? totalOrders / validDays : 0;
+
+    const prevStartDate = new Date(startDate);
+    prevStartDate.setDate(prevStartDate.getDate() - validDays);
+
+    const prevPeriodData = await this.orderRepository
+      .createQueryBuilder('o')
+      .select('COUNT(o.id)', 'ordersCount')
+      .addSelect('SUM(o.total_amount)', 'revenue')
+      .where('o.created_at >= :prevStart', { prevStart: prevStartDate })
+      .andWhere('o.created_at < :startDate', { startDate })
+      .andWhere('o.fulfillment_status != :status', { status: 'cancelled' })
+      .getRawOne();
+
+    const prevRevenue = parseFloat(prevPeriodData?.revenue || 0);
+    const prevOrders = parseInt(prevPeriodData?.ordersCount || 0);
+
+    const revenueGrowth = prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0;
+    const ordersGrowth = prevOrders > 0 ? ((totalOrders - prevOrders) / prevOrders) * 100 : 0;
+
+    return {
+      success: true,
+      data: {
+        dailyStats,
+        summary: {
+          totalRevenue,
+          totalOrders,
+          averageDailyRevenue: parseFloat(averageDailyRevenue.toFixed(2)),
+          averageDailyOrders: parseFloat(averageDailyOrders.toFixed(2)),
+          revenueGrowth: parseFloat(revenueGrowth.toFixed(1)),
+          ordersGrowth: parseFloat(ordersGrowth.toFixed(1)),
+        },
+        dateRange: {
+          from: startDate.toISOString().split('T')[0],
+          to: endDate.toISOString().split('T')[0],
+        },
+      },
+    };
+  }
+
+  async getOrderStatusDistribution(days: number = 30) {
+    const validDays = [7, 30, 90].includes(days) ? days : 30;
+
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - validDays);
+
+    const statusData = await this.orderRepository
+      .createQueryBuilder('o')
+      .select('o.fulfillment_status', 'status')
+      .addSelect('COUNT(o.id)', 'count')
+      .where('o.created_at >= :startDate', { startDate })
+      .andWhere('o.created_at <= :endDate', { endDate })
+      .groupBy('o.fulfillment_status')
+      .getRawMany();
+
+    const totalOrders = statusData.reduce((sum, s) => sum + parseInt(s.count), 0);
+
+    const statusColorMap = {
+      completed: { label: 'Completed', color: '#10b981' },
+      processing: { label: 'Processing', color: '#3b82f6' },
+      pending: { label: 'Pending', color: '#f59e0b' },
+      cancelled: { label: 'Cancelled', color: '#ef4444' },
+      delivered: { label: 'Delivered', color: '#10b981' },
+      shipping: { label: 'Shipping', color: '#3b82f6' },
+    };
+
+    const distribution = statusData.map(s => {
+      const count = parseInt(s.count);
+      const percentage = totalOrders > 0 ? (count / totalOrders) * 100 : 0;
+      const statusInfo = statusColorMap[s.status] || {
+        label: s.status.charAt(0).toUpperCase() + s.status.slice(1),
+        color: '#6b7280',
+      };
+
+      return {
+        status: s.status,
+        statusLabel: statusInfo.label,
+        count,
+        percentage: parseFloat(percentage.toFixed(1)),
+        color: statusInfo.color,
+      };
+    });
+
+    distribution.sort((a, b) => b.count - a.count);
+
+    const completedCount = distribution.find(d => d.status === 'completed')?.count || 0;
+    const cancelledCount = distribution.find(d => d.status === 'cancelled')?.count || 0;
+
+    const completionRate = totalOrders > 0 ? (completedCount / totalOrders) * 100 : 0;
+    const cancellationRate = totalOrders > 0 ? (cancelledCount / totalOrders) * 100 : 0;
+
+    return {
+      success: true,
+      data: {
+        distribution,
+        summary: {
+          totalOrders,
+          completionRate: parseFloat(completionRate.toFixed(1)),
+          cancellationRate: parseFloat(cancellationRate.toFixed(1)),
+        },
+        dateRange: {
+          from: startDate.toISOString().split('T')[0],
+          to: endDate.toISOString().split('T')[0],
+        },
+      },
     };
   }
 
@@ -128,100 +387,19 @@ export class AdminService {
   }
 
   async createProduct(createProductDto: CreateProductDto) {
-    // Check SKU uniqueness
-    const existingProduct = await this.productRepository.findOne({
-      where: { sku: createProductDto.sku },
-    });
-
-    if (existingProduct) {
-      throw new BadRequestException('SKU đã tồn tại trong hệ thống');
-    }
-
-    // Generate ID and slug
-    const id = `prod_${Date.now()}`;
-    const slug = this.generateSlug(createProductDto.name);
-
-    // Extract variants and images from DTO
-    const { variants, images, ...productData } = createProductDto;
-
-    const product = this.productRepository.create({
-      id,
-      slug,
-      ...productData,
-      rating: 0,
-      reviews_count: 0,
-      sold_count: 0,
-      ai_indexed: false,
-    });
-
-    await this.productRepository.save(product);
-
-    // Create variants if provided
-    const createdVariants = [];
-    if (variants && variants.length > 0) {
-      for (const variantData of variants) {
-        const variant = this.variantRepository.create({
-          id: IdGenerator.generate('var'),
-          product_id: product.id,
-          ...variantData,
-        });
-        await this.variantRepository.save(variant);
-        createdVariants.push(variant);
-      }
-    }
-
-    // Create images if provided
-    const createdImages = [];
-    if (images && images.length > 0) {
-      for (let i = 0; i < images.length; i++) {
-        const imageData = images[i];
-        const image = this.imageRepository.create({
-          id: IdGenerator.generate('img'),
-          product_id: product.id,
-          image_url: imageData.image_url,
-          is_primary: imageData.is_primary ?? (i === 0), // First image is primary by default
-          display_order: imageData.display_order ?? i,
-        });
-        await this.imageRepository.save(image);
-        createdImages.push(image);
-      }
-    }
-
-    return {
-      message: 'Tạo sản phẩm thành công',
-      data: {
-        ...product,
-        variants: createdVariants,
-        images: createdImages,
-      },
-    };
+    // DEPRECATED: Use AdminProductsService instead
+    throw new BadRequestException('Please use /api/v1/admin/products endpoints');
   }
 
   async updateProduct(id: string, updateProductDto: UpdateProductDto) {
-    const product = await this.productRepository.findOne({ where: { id } });
-
-    if (!product) {
-      throw new NotFoundException('Không tìm thấy sản phẩm');
-    }
-
-    // Update slug if name changed
-    if (updateProductDto.name && updateProductDto.name !== product.name) {
-      product.slug = this.generateSlug(updateProductDto.name);
-    }
-
-    Object.assign(product, updateProductDto);
-    await this.productRepository.save(product);
-
-    return {
-      message: 'Cập nhật sản phẩm thành công',
-      data: product,
-    };
+    // DEPRECATED: Use AdminProductsService instead
+    throw new BadRequestException('Please use /api/v1/admin/products endpoints');
   }
 
   // ==================== CATEGORIES MANAGEMENT ====================
   async getCategories() {
     const categories = await this.categoryRepository.find({
-      order: { created_at: 'DESC' },
+      order: { name: 'ASC' },
     });
 
     return {
@@ -241,10 +419,8 @@ export class AdminService {
     }
 
     const category = this.categoryRepository.create({
-      id,
       slug,
       ...createCategoryDto,
-      products_count: 0,
     });
 
     await this.categoryRepository.save(category);
@@ -256,7 +432,7 @@ export class AdminService {
   }
 
   async updateCategory(id: string, updateCategoryDto: UpdateCategoryDto) {
-    const category = await this.categoryRepository.findOne({ where: { id } });
+    const category = await this.categoryRepository.findOne({ where: { id: parseInt(id) as any } });
 
     if (!category) {
       throw new NotFoundException('Không tìm thấy danh mục');
@@ -283,23 +459,26 @@ export class AdminService {
     const skip = (page - 1) * limit;
 
     const queryBuilder = this.orderRepository
-      .createQueryBuilder('order')
-      .leftJoinAndSelect('order.user', 'user')
-      .leftJoinAndSelect('order.items', 'items')
-      .leftJoinAndSelect('items.product', 'product');
+      .createQueryBuilder('o')
+      .leftJoinAndSelect('o.customer', 'customer')
+      .leftJoinAndSelect('o.items', 'items')
+      .leftJoinAndSelect('items.variant', 'variant')
+      .leftJoinAndSelect('variant.product', 'product');
 
     // Filter by status
     if (query.status) {
-      queryBuilder.andWhere('order.status = :status', { status: query.status });
+      queryBuilder.andWhere('o.fulfillment_status = :status', { status: query.status });
     }
 
     // Filter by customer email
     if (query.customer_email) {
-      queryBuilder.andWhere('user.email ILIKE :email', { email: `%${query.customer_email}%` });
+      queryBuilder.andWhere('(customer.email ILIKE :email OR o.customer_email ILIKE :email)', {
+        email: `%${query.customer_email}%`,
+      });
     }
 
     const [orders, total] = await queryBuilder
-      .orderBy('order.created_at', 'DESC')
+      .orderBy('o.created_at', 'DESC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
@@ -316,18 +495,107 @@ export class AdminService {
   }
 
   async updateOrderStatus(id: string, status: string) {
-    const order = await this.orderRepository.findOne({ where: { id } });
+    const order = await this.orderRepository.findOne({ where: { id: parseInt(id) as any } });
 
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
 
-    order.status = status;
+    order.fulfillment_status = status;
     await this.orderRepository.save(order);
 
     return {
-      message: `Cập nhật trạng thái đơn hàng thành ${status}`,
+      message: 'Cập nhật trạng thái đơn hàng thành công',
       data: order,
+    };
+  }
+
+  async getOrderById(orderId: number) {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: [
+        'customer',
+        'items',
+        'items.variant',
+        'items.variant.product',
+        'items.variant.size',
+        'items.variant.color',
+      ],
+    });
+
+    if (!order) {
+      throw new NotFoundException('Không tìm thấy đơn hàng');
+    }
+
+    // Get status history with admin info
+    const statusHistory = await this.statusHistoryRepository.find({
+      where: { order_id: orderId },
+      relations: ['admin'],
+      order: { created_at: 'ASC' },
+    });
+
+    return {
+      ...order,
+      status_history: statusHistory.map(h => ({
+        id: h.id,
+        status: h.status,
+        note: h.note,
+        created_at: h.created_at,
+        admin: h.admin
+          ? {
+              id: h.admin.id,
+              name: h.admin.name,
+              email: h.admin.email,
+            }
+          : null,
+      })),
+    };
+  }
+
+  async getOrderStatistics() {
+    const totalOrders = await this.orderRepository.count();
+
+    const pendingOrders = await this.orderRepository.count({
+      where: { fulfillment_status: 'pending' },
+    });
+
+    const confirmedOrders = await this.orderRepository.count({
+      where: { fulfillment_status: 'confirmed' },
+    });
+
+    const shippedOrders = await this.orderRepository.count({
+      where: { fulfillment_status: 'shipped' },
+    });
+
+    const deliveredOrders = await this.orderRepository.count({
+      where: { fulfillment_status: 'delivered' },
+    });
+
+    const cancelledOrders = await this.orderRepository.count({
+      where: { fulfillment_status: 'cancelled' },
+    });
+
+    const totalRevenue = await this.orderRepository
+      .createQueryBuilder('o')
+      .select('SUM(o.total_amount)', 'total')
+      .where('o.fulfillment_status != :status', { status: 'cancelled' })
+      .getRawOne();
+
+    const avgOrderValue = await this.orderRepository
+      .createQueryBuilder('o')
+      .select('AVG(o.total_amount)', 'avg')
+      .where('o.fulfillment_status != :status', { status: 'cancelled' })
+      .getRawOne();
+
+    return {
+      total_orders: totalOrders,
+      pending_orders: pendingOrders,
+      confirmed_orders: confirmedOrders,
+      shipped_orders: shippedOrders,
+      delivered_orders: deliveredOrders,
+      cancelled_orders: cancelledOrders,
+      total_revenue: parseFloat(totalRevenue?.total || 0),
+      avg_order_value: parseFloat(avgOrderValue?.avg || 0),
     };
   }
 
@@ -337,22 +605,25 @@ export class AdminService {
     const limit = parseInt(query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const queryBuilder = this.userRepository
-      .createQueryBuilder('user')
-      .leftJoin('user.orders', 'orders')
-      .addSelect('COUNT(orders.id)', 'ordersCount')
-      .addSelect('COALESCE(SUM(orders.total), 0)', 'totalSpent')
-      .groupBy('user.id');
+    const queryBuilder = this.customerRepository
+      .createQueryBuilder('customer')
+      .select([
+        'customer.id',
+        'customer.name',
+        'customer.email',
+        'customer.status',
+        'customer.created_at',
+      ]);
 
     // Search
     if (query.search) {
-      queryBuilder.andWhere('(user.name ILIKE :search OR user.email ILIKE :search)', {
+      queryBuilder.andWhere('(customer.name ILIKE :search OR customer.email ILIKE :search)', {
         search: `%${query.search}%`,
       });
     }
 
     const [customers, total] = await queryBuilder
-      .orderBy('user.created_at', 'DESC')
+      .orderBy('customer.created_at', 'DESC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
@@ -368,46 +639,96 @@ export class AdminService {
     };
   }
 
-  async getCustomerById(id: string) {
-    const customer = await this.userRepository.findOne({
+  async getCustomerById(id: number) {
+    const customer = await this.customerRepository.findOne({
       where: { id },
-      relations: ['orders', 'addresses'],
     });
 
     if (!customer) {
       throw new NotFoundException('Không tìm thấy khách hàng');
     }
 
-    // Calculate total spent
+    // Calculate total spent and orders count
     const totalSpentResult = await this.orderRepository
-      .createQueryBuilder('order')
-      .select('COALESCE(SUM(order.total), 0)', 'total')
-      .where('order.user_id = :userId', { userId: id })
-      .andWhere('order.status != :status', { status: 'Cancelled' })
+      .createQueryBuilder('o')
+      .select('COALESCE(SUM(o.total_amount), 0)', 'total')
+      .addSelect('COUNT(o.id)', 'count')
+      .where('o.customer_id = :customerId', { customerId: id })
+      .andWhere('o.fulfillment_status != :status', { status: 'cancelled' })
       .getRawOne();
 
     return {
       data: {
         ...customer,
-        totalSpent: parseFloat(totalSpentResult?.total || 0),
-        ordersCount: customer.orders?.length || 0,
+        totalSpent: parseFloat(totalSpentResult?.total || '0'),
+        ordersCount: parseInt(totalSpentResult?.count || '0'),
       },
     };
   }
 
-  // ==================== SUPPORT & CONTENT MANAGEMENT ====================
-  async updateTicket(id: string, updateTicketDto: UpdateTicketDto) {
-    const ticket = await this.ticketRepository.findOne({ where: { id } });
+  async getCustomerStatistics() {
+    const totalCustomers = await this.customerRepository.count();
+
+    const activeCustomers = await this.customerRepository.count({
+      where: { status: 'active' },
+    });
+
+    const inactiveCustomers = await this.customerRepository.count({
+      where: { status: 'inactive' },
+    });
+
+    // Count new customers this month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const newCustomersThisMonth = await this.customerRepository.count({
+      where: {
+        created_at: MoreThanOrEqual(startOfMonth),
+      },
+    });
+
+    // Get top customers by spending
+    const topCustomers = await this.orderRepository
+      .createQueryBuilder('o')
+      .select('o.customer_id', 'customer_id')
+      .addSelect('customer.name', 'customer_name')
+      .addSelect('customer.email', 'customer_email')
+      .addSelect('COUNT(o.id)', 'total_orders')
+      .addSelect('SUM(o.total_amount)', 'total_spent')
+      .innerJoin('o.customer', 'customer')
+      .where('o.fulfillment_status != :status', { status: 'cancelled' })
+      .groupBy('o.customer_id')
+      .addGroupBy('customer.name')
+      .addGroupBy('customer.email')
+      .orderBy('total_spent', 'DESC')
+      .limit(10)
+      .getRawMany();
+
+    return {
+      total_customers: totalCustomers,
+      active_customers: activeCustomers,
+      inactive_customers: inactiveCustomers,
+      new_customers_this_month: newCustomersThisMonth,
+      top_customers: topCustomers.map(c => ({
+        customer_id: c.customer_id,
+        customer_name: c.customer_name,
+        customer_email: c.customer_email,
+        total_orders: parseInt(c.total_orders),
+        total_spent: parseFloat(c.total_spent),
+      })),
+    };
+  }
+
+  // ==================== SUPPORT TICKETS MANAGEMENT ====================
+  async updateTicket(id: number, updateTicketDto: UpdateTicketDto) {
+    const ticket = await this.ticketRepository.findOne({ where: { id } as any });
 
     if (!ticket) {
       throw new NotFoundException('Không tìm thấy ticket');
     }
 
-    // If admin reply is provided, update replied_at
-    if (updateTicketDto.admin_reply) {
-      ticket.replied_at = new Date();
-    }
-
+    // Only update status - replies are handled separately via support_ticket_replies table
     Object.assign(ticket, updateTicketDto);
     await this.ticketRepository.save(ticket);
 
@@ -425,7 +746,7 @@ export class AdminService {
     }
 
     Object.assign(page, updatePageDto);
-    page.last_modified = new Date();
+    // updated_at will be automatically set by @UpdateDateColumn
     await this.pageRepository.save(page);
 
     return {
@@ -439,153 +760,77 @@ export class AdminService {
     const queryBuilder = this.variantRepository
       .createQueryBuilder('variant')
       .leftJoinAndSelect('variant.product', 'product')
+      .leftJoinAndSelect('variant.size', 'size')
+      .leftJoinAndSelect('variant.color', 'color')
       .select([
         'variant.id',
         'variant.sku',
-        'variant.color',
-        'variant.size',
-        'variant.stock',
+        'variant.total_stock',
+        'variant.reserved_stock',
+        'variant.reorder_point',
+        'variant.status',
         'product.id',
         'product.name',
-        'product.sku',
+        'size.id',
+        'size.name',
+        'color.id',
+        'color.name',
       ]);
 
     if (lowStockOnly) {
-      queryBuilder.where('variant.stock < :threshold', { threshold: 10 });
+      queryBuilder.where('variant.total_stock < :threshold', { threshold: 10 });
     }
 
-    const variants = await queryBuilder
-      .orderBy('variant.stock', 'ASC')
-      .getMany();
+    const variants = await queryBuilder.orderBy('variant.total_stock', 'ASC').getMany();
 
     return {
-      data: variants,
+      data: variants.map(v => ({
+        id: v.id,
+        sku: v.sku,
+        product_name: v.product?.name,
+        size_name: v.size?.name,
+        color_name: v.color?.name,
+        total_stock: v.total_stock,
+        reserved_stock: v.reserved_stock,
+        available_stock: v.total_stock - v.reserved_stock,
+        reorder_point: v.reorder_point,
+        status: v.status,
+      })),
       total: variants.length,
-      lowStockCount: variants.filter(v => v.stock < 10).length,
+      lowStockCount: variants.filter(v => v.total_stock < 10).length,
     };
   }
 
   // ==================== PRODUCT VARIANTS MANAGEMENT ====================
   async createVariant(productId: string, variantData: any) {
-    const product = await this.productRepository.findOne({ where: { id: productId } });
-    if (!product) {
-      throw new NotFoundException('Không tìm thấy sản phẩm');
-    }
-
-    // Check SKU uniqueness
-    const existingVariant = await this.variantRepository.findOne({
-      where: { sku: variantData.sku },
-    });
-    if (existingVariant) {
-      throw new BadRequestException('SKU biến thể đã tồn tại');
-    }
-
-    const variant = this.variantRepository.create({
-      id: IdGenerator.generate('var'),
-      product_id: productId,
-      ...variantData,
-    });
-
-    await this.variantRepository.save(variant);
-
-    return {
-      message: 'Tạo biến thể thành công',
-      data: variant,
-    };
+    // DEPRECATED: Use new ProductVariantsService
+    throw new BadRequestException('Please use /api/v1/admin/variants endpoints');
   }
 
   async updateVariant(productId: string, variantId: string, updateData: any) {
-    const variant = await this.variantRepository.findOne({
-      where: { id: variantId, product_id: productId },
-    });
-
-    if (!variant) {
-      throw new NotFoundException('Không tìm thấy biến thể');
-    }
-
-    Object.assign(variant, updateData);
-    await this.variantRepository.save(variant);
-
-    return {
-      message: 'Cập nhật biến thể thành công',
-      data: variant,
-    };
+    // DEPRECATED
+    throw new BadRequestException('Please use /api/v1/admin/variants endpoints');
   }
 
   async deleteVariant(productId: string, variantId: string) {
-    const result = await this.variantRepository.delete({
-      id: variantId,
-      product_id: productId,
-    });
-
-    if (result.affected === 0) {
-      throw new NotFoundException('Không tìm thấy biến thể');
-    }
-
-    return {
-      message: 'Xóa biến thể thành công',
-    };
+    // DEPRECATED
+    throw new BadRequestException('Please use /api/v1/admin/variants endpoints');
   }
 
   // ==================== PRODUCT IMAGES MANAGEMENT ====================
   async createImage(productId: string, imageData: any) {
-    const product = await this.productRepository.findOne({ where: { id: productId } });
-    if (!product) {
-      throw new NotFoundException('Không tìm thấy sản phẩm');
-    }
-
-    // Get current images count for display_order
-    const imagesCount = await this.imageRepository.count({
-      where: { product_id: productId },
-    });
-
-    const image = this.imageRepository.create({
-      id: IdGenerator.generate('img'),
-      product_id: productId,
-      image_url: imageData.image_url,
-      is_primary: imageData.is_primary ?? false,
-      display_order: imageData.display_order ?? imagesCount,
-    });
-
-    await this.imageRepository.save(image);
-
-    return {
-      message: 'Thêm ảnh thành công',
-      data: image,
-    };
+    // DEPRECATED
+    throw new BadRequestException('Please use /api/v1/admin/images endpoints');
   }
 
   async updateImage(productId: string, imageId: string, updateData: any) {
-    const image = await this.imageRepository.findOne({
-      where: { id: imageId, product_id: productId },
-    });
-
-    if (!image) {
-      throw new NotFoundException('Không tìm thấy ảnh');
-    }
-
-    Object.assign(image, updateData);
-    await this.imageRepository.save(image);
-
-    return {
-      message: 'Cập nhật ảnh thành công',
-      data: image,
-    };
+    // DEPRECATED
+    throw new BadRequestException('Please use /api/v1/admin/images endpoints');
   }
 
   async deleteImage(productId: string, imageId: string) {
-    const result = await this.imageRepository.delete({
-      id: imageId,
-      product_id: productId,
-    });
-
-    if (result.affected === 0) {
-      throw new NotFoundException('Không tìm thấy ảnh');
-    }
-
-    return {
-      message: 'Xóa ảnh thành công',
-    };
+    // DEPRECATED
+    throw new BadRequestException('Please use /api/v1/admin/images endpoints');
   }
 
   // ==================== PROMOTIONS MANAGEMENT ====================
@@ -596,16 +841,16 @@ export class AdminService {
 
     const queryBuilder = this.promotionRepository
       .createQueryBuilder('promotion')
-      .orderBy('promotion.created_at', 'DESC');
+      .orderBy('promotion.start_date', 'DESC');
 
     // Filter by status
     if (query.status) {
       queryBuilder.andWhere('promotion.status = :status', { status: query.status });
     }
 
-    // Filter by code (search)
+    // Filter by name (search)
     if (query.search) {
-      queryBuilder.andWhere('promotion.code ILIKE :search', {
+      queryBuilder.andWhere('promotion.name ILIKE :search', {
         search: `%${query.search}%`,
       });
     }
@@ -613,19 +858,11 @@ export class AdminService {
     // Filter active promotions only
     if (query.active === 'true') {
       queryBuilder
-        .andWhere('promotion.status = :status', { status: 'Active' })
-        .andWhere(
-          '(promotion.expiry_date IS NULL OR promotion.expiry_date >= CURRENT_DATE)',
-        )
-        .andWhere(
-          '(promotion.usage_limit IS NULL OR promotion.usage_count < promotion.usage_limit)',
-        );
+        .andWhere('promotion.status = :status', { status: 'active' })
+        .andWhere('promotion.end_date >= CURRENT_DATE');
     }
 
-    const [promotions, total] = await queryBuilder
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
+    const [promotions, total] = await queryBuilder.skip(skip).take(limit).getManyAndCount();
 
     return {
       promotions,
@@ -638,162 +875,33 @@ export class AdminService {
     };
   }
 
+  /*
+   * ==================== PROMOTIONS ====================
+   * DEPRECATED: Promotion schema changed - these methods disabled
+   * Use PromotionsModule for new promotion management
+   */
   async getPromotionById(id: string) {
-    const promotion = await this.promotionRepository.findOne({ where: { id } });
-
-    if (!promotion) {
-      throw new NotFoundException('Không tìm thấy mã giảm giá');
-    }
-
-    return { promotion };
+    throw new BadRequestException('Feature deprecated - use /api/v1/promotions');
   }
 
   async createPromotion(createPromotionDto: any) {
-    // Validate code format
-    const code = createPromotionDto.code.toUpperCase().trim();
-    
-    if (!/^[A-Z0-9]{3,20}$/.test(code)) {
-      throw new BadRequestException(
-        'Mã giảm giá phải là chữ IN HOA, không dấu, 3-20 ký tự',
-      );
-    }
-
-    // Check code uniqueness
-    const existingPromotion = await this.promotionRepository.findOne({
-      where: { code },
-    });
-
-    if (existingPromotion) {
-      throw new BadRequestException('Mã giảm giá đã tồn tại');
-    }
-
-    // Validate discount_value based on type
-    if (createPromotionDto.type === 'percentage') {
-      if (createPromotionDto.discount_value < 1 || createPromotionDto.discount_value > 100) {
-        throw new BadRequestException('Giảm giá theo % phải từ 1-100');
-      }
-    } else if (createPromotionDto.discount_value <= 0) {
-      throw new BadRequestException('Giá trị giảm giá phải lớn hơn 0');
-    }
-
-    // Validate dates
-    if (createPromotionDto.start_date && createPromotionDto.expiry_date) {
-      const startDate = new Date(createPromotionDto.start_date);
-      const expiryDate = new Date(createPromotionDto.expiry_date);
-      
-      if (startDate >= expiryDate) {
-        throw new BadRequestException('Ngày hết hạn phải sau ngày bắt đầu');
-      }
-    }
-
-    const promotion = this.promotionRepository.create({
-      id: IdGenerator.generate('promo'),
-      code,
-      ...createPromotionDto,
-      usage_count: 0,
-    });
-
-    await this.promotionRepository.save(promotion);
-
-    return {
-      message: 'Tạo mã giảm giá thành công',
-      data: promotion,
-    };
+    throw new BadRequestException('Feature deprecated - use /api/v1/promotions');
   }
 
   async updatePromotion(id: string, updatePromotionDto: any) {
-    const promotion = await this.promotionRepository.findOne({ where: { id } });
-
-    if (!promotion) {
-      throw new NotFoundException('Không tìm thấy mã giảm giá');
-    }
-
-    // Validate discount_value if updating
-    if (updatePromotionDto.type || updatePromotionDto.discount_value) {
-      const type = updatePromotionDto.type || promotion.type;
-      const value = updatePromotionDto.discount_value || promotion.discount_value;
-
-      if (type === 'percentage' && (value < 1 || value > 100)) {
-        throw new BadRequestException('Giảm giá theo % phải từ 1-100');
-      } else if (type === 'fixed' && value <= 0) {
-        throw new BadRequestException('Giá trị giảm giá phải lớn hơn 0');
-      }
-    }
-
-    // Validate dates if updating
-    if (updatePromotionDto.start_date || updatePromotionDto.expiry_date) {
-      const startDate = new Date(updatePromotionDto.start_date || promotion.start_date);
-      const expiryDate = new Date(updatePromotionDto.expiry_date || promotion.expiry_date);
-      
-      if (startDate && expiryDate && startDate >= expiryDate) {
-        throw new BadRequestException('Ngày hết hạn phải sau ngày bắt đầu');
-      }
-    }
-
-    Object.assign(promotion, updatePromotionDto);
-    await this.promotionRepository.save(promotion);
-
-    return {
-      message: 'Cập nhật mã giảm giá thành công',
-      data: promotion,
-    };
+    throw new BadRequestException('Feature deprecated - use /api/v1/promotions');
   }
 
   async deletePromotion(id: string) {
-    const result = await this.promotionRepository.delete(id);
-
-    if (result.affected === 0) {
-      throw new NotFoundException('Không tìm thấy mã giảm giá');
-    }
-
-    return {
-      message: 'Xóa mã giảm giá thành công',
-    };
+    throw new BadRequestException('Feature deprecated - use /api/v1/promotions');
   }
 
   async togglePromotionStatus(id: string) {
-    const promotion = await this.promotionRepository.findOne({ where: { id } });
-
-    if (!promotion) {
-      throw new NotFoundException('Không tìm thấy mã giảm giá');
-    }
-
-    promotion.status = promotion.status === 'Active' ? 'Inactive' : 'Active';
-    await this.promotionRepository.save(promotion);
-
-    return {
-      message: `Đã ${promotion.status === 'Active' ? 'kích hoạt' : 'vô hiệu hóa'} mã giảm giá`,
-      data: promotion,
-    };
+    throw new BadRequestException('Feature deprecated - use /api/v1/promotions');
   }
 
   async getPromotionUsageStats(code: string) {
-    const promotion = await this.promotionRepository.findOne({ where: { code } });
-
-    if (!promotion) {
-      throw new NotFoundException('Không tìm thấy mã giảm giá');
-    }
-
-    const remainingUsage = promotion.usage_limit 
-      ? promotion.usage_limit - promotion.usage_count 
-      : null;
-
-    const isActive = 
-      promotion.status === 'Active' &&
-      (!promotion.expiry_date || new Date(promotion.expiry_date) >= new Date()) &&
-      (!promotion.usage_limit || promotion.usage_count < promotion.usage_limit);
-
-    return {
-      promotion,
-      stats: {
-        usage_count: promotion.usage_count,
-        usage_limit: promotion.usage_limit,
-        remaining_usage: remainingUsage,
-        is_active: isActive,
-        is_expired: promotion.expiry_date && new Date(promotion.expiry_date) < new Date(),
-        is_usage_limit_reached: promotion.usage_limit && promotion.usage_count >= promotion.usage_limit,
-      },
-    };
+    throw new BadRequestException('Feature deprecated - use /api/v1/promotions');
   }
 
   // ==================== CHATBOT ANALYTICS ====================
@@ -802,32 +910,26 @@ export class AdminService {
     const limit = parseInt(query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const queryBuilder = this.conversationRepository
-      .createQueryBuilder('conv')
-      .leftJoinAndSelect('conv.user', 'user')
-      .orderBy('conv.updated_at', 'DESC');
+    const queryBuilder = this.sessionRepository
+      .createQueryBuilder('session')
+      .leftJoinAndSelect('session.customer', 'customer')
+      .leftJoin('session.messages', 'messages')
+      .addSelect('COUNT(messages.id)', 'message_count')
+      .groupBy('session.id')
+      .addGroupBy('customer.id')
+      .orderBy('session.updated_at', 'DESC');
 
-    // Filter by resolved status
-    if (query.resolved !== undefined) {
-      queryBuilder.andWhere('conv.resolved = :resolved', { 
-        resolved: query.resolved === 'true' 
-      });
-    }
-
-    // Search in last_message
+    // Search by customer email or visitor_id
     if (query.search) {
-      queryBuilder.andWhere('conv.last_message ILIKE :search', {
+      queryBuilder.andWhere('(customer.email ILIKE :search OR session.visitor_id ILIKE :search)', {
         search: `%${query.search}%`,
       });
     }
 
-    const [conversations, total] = await queryBuilder
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
+    const [sessions, total] = await queryBuilder.skip(skip).take(limit).getManyAndCount();
 
     return {
-      conversations,
+      conversations: sessions,
       pagination: {
         page,
         limit,
@@ -837,116 +939,91 @@ export class AdminService {
     };
   }
 
-  async getChatbotConversationDetail(id: string) {
-    const conversation = await this.conversationRepository.findOne({
+  async getChatbotConversationDetail(id: number) {
+    const session = await this.sessionRepository.findOne({
       where: { id },
-      relations: ['user'],
+      relations: ['customer'],
     });
 
-    if (!conversation) {
-      throw new NotFoundException('Không tìm thấy conversation');
+    if (!session) {
+      throw new NotFoundException('Không tìm thấy chat session');
     }
 
     // Get all messages
     const messages = await this.messageRepository.find({
-      where: { conversation_id: id },
-      order: { timestamp: 'ASC' },
+      where: { session_id: id },
+      order: { created_at: 'ASC' },
     });
 
     return {
-      conversation,
+      session,
       messages,
       message_count: messages.length,
     };
   }
 
   async getChatbotAnalytics() {
-    // Total conversations
-    const totalConversations = await this.conversationRepository.count();
-
-    // Resolved vs Unresolved
-    const resolvedCount = await this.conversationRepository.count({
-      where: { resolved: true },
-    });
-
-    const unresolvedCount = totalConversations - resolvedCount;
-    const resolvedRate = totalConversations > 0 
-      ? parseFloat(((resolvedCount / totalConversations) * 100).toFixed(2))
-      : 0;
+    // Total sessions
+    const totalSessions = await this.sessionRepository.count();
 
     // Total messages
     const totalMessages = await this.messageRepository.count();
 
-    // Average messages per conversation
-    const avgMessagesPerConv = totalConversations > 0
-      ? parseFloat((totalMessages / totalConversations).toFixed(2))
-      : 0;
+    // Average messages per session
+    const avgMessagesPerSession =
+      totalSessions > 0 ? parseFloat((totalMessages / totalSessions).toFixed(2)) : 0;
 
-    // Fallback rate (messages without intent or with fallback intent)
-    const fallbackMessages = await this.messageRepository
-      .createQueryBuilder('msg')
-      .leftJoin('msg.conversation', 'conv')
-      .where('conv.intent IS NULL OR conv.intent = :fallback', { fallback: 'fallback' })
-      .getCount();
+    // Count by sender type
+    const customerMessages = await this.messageRepository.count({
+      where: { sender: 'customer' },
+    });
 
-    const fallbackRate = totalMessages > 0
-      ? parseFloat(((fallbackMessages / totalMessages) * 100).toFixed(2))
-      : 0;
-
-    // Top intents
-    const topIntents = await this.conversationRepository
-      .createQueryBuilder('conv')
-      .select('conv.intent', 'intent')
-      .addSelect('COUNT(*)', 'count')
-      .where('conv.intent IS NOT NULL')
-      .andWhere('conv.intent != :fallback', { fallback: 'fallback' })
-      .groupBy('conv.intent')
-      .orderBy('count', 'DESC')
-      .limit(10)
-      .getRawMany();
+    const botMessages = await this.messageRepository.count({
+      where: { sender: 'bot' },
+    });
 
     // Daily activity (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const dailyActivity = await this.conversationRepository
-      .createQueryBuilder('conv')
-      .select('DATE(conv.created_at)', 'date')
-      .addSelect('COUNT(*)', 'conversations')
-      .where('conv.created_at >= :startDate', { startDate: thirtyDaysAgo })
-      .groupBy('DATE(conv.created_at)')
+    const dailyActivity = await this.sessionRepository
+      .createQueryBuilder('session')
+      .select('DATE(session.created_at)', 'date')
+      .addSelect('COUNT(*)', 'sessions')
+      .where('session.created_at >= :startDate', { startDate: thirtyDaysAgo })
+      .groupBy('DATE(session.created_at)')
       .orderBy('date', 'ASC')
       .getRawMany();
 
     return {
       overview: {
-        total_conversations: totalConversations,
+        total_sessions: totalSessions,
         total_messages: totalMessages,
-        avg_messages_per_conversation: avgMessagesPerConv,
-        resolved_count: resolvedCount,
-        unresolved_count: unresolvedCount,
-        resolved_rate: resolvedRate,
-        fallback_rate: fallbackRate,
+        avg_messages_per_session: avgMessagesPerSession,
+        customer_messages: customerMessages,
+        bot_messages: botMessages,
       },
-      top_intents: topIntents,
       daily_activity: dailyActivity,
     };
   }
 
   async getChatbotUnanswered() {
-    // Get unresolved conversations with high message count (user struggling)
-    const conversations = await this.conversationRepository
-      .createQueryBuilder('conv')
-      .leftJoinAndSelect('conv.user', 'user')
-      .where('conv.resolved = :resolved', { resolved: false })
-      .andWhere('conv.message_count >= :minMessages', { minMessages: 3 })
-      .orderBy('conv.message_count', 'DESC')
+    // Get sessions with high message count from customers (potential issues)
+    const sessions = await this.sessionRepository
+      .createQueryBuilder('session')
+      .leftJoinAndSelect('session.customer', 'customer')
+      .leftJoin('session.messages', 'messages')
+      .addSelect('COUNT(messages.id)', 'message_count')
+      .groupBy('session.id')
+      .addGroupBy('customer.id')
+      .having('COUNT(messages.id) >= :minMessages', { minMessages: 5 })
+      .orderBy('COUNT(messages.id)', 'DESC')
       .take(50)
       .getMany();
 
     return {
-      unanswered_conversations: conversations,
-      count: conversations.length,
+      unanswered_sessions: sessions,
+      count: sessions.length,
     };
   }
 
@@ -972,10 +1049,7 @@ export class AdminService {
       queryBuilder.andWhere('rec.product_id = :productId', { productId: query.product_id });
     }
 
-    const [recommendations, total] = await queryBuilder
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
+    const [recommendations, total] = await queryBuilder.skip(skip).take(limit).getManyAndCount();
 
     return {
       recommendations,
@@ -1036,6 +1110,369 @@ export class AdminService {
     };
   }
 
+  // ==================== INVENTORY RESTOCK ====================
+  async restockInventory(adminId: number, restockDto: RestockDto) {
+    const queryRunner = this.variantRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Create batch
+      const batch = queryRunner.manager.create(RestockBatch, {
+        admin_id: adminId,
+        type: 'Manual',
+      });
+      const savedBatch = await queryRunner.manager.save(batch);
+
+      // Process each item
+      for (const item of restockDto.items) {
+        // Create restock item record
+        const restockItem = queryRunner.manager.create(RestockItem, {
+          batch_id: savedBatch.id,
+          variant_id: item.variant_id,
+          quantity: item.quantity,
+        });
+        await queryRunner.manager.save(restockItem);
+
+        // Update variant stock
+        await queryRunner.manager.increment(
+          ProductVariant,
+          { id: item.variant_id },
+          'total_stock',
+          item.quantity,
+        );
+      }
+
+      await queryRunner.commitTransaction();
+
+      return {
+        message: 'Inventory restocked successfully',
+        batch_id: savedBatch.id,
+        items_updated: restockDto.items.length,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async restockInventoryBatch(adminId: number, file: Express.Multer.File) {
+    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const data: any[] = XLSX.utils.sheet_to_json(sheet);
+
+    if (!data || data.length === 0) {
+      throw new BadRequestException('Excel file is empty');
+    }
+
+    const queryRunner = this.variantRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    const failedSkus: string[] = [];
+    let updatedCount = 0;
+
+    try {
+      // Create batch
+      const batch = queryRunner.manager.create(RestockBatch, {
+        admin_id: adminId,
+        type: 'Excel',
+      });
+      const savedBatch = await queryRunner.manager.save(batch);
+
+      // Process each row
+      for (const row of data) {
+        const sku = row.sku || row.SKU;
+        const quantity = parseInt(row.quantity || row.Quantity, 10);
+
+        if (!sku || isNaN(quantity) || quantity <= 0) {
+          failedSkus.push(sku || 'Unknown SKU');
+          continue;
+        }
+
+        // Find variant by SKU
+        const variant = await queryRunner.manager.findOne(ProductVariant, {
+          where: { sku },
+        });
+
+        if (!variant) {
+          failedSkus.push(sku);
+          continue;
+        }
+
+        // Create restock item
+        const restockItem = queryRunner.manager.create(RestockItem, {
+          batch_id: savedBatch.id,
+          variant_id: variant.id,
+          quantity,
+        });
+        await queryRunner.manager.save(restockItem);
+
+        // Update stock
+        await queryRunner.manager.increment(
+          ProductVariant,
+          { id: variant.id },
+          'total_stock',
+          quantity,
+        );
+
+        updatedCount++;
+      }
+
+      await queryRunner.commitTransaction();
+
+      return {
+        message: 'Batch restock completed',
+        batch_id: savedBatch.id,
+        updated_variants: updatedCount,
+        failed_skus: failedSkus,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async getRestockHistory(query: any = {}) {
+    const page = parseInt(query.page) || 1;
+    const limit = parseInt(query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.restockBatchRepository
+      .createQueryBuilder('batch')
+      .leftJoinAndSelect('batch.admin', 'admin')
+      .leftJoinAndSelect('batch.items', 'items')
+      .select([
+        'batch.id',
+        'batch.admin_id',
+        'batch.type',
+        'batch.created_at',
+        'admin.id',
+        'admin.name',
+      ])
+      .orderBy('batch.created_at', 'DESC');
+
+    // Filter by type
+    if (query.type) {
+      queryBuilder.andWhere('batch.type = :type', { type: query.type });
+    }
+
+    // Filter by date range
+    if (query.start_date) {
+      queryBuilder.andWhere('batch.created_at >= :startDate', {
+        startDate: query.start_date,
+      });
+    }
+    if (query.end_date) {
+      queryBuilder.andWhere('batch.created_at <= :endDate', {
+        endDate: query.end_date,
+      });
+    }
+
+    const [batches, total] = await queryBuilder.skip(skip).take(limit).getManyAndCount();
+
+    // Count items for each batch
+    const batchesWithCount = await Promise.all(
+      batches.map(async batch => {
+        const itemsCount = await this.restockItemRepository.count({
+          where: { batch_id: batch.id as any },
+        });
+
+        return {
+          id: batch.id,
+          admin_id: batch.admin_id,
+          admin_name: batch.admin?.name || null,
+          type: batch.type,
+          created_at: batch.created_at,
+          items_count: itemsCount,
+        };
+      }),
+    );
+
+    return {
+      batches: batchesWithCount,
+      total,
+      page,
+      limit,
+    };
+  }
+
+  // ==================== SUPPORT TICKETS MANAGEMENT ====================
+  async getAllSupportTickets(query: any) {
+    const { page = 1, limit = 20, status } = query;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.ticketRepository
+      .createQueryBuilder('t')
+      .leftJoinAndSelect('t.customer', 'c')
+      .orderBy('t.created_at', 'DESC');
+
+    if (status) {
+      queryBuilder.andWhere('t.status = :status', { status });
+    }
+
+    const [tickets, total] = await queryBuilder.skip(skip).take(parseInt(limit)).getManyAndCount();
+
+    return {
+      data: tickets,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getSupportTicketDetail(ticketId: number) {
+    const ticket = await this.ticketRepository.findOne({
+      where: { id: ticketId },
+      relations: ['customer'],
+    });
+
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+
+    const replies = await this.ticketReplyRepository.find({
+      where: { ticket_id: ticketId },
+      relations: ['admin'],
+      order: { created_at: 'ASC' },
+    });
+
+    return {
+      ticket_details: ticket,
+      replies,
+    };
+  }
+
+  async replyToTicket(ticketId: number, adminId: number, replyDto: ReplyTicketDto) {
+    const ticket = await this.ticketRepository.findOne({
+      where: { id: ticketId },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+
+    // Create reply
+    const reply = this.ticketReplyRepository.create({
+      ticket_id: ticketId,
+      admin_id: adminId,
+      body: replyDto.body,
+    });
+    await this.ticketReplyRepository.save(reply);
+
+    // Update ticket status
+    ticket.status = 'replied';
+    await this.ticketRepository.save(ticket);
+
+    // Send email notification
+    try {
+      await this.emailService.sendMail({
+        to: ticket.customer_email,
+        subject: `[Ticket #${ticket.ticket_code}] Bạn có phản hồi mới`,
+        template: 'ticket-reply',
+        context: {
+          ticketCode: ticket.ticket_code,
+          subject: ticket.subject,
+          replyBody: replyDto.body,
+        },
+      });
+    } catch (emailError) {
+      console.error('Failed to send email:', emailError);
+      // Don't throw - email failure shouldn't fail the operation
+    }
+
+    return {
+      message: 'Reply sent successfully',
+      reply,
+    };
+  }
+
+  // ==================== CUSTOMER MANAGEMENT ====================
+  async updateCustomerStatus(customerId: number, updateStatusDto: UpdateCustomerStatusDto) {
+    const customer = await this.customerRepository.findOne({
+      where: { id: customerId, deleted_at: null },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    customer.status = updateStatusDto.status;
+    await this.customerRepository.save(customer);
+
+    return {
+      message: `Customer ${updateStatusDto.status === 'active' ? 'activated' : 'deactivated'} successfully`,
+      customer,
+    };
+  }
+
+  // ==================== ORDER STATUS WITH EMAIL ====================
+  async updateOrderStatusWithEmail(
+    orderId: number,
+    status: string,
+    adminId?: number,
+    note?: string,
+  ) {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Update status
+    order.fulfillment_status = status;
+    await this.orderRepository.save(order);
+
+    // Log status history
+    const history = this.statusHistoryRepository.create({
+      order_id: orderId,
+      status,
+      admin_id: adminId,
+      note: note || null,
+    });
+    await this.statusHistoryRepository.save(history);
+
+    // Send email notification
+    try {
+      const statusTexts = {
+        pending: 'đang chờ xử lý',
+        processing: 'đang được xử lý',
+        shipped: 'đã được giao cho đơn vị vận chuyển',
+        delivered: 'đã được giao thành công',
+        cancelled: 'đã bị hủy',
+      };
+
+      await this.emailService.sendMail({
+        to: order.customer_email,
+        subject: `Đơn hàng #${order.id} ${statusTexts[status]}`,
+        template: 'order-status-update',
+        context: {
+          orderId: order.id,
+          newStatus: status,
+          statusText: statusTexts[status],
+          totalAmount: order.total_amount,
+        },
+      });
+    } catch (emailError) {
+      console.error('Failed to send email:', emailError);
+    }
+
+    return {
+      message: 'Order status updated successfully',
+      order,
+    };
+  }
+
   // ==================== HELPER METHODS ====================
   private generateSlug(name: string): string {
     return name
@@ -1047,5 +1484,88 @@ export class AdminService {
       .trim()
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-');
+  }
+
+  // ==================== CHAT MANAGEMENT ====================
+  async replyChat(sessionId: number, message: string) {
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Không tìm thấy chat session');
+    }
+
+    // Save admin message
+    const adminMessage = this.messageRepository.create({
+      session_id: sessionId,
+      sender: 'admin',
+      message: message,
+      is_read: false,
+    });
+
+    await this.messageRepository.save(adminMessage);
+
+    // Update session timestamp
+    session.updated_at = new Date();
+    await this.sessionRepository.save(session);
+
+    return {
+      message: 'Tin nhắn đã được gửi',
+      chat_message: adminMessage,
+    };
+  }
+
+  // ==================== PAYMENT TRANSACTIONS ====================
+  async getTransactions(query: any = {}) {
+    const { start_date, end_date, status, page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.paymentRepository
+      .createQueryBuilder('payment')
+      .leftJoinAndSelect('payment.order', 'order')
+      .orderBy('payment.created_at', 'DESC');
+
+    // Filter by date range
+    if (start_date) {
+      queryBuilder.andWhere('payment.created_at >= :startDate', {
+        startDate: new Date(start_date),
+      });
+    }
+
+    if (end_date) {
+      const endDateTime = new Date(end_date);
+      endDateTime.setHours(23, 59, 59, 999);
+      queryBuilder.andWhere('payment.created_at <= :endDate', {
+        endDate: endDateTime,
+      });
+    }
+
+    // Filter by status
+    if (status) {
+      queryBuilder.andWhere('payment.status = :status', { status });
+    }
+
+    const [transactions, total] = await queryBuilder.skip(skip).take(limit).getManyAndCount();
+
+    // Calculate summary
+    const summary = await this.paymentRepository
+      .createQueryBuilder('payment')
+      .select('SUM(payment.amount)', 'total_amount')
+      .addSelect('COUNT(*)', 'total_count')
+      .addSelect('payment.status', 'status')
+      .groupBy('payment.status')
+      .getRawMany();
+
+    return {
+      transactions,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+      summary,
+    };
   }
 }

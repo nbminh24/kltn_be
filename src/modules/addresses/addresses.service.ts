@@ -1,33 +1,31 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Address } from '../../entities/address.entity';
-import { IdGenerator } from '../../common/utils/id-generator';
+import { CustomerAddress } from '../../entities/customer-address.entity';
 
 @Injectable()
 export class AddressesService {
   constructor(
-    @InjectRepository(Address)
-    private addressRepository: Repository<Address>,
+    @InjectRepository(CustomerAddress)
+    private addressRepository: Repository<CustomerAddress>,
   ) {}
 
-  async findAll(userId: string) {
+  async findAll(customerId: number) {
     const addresses = await this.addressRepository.find({
-      where: { user_id: userId },
-      order: { is_default: 'DESC', created_at: 'DESC' },
+      where: { customer_id: customerId },
+      order: { is_default: 'DESC' },
     });
 
     return { addresses };
   }
 
-  async create(userId: string, data: any) {
+  async create(customerId: number, data: any) {
     if (data.is_default) {
-      await this.addressRepository.update({ user_id: userId }, { is_default: false });
+      await this.addressRepository.update({ customer_id: customerId }, { is_default: false });
     }
 
     const address = this.addressRepository.create({
-      id: IdGenerator.generate('addr'),
-      user_id: userId,
+      customer_id: customerId,
       ...data,
     });
 
@@ -35,9 +33,9 @@ export class AddressesService {
     return { message: 'Address created', address };
   }
 
-  async update(userId: string, addressId: string, data: any) {
+  async update(customerId: number, addressId: number, data: any) {
     const address = await this.addressRepository.findOne({
-      where: { id: addressId, user_id: userId },
+      where: { id: addressId, customer_id: customerId },
     });
 
     if (!address) {
@@ -45,7 +43,7 @@ export class AddressesService {
     }
 
     if (data.is_default && !address.is_default) {
-      await this.addressRepository.update({ user_id: userId }, { is_default: false });
+      await this.addressRepository.update({ customer_id: customerId }, { is_default: false });
     }
 
     Object.assign(address, data);
@@ -53,8 +51,8 @@ export class AddressesService {
     return { message: 'Address updated', address };
   }
 
-  async delete(userId: string, addressId: string) {
-    const result = await this.addressRepository.delete({ id: addressId, user_id: userId });
+  async delete(customerId: number, addressId: number) {
+    const result = await this.addressRepository.delete({ id: addressId, customer_id: customerId });
 
     if (result.affected === 0) {
       throw new NotFoundException('Address not found');

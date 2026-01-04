@@ -1,50 +1,51 @@
 import {
   Entity,
   Column,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   CreateDateColumn,
-  UpdateDateColumn,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { Product } from './product.entity';
-import { User } from './user.entity';
+import { ProductVariant } from './product-variant.entity';
+import { Customer } from './customer.entity';
+import { Order } from './order.entity';
 
-@Entity('reviews')
+@Entity('product_reviews')
 export class Review {
-  @PrimaryColumn({ type: 'varchar', length: 50 })
-  id: string;
+  @PrimaryGeneratedColumn('identity', { type: 'bigint', generatedIdentity: 'ALWAYS' })
+  id: number;
 
-  @Column({ type: 'varchar', length: 50 })
-  product_id: string;
+  @Column({ type: 'bigint' })
+  variant_id: number;
 
-  @Column({ type: 'varchar', length: 50 })
-  user_id: string;
+  @Column({ type: 'bigint' })
+  customer_id: number;
+
+  @Column({ type: 'bigint' })
+  order_id: number;
 
   @Column({ type: 'int' })
   rating: number; // 1-5
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  title: string;
-
-  @Column({ type: 'text' })
+  @Column({ type: 'text', nullable: true })
   comment: string;
 
-  @Column({ type: 'boolean', default: false })
-  verified_purchase: boolean;
+  @Column({ type: 'varchar', default: 'pending' })
+  status: string; // 'pending', 'approved', 'rejected'
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamp with time zone' })
   created_at: Date;
 
-  @UpdateDateColumn()
-  updated_at: Date;
-
   // Relations
-  @ManyToOne(() => Product, product => product.reviews, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'product_id' })
-  product: Product;
+  @ManyToOne(() => ProductVariant, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'variant_id' })
+  variant: ProductVariant;
 
-  @ManyToOne(() => User, user => user.reviews, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id' })
-  user: User;
+  @ManyToOne(() => Customer, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'customer_id' })
+  customer: Customer;
+
+  @ManyToOne(() => Order, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'order_id' })
+  order: Order;
 }

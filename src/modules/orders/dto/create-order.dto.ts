@@ -19,7 +19,11 @@ export class CreateOrderDto {
   @Min(0)
   delivery_fee?: number;
 
-  @ApiProperty({ description: 'Phương thức thanh toán', example: 'COD', enum: ['COD', 'Card', 'Banking'] })
+  @ApiProperty({
+    description: 'Phương thức thanh toán',
+    example: 'COD',
+    enum: ['COD', 'Card', 'Banking'],
+  })
   @IsString()
   payment_method: string;
 

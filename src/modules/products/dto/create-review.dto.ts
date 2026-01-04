@@ -13,7 +13,10 @@ export class CreateReviewDto {
   @IsString()
   title?: string;
 
-  @ApiProperty({ description: 'Nội dung đánh giá', example: 'Sản phẩm chất lượng, giao hàng nhanh' })
+  @ApiProperty({
+    description: 'Nội dung đánh giá',
+    example: 'Sản phẩm chất lượng, giao hàng nhanh',
+  })
   @IsString()
   comment: string;
 }

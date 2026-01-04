@@ -2,73 +2,68 @@ import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/co
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { User } from '../../entities/user.entity';
+import { Customer } from '../../entities/customer.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
+    @InjectRepository(Customer)
+    private customerRepository: Repository<Customer>,
   ) {}
 
-  async getProfile(userId: string) {
-    const user = await this.userRepository.findOne({
+  async getProfile(userId: number) {
+    const customer = await this.customerRepository.findOne({
       where: { id: userId },
-      select: ['id', 'name', 'email', 'phone', 'role', 'orders_count', 'total_spent', 'created_at'],
+      select: ['id', 'name', 'email', 'created_at', 'status'],
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
     }
 
-    return { user };
+    return { user: customer };
   }
 
-  async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+  async updateProfile(userId: number, updateProfileDto: UpdateProfileDto) {
+    const customer = await this.customerRepository.findOne({ where: { id: userId } });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
     }
 
     if (updateProfileDto.name) {
-      user.name = updateProfileDto.name;
+      customer.name = updateProfileDto.name;
     }
 
-    if (updateProfileDto.phone) {
-      user.phone = updateProfileDto.phone;
-    }
-
-    await this.userRepository.save(user);
+    await this.customerRepository.save(customer);
 
     return {
       message: 'Profile updated successfully',
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
+        id: customer.id,
+        name: customer.name,
+        email: customer.email,
+        status: customer.status,
       },
     };
   }
 
-  async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
-    const user = await this.userRepository
-      .createQueryBuilder('user')
-      .addSelect('user.password_hash')
-      .where('user.id = :userId', { userId })
+  async changePassword(userId: number, changePasswordDto: ChangePasswordDto) {
+    const customer = await this.customerRepository
+      .createQueryBuilder('customer')
+      .addSelect('customer.password_hash')
+      .where('customer.id = :userId', { userId })
       .getOne();
 
-    if (!user) {
-      throw new NotFoundException('User not found');
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
     }
 
     const isPasswordValid = await bcrypt.compare(
       changePasswordDto.currentPassword,
-      user.password_hash,
+      customer.password_hash,
     );
 
     if (!isPasswordValid) {
@@ -76,9 +71,9 @@ export class UsersService {
     }
 
     const hashedPassword = await bcrypt.hash(changePasswordDto.newPassword, 10);
-    user.password_hash = hashedPassword;
+    customer.password_hash = hashedPassword;
 
-    await this.userRepository.save(user);
+    await this.customerRepository.save(customer);
 
     return {
       message: 'Password changed successfully',
