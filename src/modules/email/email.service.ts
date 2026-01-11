@@ -381,26 +381,58 @@ export class EmailService {
 
   private getOrderStatusUpdateTemplate(context: any): string {
     const statusColors = {
-      pending: '#FFA500',
-      processing: '#1E90FF',
-      shipped: '#32CD32',
-      delivered: '#008000',
-      cancelled: '#DC143C',
+      Pending: '#FFA500',
+      Confirmed: '#4880FF',
+      Processing: '#1E90FF',
+      Shipped: '#32CD32',
+      Delivered: '#008000',
+      Cancelled: '#DC143C',
     };
 
     const color = statusColors[context.newStatus] || '#000';
+
+    // Build items HTML
+    const itemsHtml = context.items?.map((item: any) => `
+      <tr>
+        <td style="padding: 12px; border-bottom: 1px solid #eee;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            ${item.image ? `<img src="${item.image}" alt="${item.name}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;" />` : ''}
+            <div>
+              <div style="font-weight: 600; margin-bottom: 4px;">${item.name}</div>
+              <div style="font-size: 13px; color: #666;">Size: ${item.size} | Màu: ${item.color}</div>
+            </div>
+          </div>
+        </td>
+        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center; font-weight: 600;">x${item.quantity}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right; font-weight: 600;">${item.price.toLocaleString('vi-VN')}đ</td>
+      </tr>
+    `).join('') || '<tr><td colspan="3" style="padding: 12px; text-align: center; color: #999;">Không có sản phẩm</td></tr>';
 
     return `
       <!DOCTYPE html>
       <html>
       <head>
+        <meta charset="UTF-8">
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #000; color: #fff; padding: 20px; text-align: center; }
-          .content { padding: 30px; background: #f9f9f9; }
-          .status-badge { display: inline-block; padding: 10px 20px; background: ${color}; color: #fff; border-radius: 5px; font-weight: bold; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+          .container { max-width: 600px; margin: 0 auto; background: #fff; }
+          .header { background: #000; color: #fff; padding: 30px 20px; text-align: center; }
+          .header h1 { margin: 0; font-size: 28px; }
+          .content { padding: 30px 20px; }
+          .status-section { text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; margin: 20px 0; }
+          .status-badge { display: inline-block; padding: 12px 24px; background: ${color}; color: #fff; border-radius: 6px; font-weight: bold; font-size: 16px; text-transform: uppercase; }
+          .info-box { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; }
+          .info-row { display: flex; justify-content: space-between; margin: 8px 0; }
+          .info-label { color: #666; font-size: 14px; }
+          .info-value { font-weight: 600; font-size: 14px; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          .total-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 15px; }
+          .total-row { display: flex; justify-content: space-between; margin: 8px 0; font-size: 14px; }
+          .total-row.final { font-size: 18px; font-weight: bold; color: #000; border-top: 2px solid #ddd; padding-top: 12px; margin-top: 12px; }
+          .tracking-box { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px; margin: 20px 0; }
+          .note-box { background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; border-radius: 4px; margin: 20px 0; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; border-top: 1px solid #eee; }
+          .footer a { color: #4880FF; text-decoration: none; }
         </style>
       </head>
       <body>
@@ -408,17 +440,76 @@ export class EmailService {
           <div class="header">
             <h1>LeCas Fashion</h1>
           </div>
+          
           <div class="content">
-            <h2>Cập nhật trạng thái đơn hàng</h2>
-            <p>Đơn hàng <strong>#${context.orderId}</strong> của bạn ${context.statusText}.</p>
-            <div style="text-align: center; margin: 20px 0;">
-              <span class="status-badge">${context.newStatus.toUpperCase()}</span>
+            <h2 style="margin-top: 0;">Cập nhật trạng thái đơn hàng</h2>
+            
+            <p>Xin chào <strong>${context.customerName}</strong>,</p>
+            <p>Đơn hàng <strong>#${context.orderId}</strong> của bạn <strong>${context.statusText}</strong>.</p>
+            
+            <div class="status-section">
+              <div style="color: #666; margin-bottom: 10px; font-size: 14px;">Trạng thái hiện tại</div>
+              <span class="status-badge">${context.statusLabel}</span>
             </div>
-            <p><strong>Tổng tiền:</strong> ${context.totalAmount?.toLocaleString?.() || context.totalAmount}đ</p>
-            <p>Cảm ơn bạn đã mua sắm tại LeCas Fashion!</p>
+
+            ${context.trackingNumber ? `
+            <div class="tracking-box">
+              <strong>📦 Mã vận đơn:</strong> ${context.trackingNumber}<br/>
+              <strong>🚚 Đơn vị vận chuyển:</strong> ${context.carrierName}
+            </div>
+            ` : ''}
+
+            ${context.note ? `
+            <div class="note-box">
+              <strong>📝 Ghi chú:</strong> ${context.note}
+            </div>
+            ` : ''}
+
+            <h3 style="margin-top: 30px; margin-bottom: 15px;">Chi tiết đơn hàng</h3>
+            <table>
+              <thead>
+                <tr style="background: #f0f0f0;">
+                  <th style="padding: 12px; text-align: left; font-weight: 600;">Sản phẩm</th>
+                  <th style="padding: 12px; text-align: center; font-weight: 600; width: 80px;">Số lượng</th>
+                  <th style="padding: 12px; text-align: right; font-weight: 600; width: 120px;">Giá</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+
+            <div class="total-section">
+              <div class="total-row">
+                <span>Tạm tính:</span>
+                <span>${(context.subtotal || 0).toLocaleString('vi-VN')}đ</span>
+              </div>
+              <div class="total-row">
+                <span>Phí vận chuyển:</span>
+                <span>${(context.shippingFee || 0).toLocaleString('vi-VN')}đ</span>
+              </div>
+              <div class="total-row final">
+                <span>Tổng cộng:</span>
+                <span style="color: #4880FF;">${(context.totalAmount || 0).toLocaleString('vi-VN')}đ</span>
+              </div>
+            </div>
+
+            <div class="info-box" style="margin-top: 20px;">
+              <h4 style="margin-top: 0; margin-bottom: 10px;">📍 Địa chỉ giao hàng</h4>
+              <div>${context.shippingAddress}</div>
+              <div style="margin-top: 5px; color: #666;">SĐT: ${context.shippingPhone}</div>
+            </div>
+
+            <p style="margin-top: 30px; color: #666; font-size: 14px;">
+              Cảm ơn bạn đã mua sắm tại LeCas Fashion! Nếu có bất kỳ thắc mắc nào, 
+              vui lòng liên hệ với chúng tôi qua hotline hoặc email.
+            </p>
           </div>
+
           <div class="footer">
-            <p>&copy; 2024 LeCas Fashion. All rights reserved.</p>
+            <p style="margin: 5px 0;"><strong>LeCas Fashion</strong> - Thời trang nam chất lượng cao</p>
+            <p style="margin: 5px 0;">📧 Email: <a href="mailto:support@lecas.com">support@lecas.com</a> | 📞 Hotline: 1900 1009</p>
+            <p style="margin: 5px 0;">&copy; 2024 LeCas Fashion. All rights reserved.</p>
           </div>
         </div>
       </body>

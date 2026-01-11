@@ -12,7 +12,9 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminService } from './admin.service';
@@ -37,7 +39,7 @@ import { UpdatePageDto } from './dto/update-page.dto';
 @UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(private readonly adminService: AdminService) { }
 
   // ==================== DASHBOARD ====================
   @Get('dashboard/stats')
@@ -634,6 +636,48 @@ export class AdminController {
     );
   }
 
+  @Put('orders/:id/payment-status')
+  @ApiTags('Admin - Orders')
+  @ApiOperation({
+    summary: '[Admin] Quản lý đơn hàng - Cập nhật trạng thái thanh toán',
+    description: 'Cập nhật trạng thái thanh toán đơn hàng (paid/unpaid)',
+  })
+  @ApiResponse({ status: 200, description: 'Cập nhật thanh toán thành công' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
+  updatePaymentStatus(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: { payment_status: 'paid' | 'unpaid' },
+  ) {
+    const orderId = parseInt(id, 10);
+    if (isNaN(orderId)) {
+      throw new BadRequestException('ID đơn hàng không hợp lệ');
+    }
+    return this.adminService.updatePaymentStatus(orderId, body.payment_status);
+  }
+
+  @Get('orders/:id/invoice')
+  @ApiTags('Admin - Orders')
+  @ApiOperation({
+    summary: '[Admin] Quản lý đơn hàng - Xuất hóa đơn HTML',
+    description: 'Hiển thị hóa đơn HTML cho đơn hàng (có thể in thành PDF)',
+  })
+  @ApiResponse({ status: 200, description: 'Trả về HTML hóa đơn' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
+  async getInvoice(
+    @Param('id') id: string,
+    @Query('token') token: string,
+    @Res() res: Response,
+  ) {
+    const orderId = parseInt(id, 10);
+    if (isNaN(orderId)) {
+      throw new BadRequestException('ID đơn hàng không hợp lệ');
+    }
+    const invoiceHtml = await this.adminService.generateInvoiceHtml(orderId);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(invoiceHtml);
+  }
+
   // ==================== CUSTOMERS MANAGEMENT ====================
   @Get('customers')
   @ApiTags('Admin - Customers')
@@ -698,6 +742,114 @@ export class AdminController {
   @ApiResponse({ status: 404, description: 'Không tìm thấy khách hàng' })
   getCustomerById(@Param('id') id: string) {
     return this.adminService.getCustomerById(parseInt(id, 10));
+  }
+
+  @Get('customers/:id/chat-history')
+  @ApiTags('Admin - Customers')
+  @ApiOperation({
+    summary: '[Admin] Quản lý khách hàng - Lịch sử chat',
+    description: 'Lấy danh sách các cuộc hội thoại chat của khách hàng với chatbot/admin',
+  })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiQuery({ name: 'status', required: false, enum: ['resolved', 'unresolved', 'all'] })
+  @ApiQuery({ name: 'include_messages', required: false, type: Boolean })
+  @ApiQuery({ name: 'message_limit', required: false, example: 3 })
+  @ApiResponse({ status: 200, description: 'Lịch sử chat' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy khách hàng' })
+  getCustomerChatHistory(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('include_messages') includeMessages?: string,
+    @Query('message_limit') messageLimit?: string,
+  ) {
+    return this.adminService.getCustomerChatHistory(
+      parseInt(id, 10),
+      parseInt(page || '1', 10),
+      parseInt(limit || '20', 10),
+      status,
+      includeMessages === 'true',
+      parseInt(messageLimit || '3', 10),
+    );
+  }
+
+  @Get('customers/:customerId/chat-history/:sessionId/messages')
+  @ApiTags('Admin - Customers')
+  @ApiOperation({
+    summary: '[Admin] Chi tiết tin nhắn của conversation',
+    description: 'Lấy đầy đủ tin nhắn của một cuộc hội thoại cụ thể',
+  })
+  @ApiQuery({ name: 'limit', required: false, example: 50 })
+  @ApiQuery({ name: 'offset', required: false, example: 0 })
+  @ApiResponse({ status: 200, description: 'Chi tiết tin nhắn' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy session' })
+  @ApiResponse({ status: 403, description: 'Session không thuộc customer này' })
+  getSessionMessages(
+    @Param('customerId') customerId: string,
+    @Param('sessionId') sessionId: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.adminService.getSessionMessages(
+      parseInt(customerId, 10),
+      parseInt(sessionId, 10),
+      parseInt(limit || '50', 10),
+      parseInt(offset || '0', 10),
+    );
+  }
+
+  @Get('customers/:id/chat-statistics')
+  @ApiTags('Admin - Customers')
+  @ApiOperation({
+    summary: '[Admin] Thống kê chat history của khách hàng',
+    description: 'Lấy thống kê tổng quan về lịch sử chat của khách hàng',
+  })
+  @ApiResponse({ status: 200, description: 'Thống kê chat' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy khách hàng' })
+  getCustomerChatStatistics(@Param('id') id: string) {
+    return this.adminService.getCustomerChatStatistics(parseInt(id, 10));
+  }
+
+  @Get('customers/:id/support-tickets')
+  @ApiTags('Admin - Customers')
+  @ApiOperation({
+    summary: '[Admin] Quản lý khách hàng - Support tickets',
+    description: 'Lấy danh sách support tickets (yêu cầu hỗ trợ) của khách hàng',
+  })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiQuery({ name: 'status', required: false, enum: ['pending', 'replied', 'resolved'] })
+  @ApiQuery({ name: 'priority', required: false, enum: ['high', 'medium', 'low'] })
+  @ApiResponse({ status: 200, description: 'Danh sách support tickets' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy khách hàng' })
+  getCustomerSupportTickets(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('priority') priority?: string,
+  ) {
+    return this.adminService.getCustomerSupportTickets(
+      parseInt(id, 10),
+      parseInt(page || '1', 10),
+      parseInt(limit || '20', 10),
+      status,
+      priority,
+    );
+  }
+
+  @Get('customers/:id/addresses')
+  @ApiTags('Admin - Customers')
+  @ApiOperation({
+    summary: '[Admin] Quản lý khách hàng - Danh sách địa chỉ',
+    description: 'Lấy tất cả địa chỉ đã lưu của khách hàng',
+  })
+  @ApiResponse({ status: 200, description: 'Danh sách địa chỉ' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy khách hàng' })
+  getCustomerAddresses(@Param('id') id: string) {
+    return this.adminService.getCustomerAddresses(parseInt(id, 10));
   }
 
   // ==================== SUPPORT & CONTENT MANAGEMENT ====================
@@ -797,6 +949,23 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Analytics data' })
   getChatbotAnalytics() {
     return this.adminService.getChatbotAnalytics();
+  }
+
+  @Get('chatbot/top-intents')
+  @ApiTags('Admin - AI')
+  @ApiOperation({
+    summary: '[Admin] Chatbot - Top Intents',
+    description: 'Thống kê top intents được phát hiện từ conversations',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    example: 10,
+    description: 'Số lượng top intents muốn lấy',
+  })
+  @ApiResponse({ status: 200, description: 'Top intents với count và percentage' })
+  getChatbotTopIntents(@Query('limit') limit?: number) {
+    return this.adminService.getChatbotTopIntents(limit ? parseInt(limit.toString()) : 10);
   }
 
   @Get('chatbot/unanswered')

@@ -19,6 +19,7 @@ import { ChatSession } from '../../entities/chat-session.entity';
 import { ChatMessage } from '../../entities/chat-message.entity';
 import { AiRecommendation } from '../../entities/ai-recommendation.entity';
 import { Customer } from '../../entities/customer.entity';
+import { CustomerAddress } from '../../entities/customer-address.entity';
 import { SupportTicketReply } from '../../entities/support-ticket-reply.entity';
 import { RestockBatch } from '../../entities/restock-batch.entity';
 import { RestockItem } from '../../entities/restock-item.entity';
@@ -42,6 +43,7 @@ import { EmailModule } from '../email/email.module';
       ChatMessage,
       AiRecommendation,
       Customer,
+      CustomerAddress,
       SupportTicketReply,
       RestockBatch,
       RestockItem,
@@ -62,4 +64,4 @@ import { EmailModule } from '../email/email.module';
   providers: [AdminService, AdminAuthService],
   exports: [AdminService, AdminAuthService],
 })
-export class AdminModule {}
+export class AdminModule { }

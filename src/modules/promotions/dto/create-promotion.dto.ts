@@ -1,79 +1,81 @@
-import { IsString, IsNumber, IsOptional, IsIn, IsDateString, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsIn, IsDateString, Min, MaxLength, ValidateIf } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 export class CreatePromotionDto {
   @ApiProperty({
-    description: 'Mã giảm giá (UPPERCASE, không dấu, 3-20 ký tự)',
-    example: 'SUMMER2024',
+    description: 'Tên khuyến mãi',
+    example: 'Summer Sale 2024',
+    maxLength: 255,
   })
   @IsString()
-  code: string;
+  @MaxLength(255)
+  name: string;
 
   @ApiProperty({
-    description: 'Loại giảm giá',
-    example: 'percentage',
-    enum: ['percentage', 'fixed'],
+    description: 'Loại khuyến mãi',
+    example: 'voucher',
+    enum: ['voucher', 'flash_sale'],
   })
   @IsString()
-  @IsIn(['percentage', 'fixed'])
+  @IsIn(['voucher', 'flash_sale'])
   type: string;
 
   @ApiProperty({
-    description: 'Giá trị giảm (% nếu percentage, số tiền nếu fixed)',
-    example: 10,
+    description: 'Giá trị giảm giá',
+    example: 20,
   })
   @IsNumber()
-  @Min(0)
+  @Min(0.01, { message: 'discount_value must be greater than 0' })
   discount_value: number;
 
   @ApiProperty({
-    description: 'Giá trị đơn hàng tối thiểu',
-    example: 200000,
+    description: 'Kiểu giảm giá',
+    example: 'percentage',
+    enum: ['percentage', 'fixed_amount'],
+  })
+  @IsString()
+  @IsIn(['percentage', 'fixed_amount'])
+  discount_type: string;
+
+  @ApiProperty({
+    description: 'Giới hạn số lượng (0 = không giới hạn)',
+    example: 100,
     required: false,
     default: 0,
   })
   @IsOptional()
   @IsNumber()
   @Min(0)
-  min_order_value?: number;
-
-  @ApiProperty({
-    description: 'Giới hạn số lần sử dụng (null = không giới hạn)',
-    example: 100,
-    required: false,
-  })
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  usage_limit?: number;
+  number_limited?: number;
 
   @ApiProperty({
     description: 'Ngày bắt đầu (YYYY-MM-DD)',
-    example: '2024-01-01',
-    required: false,
+    example: '2026-01-10',
   })
-  @IsOptional()
-  @IsDateString()
-  start_date?: string;
+  @IsDateString({}, { message: 'start_date must be a valid ISO date string (YYYY-MM-DD)' })
+  start_date: string;
 
   @ApiProperty({
-    description: 'Ngày hết hạn (YYYY-MM-DD)',
-    example: '2024-12-31',
-    required: false,
+    description: 'Ngày kết thúc (YYYY-MM-DD)',
+    example: '2026-01-31',
   })
-  @IsOptional()
-  @IsDateString()
-  expiry_date?: string;
+  @IsDateString({}, { message: 'end_date must be a valid ISO date string (YYYY-MM-DD)' })
+  @Transform(({ value, obj }) => {
+    if (value && obj.start_date && new Date(value) < new Date(obj.start_date)) {
+      throw new Error('end_date must be greater than or equal to start_date');
+    }
+    return value;
+  })
+  end_date: string;
 
   @ApiProperty({
-    description: 'Trạng thái',
-    example: 'Active',
-    enum: ['Active', 'Inactive'],
+    description: 'Danh sách product IDs áp dụng promotion (optional, nếu không có = áp dụng cho tất cả)',
+    example: [1, 2, 3],
     required: false,
-    default: 'Active',
+    type: [Number],
   })
   @IsOptional()
-  @IsString()
-  @IsIn(['Active', 'Inactive'])
-  status?: string;
+  @IsNumber({}, { each: true })
+  product_ids?: number[];
 }

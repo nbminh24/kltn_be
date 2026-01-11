@@ -13,6 +13,7 @@ import { ChatSession } from '../../entities/chat-session.entity';
 import { ChatMessage } from '../../entities/chat-message.entity';
 import { AiRecommendation } from '../../entities/ai-recommendation.entity';
 import { Customer } from '../../entities/customer.entity';
+import { CustomerAddress } from '../../entities/customer-address.entity';
 import { SupportTicketReply } from '../../entities/support-ticket-reply.entity';
 import { RestockBatch } from '../../entities/restock-batch.entity';
 import { RestockItem } from '../../entities/restock-item.entity';
@@ -58,6 +59,8 @@ export class AdminService {
     private recommendationRepository: Repository<AiRecommendation>,
     @InjectRepository(Customer)
     private customerRepository: Repository<Customer>,
+    @InjectRepository(CustomerAddress)
+    private addressRepository: Repository<CustomerAddress>,
     @InjectRepository(SupportTicketReply)
     private ticketReplyRepository: Repository<SupportTicketReply>,
     @InjectRepository(RestockBatch)
@@ -69,7 +72,7 @@ export class AdminService {
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
     private emailService: EmailService,
-  ) {}
+  ) { }
 
   // ==================== DASHBOARD ====================
   async getDashboardStats() {
@@ -543,10 +546,10 @@ export class AdminService {
         created_at: h.created_at,
         admin: h.admin
           ? {
-              id: h.admin.id,
-              name: h.admin.name,
-              email: h.admin.email,
-            }
+            id: h.admin.id,
+            name: h.admin.name,
+            email: h.admin.email,
+          }
           : null,
       })),
     };
@@ -657,11 +660,49 @@ export class AdminService {
       .andWhere('o.fulfillment_status != :status', { status: 'cancelled' })
       .getRawOne();
 
+    // Get recent 5 orders
+    const recentOrders = await this.orderRepository.find({
+      where: { customer_id: id },
+      select: ['id', 'total_amount', 'fulfillment_status', 'created_at'],
+      order: { created_at: 'DESC' },
+      take: 5,
+    });
+
+    // Get default address (or most recent)
+    const defaultAddress = await this.addressRepository.findOne({
+      where: { customer_id: id, is_default: true },
+      order: { id: 'DESC' },
+    });
+
+    // If no default, get most recent
+    const address = defaultAddress || await this.addressRepository.findOne({
+      where: { customer_id: id },
+      order: { id: 'DESC' },
+    });
+
+    // Format address string
+    const addressString = address
+      ? `${address.street_address}, ${address.ward || ''}, ${address.district || ''}, ${address.province || ''}`.replace(/,\s*,/g, ',').trim()
+      : null;
+
     return {
       data: {
-        ...customer,
-        totalSpent: parseFloat(totalSpentResult?.total || '0'),
-        ordersCount: parseInt(totalSpentResult?.count || '0'),
+        id: customer.id,
+        name: customer.name,
+        email: customer.email,
+        phone: address?.phone_number || null,
+        address: addressString,
+        status: customer.status,
+        created_at: customer.created_at,
+        updated_at: customer.updated_at,
+        total_orders: parseInt(totalSpentResult?.count || '0'),
+        total_spent: parseFloat(totalSpentResult?.total || '0'),
+        recent_orders: recentOrders.map(order => ({
+          id: order.id,
+          total_amount: parseFloat(String(order.total_amount || '0')),
+          status: order.fulfillment_status,
+          created_at: order.created_at,
+        })),
       },
     };
   }
@@ -1004,6 +1045,36 @@ export class AdminService {
         bot_messages: botMessages,
       },
       daily_activity: dailyActivity,
+    };
+  }
+
+  async getChatbotTopIntents(limit: number = 10) {
+    // Count messages grouped by intent
+    const intentStats = await this.messageRepository
+      .createQueryBuilder('msg')
+      .select('msg.intent', 'intent')
+      .addSelect('COUNT(*)', 'count')
+      .where('msg.intent IS NOT NULL')
+      .andWhere("msg.intent != ''")
+      .groupBy('msg.intent')
+      .orderBy('count', 'DESC')
+      .limit(limit)
+      .getRawMany();
+
+    // Calculate total for percentage
+    const totalWithIntent = intentStats.reduce((sum, item) => sum + parseInt(item.count), 0);
+
+    // Format response
+    const intents = intentStats.map(item => ({
+      intent: item.intent,
+      count: parseInt(item.count),
+      percentage: totalWithIntent > 0 ? Math.round((parseInt(item.count) / totalWithIntent) * 100) : 0,
+    }));
+
+    return {
+      intents,
+      total_conversations: totalWithIntent,
+      total_intents_tracked: intents.length,
     };
   }
 
@@ -1423,6 +1494,7 @@ export class AdminService {
   ) {
     const order = await this.orderRepository.findOne({
       where: { id: orderId },
+      relations: ['items', 'items.variant', 'items.variant.product', 'items.variant.size', 'items.variant.color', 'customer'],
     });
 
     if (!order) {
@@ -1445,12 +1517,36 @@ export class AdminService {
     // Send email notification
     try {
       const statusTexts = {
-        pending: 'đang chờ xử lý',
-        processing: 'đang được xử lý',
-        shipped: 'đã được giao cho đơn vị vận chuyển',
-        delivered: 'đã được giao thành công',
-        cancelled: 'đã bị hủy',
+        Pending: 'đang chờ xử lý',
+        Confirmed: 'đã được xác nhận',
+        Processing: 'đang được xử lý',
+        Shipped: 'đã được giao cho đơn vị vận chuyển',
+        Delivered: 'đã được giao thành công',
+        Cancelled: 'đã bị hủy',
       };
+
+      const statusLabels = {
+        Pending: 'Chờ xử lý',
+        Confirmed: 'Đã xác nhận',
+        Processing: 'Đang xử lý',
+        Shipped: 'Đang vận chuyển',
+        Delivered: 'Đã giao hàng',
+        Cancelled: 'Đã hủy',
+      };
+
+      // Format items for email
+      const formattedItems = order.items?.map(item => ({
+        name: item.variant?.product?.name || 'Sản phẩm',
+        image: item.variant?.product?.thumbnail_url || '',
+        size: item.variant?.size?.name || 'N/A',
+        color: item.variant?.color?.name || 'N/A',
+        quantity: item.quantity,
+        price: parseFloat(String(item.price_at_purchase || '0')) * 25000,
+      })) || [];
+
+      const subtotal = formattedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const shippingFee = parseFloat(String(order.shipping_fee || '0')) * 25000;
+      const total = parseFloat(String(order.total_amount || '0')) * 25000;
 
       await this.emailService.sendMail({
         to: order.customer_email,
@@ -1458,9 +1554,19 @@ export class AdminService {
         template: 'order-status-update',
         context: {
           orderId: order.id,
+          customerName: order.customer?.name || order.customer_email,
           newStatus: status,
+          statusLabel: statusLabels[status] || status,
           statusText: statusTexts[status],
-          totalAmount: order.total_amount,
+          items: formattedItems,
+          subtotal,
+          shippingFee,
+          totalAmount: total,
+          shippingAddress: order.shipping_address,
+          shippingPhone: order.shipping_phone,
+          trackingNumber: order.tracking_number || null,
+          carrierName: order.carrier_name || 'Standard Delivery',
+          note: note || null,
         },
       });
     } catch (emailError) {
@@ -1471,6 +1577,269 @@ export class AdminService {
       message: 'Order status updated successfully',
       order,
     };
+  }
+
+  // ==================== PAYMENT STATUS UPDATE ====================
+  async updatePaymentStatus(orderId: number, paymentStatus: 'paid' | 'unpaid') {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    order.payment_status = paymentStatus;
+    await this.orderRepository.save(order);
+
+    return {
+      message: 'Payment status updated successfully',
+      order,
+    };
+  }
+
+  // ==================== INVOICE GENERATION ====================
+  async generateInvoiceHtml(orderId: number) {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: ['items', 'items.variant', 'items.variant.product', 'items.variant.size', 'items.variant.color', 'customer'],
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Format items for invoice
+    const formattedItems = order.items?.map(item => ({
+      name: item.variant?.product?.name || 'Sản phẩm',
+      size: item.variant?.size?.name || 'N/A',
+      color: item.variant?.color?.name || 'N/A',
+      quantity: item.quantity,
+      price: parseFloat(String(item.price_at_purchase || '0')) * 25000,
+      subtotal: parseFloat(String(item.price_at_purchase || '0')) * item.quantity * 25000,
+    })) || [];
+
+    const subtotal = formattedItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const shippingFee = parseFloat(String(order.shipping_fee || '0')) * 25000;
+    const total = parseFloat(String(order.total_amount || '0')) * 25000;
+
+    // Generate HTML invoice
+    const itemsHtml = formattedItems.map((item, index) => `
+      <tr>
+        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${index + 1}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #eee;">
+          <div style="font-weight: 600;">${item.name}</div>
+          <div style="font-size: 13px; color: #666;">Size: ${item.size} | Màu: ${item.color}</div>
+        </td>
+        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${item.price.toLocaleString('vi-VN')}đ</td>
+        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right; font-weight: 600;">${item.subtotal.toLocaleString('vi-VN')}đ</td>
+      </tr>
+    `).join('');
+
+    const invoiceHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Hóa đơn #${order.id} - LeCas Fashion</title>
+        <style>
+          body { 
+            font-family: Arial, sans-serif; 
+            line-height: 1.6; 
+            color: #333; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+          }
+          .invoice-container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: #fff; 
+            padding: 40px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+          }
+          .header { 
+            border-bottom: 3px solid #000; 
+            padding-bottom: 20px; 
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+          }
+          .header h1 { 
+            margin: 0; 
+            font-size: 32px; 
+            color: #000;
+          }
+          .header .invoice-info {
+            text-align: right;
+          }
+          .header .invoice-info h2 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            color: #666;
+          }
+          .info-section {
+            margin: 30px 0;
+            display: flex;
+            justify-content: space-between;
+          }
+          .info-box {
+            flex: 1;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-right: 15px;
+          }
+          .info-box:last-child { margin-right: 0; }
+          .info-box h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+          }
+          .info-box p { margin: 5px 0; font-size: 14px; }
+          table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 30px 0;
+          }
+          thead {
+            background: #f0f0f0;
+          }
+          th { 
+            padding: 12px; 
+            text-align: left; 
+            font-weight: 600;
+            font-size: 14px;
+            border-bottom: 2px solid #ddd;
+          }
+          th.center, td.center { text-align: center; }
+          th.right, td.right { text-align: right; }
+          .totals {
+            margin-top: 30px;
+            float: right;
+            width: 300px;
+          }
+          .totals .row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 14px;
+          }
+          .totals .row.final {
+            border-top: 2px solid #000;
+            padding-top: 12px;
+            margin-top: 12px;
+            font-size: 18px;
+            font-weight: bold;
+          }
+          .footer {
+            margin-top: 80px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+          }
+          .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+          }
+          .status-paid { background: #d4edda; color: #155724; }
+          .status-unpaid { background: #fff3cd; color: #856404; }
+          @media print {
+            body { background: #fff; padding: 0; }
+            .invoice-container { box-shadow: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="invoice-container">
+          <div class="header">
+            <div>
+              <h1>LeCas Fashion</h1>
+              <p style="margin: 5px 0 0 0; color: #666;">Thời trang nam chất lượng cao</p>
+            </div>
+            <div class="invoice-info">
+              <h2>HÓA ĐƠN</h2>
+              <p><strong>#${order.id}</strong></p>
+              <p>${new Date(order.created_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+            </div>
+          </div>
+
+          <div class="info-section">
+            <div class="info-box">
+              <h3>Thông tin khách hàng</h3>
+              <p><strong>${order.customer?.name || order.customer_email}</strong></p>
+              <p>Email: ${order.customer_email}</p>
+              <p>SĐT: ${order.shipping_phone}</p>
+            </div>
+            <div class="info-box">
+              <h3>Địa chỉ giao hàng</h3>
+              <p>${order.shipping_address}</p>
+              ${order.shipping_ward ? `<p>${order.shipping_ward}</p>` : ''}
+              ${order.shipping_district ? `<p>${order.shipping_district}</p>` : ''}
+              ${order.shipping_city ? `<p>${order.shipping_city}</p>` : ''}
+            </div>
+            <div class="info-box">
+              <h3>Trạng thái</h3>
+              <p><span class="status-badge ${order.payment_status === 'paid' ? 'status-paid' : 'status-unpaid'}">
+                ${order.payment_status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+              </span></p>
+              <p style="margin-top: 8px;"><strong>Phương thức:</strong><br/>${order.payment_method === 'cod' ? 'COD (Tiền mặt)' : order.payment_method}</p>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th class="center" style="width: 50px;">STT</th>
+                <th>Sản phẩm</th>
+                <th class="center" style="width: 80px;">Số lượng</th>
+                <th class="right" style="width: 120px;">Đơn giá</th>
+                <th class="right" style="width: 120px;">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div style="clear: both;">
+            <div class="totals">
+              <div class="row">
+                <span>Tạm tính:</span>
+                <span>${subtotal.toLocaleString('vi-VN')}đ</span>
+              </div>
+              <div class="row">
+                <span>Phí vận chuyển:</span>
+                <span>${shippingFee.toLocaleString('vi-VN')}đ</span>
+              </div>
+              <div class="row final">
+                <span>Tổng cộng:</span>
+                <span>${total.toLocaleString('vi-VN')}đ</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p><strong>LeCas Fashion</strong></p>
+            <p>Email: support@lecas.com | Hotline: 1900 1009</p>
+            <p>&copy; 2024 LeCas Fashion. All rights reserved.</p>
+            <p style="margin-top: 10px; font-size: 11px;">Cảm ơn bạn đã mua sắm tại LeCas Fashion!</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return invoiceHtml;
   }
 
   // ==================== HELPER METHODS ====================
@@ -1566,6 +1935,288 @@ export class AdminService {
         totalPages: Math.ceil(total / limit),
       },
       summary,
+    };
+  }
+
+  // ==================== CUSTOMER DETAIL APIs ====================
+  async getCustomerChatHistory(
+    customerId: number,
+    page: number = 1,
+    limit: number = 20,
+    status?: string,
+    includeMessages: boolean = false,
+    messageLimit: number = 3,
+  ) {
+    const customer = await this.customerRepository.findOne({
+      where: { id: customerId },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Không tìm thấy khách hàng');
+    }
+
+    const queryBuilder = this.sessionRepository
+      .createQueryBuilder('session')
+      .where('session.customer_id = :customerId', { customerId })
+      .orderBy('session.updated_at', 'DESC');
+
+    // Filter by status if provided
+    if (status && status !== 'all') {
+      queryBuilder.andWhere('session.status = :status', { status });
+    }
+
+    const total = await queryBuilder.getCount();
+    const sessions = await queryBuilder
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
+
+    // Get message counts for each session
+    const sessionsWithData = await Promise.all(
+      sessions.map(async (session) => {
+        const messageCount = await this.messageRepository.count({
+          where: { session_id: session.id },
+        });
+
+        let messages = [];
+        if (includeMessages) {
+          // Get most recent messages for preview
+          messages = await this.messageRepository.find({
+            where: { session_id: session.id },
+            order: { created_at: 'DESC' },
+            take: messageLimit,
+          });
+          // Reverse to show oldest first in preview
+          messages = messages.reverse();
+        }
+
+        return {
+          id: session.id,
+          customer_id: session.customer_id,
+          status: session.status || 'unresolved',
+          intents: [],
+          message_count: messageCount,
+          last_message_at: session.updated_at,
+          created_at: session.created_at,
+          messages: messages.map(msg => ({
+            id: msg.id,
+            role: msg.sender === 'customer' ? 'user' : msg.sender,
+            content: msg.message,
+            created_at: msg.created_at,
+          })),
+        };
+      }),
+    );
+
+    return {
+      data: sessionsWithData,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getSessionMessages(
+    customerId: number,
+    sessionId: number,
+    limit: number = 50,
+    offset: number = 0,
+  ) {
+    // Verify session exists and belongs to customer
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    if (session.customer_id !== customerId) {
+      throw new BadRequestException('Session does not belong to this customer');
+    }
+
+    // Get total message count
+    const total = await this.messageRepository.count({
+      where: { session_id: sessionId },
+    });
+
+    // Get messages with pagination
+    const messages = await this.messageRepository.find({
+      where: { session_id: sessionId },
+      order: { created_at: 'ASC' },
+      skip: offset,
+      take: limit,
+    });
+
+    return {
+      data: {
+        session: {
+          id: session.id,
+          customer_id: session.customer_id,
+          status: session.status || 'unresolved',
+          created_at: session.created_at,
+          updated_at: session.updated_at,
+        },
+        messages: messages.map(msg => ({
+          id: msg.id,
+          session_id: msg.session_id,
+          role: msg.sender === 'customer' ? 'user' : msg.sender,
+          content: msg.message,
+          created_at: msg.created_at,
+          metadata: {
+            intent: null,
+            confidence: null,
+            admin_id: null,
+            image_url: msg.image_url || null,
+            custom: msg.custom || null,
+          },
+        })),
+        total,
+        has_more: offset + messages.length < total,
+      },
+    };
+  }
+
+  async getCustomerChatStatistics(customerId: number) {
+    const customer = await this.customerRepository.findOne({
+      where: { id: customerId },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Không tìm thấy khách hàng');
+    }
+
+    // Get all sessions for this customer
+    const sessions = await this.sessionRepository.find({
+      where: { customer_id: customerId },
+    });
+
+    const totalConversations = sessions.length;
+    const resolvedConversations = sessions.filter(s => s.status === 'resolved' || s.status === 'closed').length;
+    const unresolvedConversations = totalConversations - resolvedConversations;
+
+    // Get total message count
+    const totalMessages = await this.messageRepository
+      .createQueryBuilder('msg')
+      .innerJoin('msg.session', 'session')
+      .where('session.customer_id = :customerId', { customerId })
+      .getCount();
+
+    const avgMessagesPerConversation = totalConversations > 0
+      ? parseFloat((totalMessages / totalConversations).toFixed(1))
+      : 0;
+
+    // Get last conversation date
+    const lastSession = sessions.length > 0
+      ? sessions.reduce((latest, current) =>
+        current.updated_at > latest.updated_at ? current : latest
+      )
+      : null;
+
+    return {
+      data: {
+        total_conversations: totalConversations,
+        resolved_conversations: resolvedConversations,
+        unresolved_conversations: unresolvedConversations,
+        total_messages: totalMessages,
+        avg_messages_per_conversation: avgMessagesPerConversation,
+        most_common_intents: [],
+        last_conversation_at: lastSession?.updated_at || null,
+      },
+    };
+  }
+
+  async getCustomerSupportTickets(
+    customerId: number,
+    page: number = 1,
+    limit: number = 20,
+    status?: string,
+    priority?: string,
+  ) {
+    const customer = await this.customerRepository.findOne({
+      where: { id: customerId },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Không tìm thấy khách hàng');
+    }
+
+    const queryBuilder = this.ticketRepository
+      .createQueryBuilder('ticket')
+      .where('ticket.customer_id = :customerId', { customerId })
+      .orderBy('ticket.created_at', 'DESC');
+
+    // Filter by status if provided
+    if (status) {
+      queryBuilder.andWhere('ticket.status = :status', { status });
+    }
+
+    // Filter by priority if provided
+    if (priority) {
+      queryBuilder.andWhere('ticket.priority = :priority', { priority });
+    }
+
+    const total = await queryBuilder.getCount();
+    const tickets = await queryBuilder
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
+
+    return {
+      data: tickets.map(ticket => ({
+        id: ticket.id,
+        customer_id: ticket.customer_id,
+        customer_name: customer.name,
+        customer_email: customer.email,
+        subject: ticket.subject,
+        message: ticket.message,
+        status: ticket.status,
+        priority: ticket.priority || 'medium',
+        created_at: ticket.created_at,
+        updated_at: ticket.updated_at,
+        ai_attempted: false,
+        assigned_admin_id: null,
+        order_id: null,
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getCustomerAddresses(customerId: number) {
+    const customer = await this.customerRepository.findOne({
+      where: { id: customerId },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Không tìm thấy khách hàng');
+    }
+
+    const addresses = await this.addressRepository.find({
+      where: { customer_id: customerId },
+      order: { is_default: 'DESC', id: 'DESC' },
+    });
+
+    return {
+      data: addresses.map(addr => ({
+        id: addr.id,
+        label: addr.address_type || 'Home',
+        name: customer.name,
+        address: addr.street_address,
+        city: addr.province,
+        district: addr.district,
+        ward: addr.ward,
+        phone: addr.phone_number,
+        is_default: addr.is_default,
+        created_at: new Date(),
+      })),
     };
   }
 }

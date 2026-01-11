@@ -34,6 +34,9 @@ export class ChatMessage {
   @Column({ type: 'jsonb', nullable: true })
   buttons: any;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  intent: string;
+
   @CreateDateColumn({ type: 'timestamp with time zone' })
   created_at: Date;
 

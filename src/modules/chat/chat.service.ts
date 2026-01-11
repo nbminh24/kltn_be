@@ -30,7 +30,7 @@ export class ChatService {
     private configService: ConfigService,
     private jwtService: JwtService,
     private imageSearchService: ImageSearchService,
-  ) {}
+  ) { }
 
   /**
    * Extract customer_id from JWT token if present
@@ -179,10 +179,10 @@ export class ChatService {
         handoff_accepted_at: session.handoff_accepted_at,
         customer: session.customer
           ? {
-              id: session.customer.id,
-              name: session.customer.name,
-              email: session.customer.email,
-            }
+            id: session.customer.id,
+            name: session.customer.name,
+            email: session.customer.email,
+          }
           : null,
       },
       messages: messages.reverse(), // Reverse để hiển thị từ cũ đến mới
@@ -303,6 +303,7 @@ export class ChatService {
 
       rasaResponses = response.data || [];
       console.log(`[Chat] Rasa responded with ${rasaResponses.length} message(s)`);
+      console.log(`[Chat] 🔍 DEBUG - Full Rasa response:`, JSON.stringify(rasaResponses, null, 2));
     } catch (error) {
       // Log detailed error for debugging
       console.error('[Chat] Rasa webhook failed:', error.message);
@@ -321,6 +322,17 @@ export class ChatService {
     // 3. Save bot responses WITH custom data to database
     const savedBotResponses = [];
     for (const rasaMsg of rasaResponses) {
+      // Extract intent from Rasa metadata if available
+      const intent = rasaMsg.metadata?.intent || rasaMsg.custom?.intent || null;
+
+      console.log(`[Chat] 🎯 Intent extraction:`, {
+        hasMetadata: !!rasaMsg.metadata,
+        metadataIntent: rasaMsg.metadata?.intent,
+        hasCustom: !!rasaMsg.custom,
+        customIntent: rasaMsg.custom?.intent,
+        extractedIntent: intent,
+      });
+
       // Save to DB including custom and buttons for persistence
       const botMessage = this.messageRepository.create({
         session_id: dto.session_id,
@@ -329,8 +341,16 @@ export class ChatService {
         is_read: false,
         custom: rasaMsg.custom || null, // ✅ SAVE custom to DB
         buttons: rasaMsg.buttons || null, // ✅ SAVE buttons to DB
+        intent: intent, // ✅ SAVE intent to DB
       });
       const saved = await this.messageRepository.save(botMessage);
+
+      console.log(`[Chat] 💾 Saved message to DB:`, {
+        id: saved.id,
+        sender: saved.sender,
+        intent: saved.intent,
+        hasCustom: !!saved.custom,
+      });
 
       savedBotResponses.push(saved);
     }
@@ -703,10 +723,10 @@ export class ChatService {
         session_id: s.id,
         customer: s.customer
           ? {
-              id: s.customer.id,
-              name: s.customer.name,
-              email: s.customer.email,
-            }
+            id: s.customer.id,
+            name: s.customer.name,
+            email: s.customer.email,
+          }
           : null,
         visitor_id: s.visitor_id,
         handoff_reason: s.handoff_reason,
@@ -735,10 +755,10 @@ export class ChatService {
         session_id: s.id,
         customer: s.customer
           ? {
-              id: s.customer.id,
-              name: s.customer.name,
-              email: s.customer.email,
-            }
+            id: s.customer.id,
+            name: s.customer.name,
+            email: s.customer.email,
+          }
           : null,
         visitor_id: s.visitor_id,
         handoff_reason: s.handoff_reason,

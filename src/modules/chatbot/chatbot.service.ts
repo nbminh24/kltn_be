@@ -50,7 +50,7 @@ export class ChatbotService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
   /**
    * Get cart by customer ID (internal API for Rasa)
@@ -213,7 +213,7 @@ export class ChatbotService {
     if (!imageUrl) {
       throw new NotFoundException(
         `Size chart not found for category: ${category}. ` +
-          `Valid categories: ${Object.keys(sizeCharts).join(', ')}`,
+        `Valid categories: ${Object.keys(sizeCharts).join(', ')}`,
       );
     }
 
@@ -271,8 +271,80 @@ export class ChatbotService {
   }
 
   /**
+   * Calculate relevance score for a product based on search query
+   * Score range: 0.0 - 1.0
+   */
+  private calculateRelevanceScore(
+    product: Product,
+    query: string,
+    keywords: string[],
+  ): number {
+    const productName = product.name.toLowerCase();
+    const productDesc = (product.description || '').toLowerCase();
+    const queryLower = query.toLowerCase();
+
+    let score = 0.0;
+
+    // 1. Exact match (full query matches product name) = 1.0
+    if (productName === queryLower) {
+      score = 1.0;
+    }
+    // 2. Query is substring of name (partial match) = 0.85 - 0.95
+    else if (productName.includes(queryLower)) {
+      const matchRatio = queryLower.length / productName.length;
+      score = 0.85 + (matchRatio * 0.10);
+    }
+    // 3. All keywords match in name = 0.70 - 0.85
+    else if (keywords.every(kw => productName.includes(kw))) {
+      const matchCount = keywords.filter(kw => productName.includes(kw)).length;
+      const matchRatio = matchCount / keywords.length;
+      score = 0.70 + (matchRatio * 0.15);
+    }
+    // 4. Some keywords match in name = 0.50 - 0.70
+    else if (keywords.some(kw => productName.includes(kw))) {
+      const matchCount = keywords.filter(kw => productName.includes(kw)).length;
+      const matchRatio = matchCount / keywords.length;
+      score = 0.50 + (matchRatio * 0.20);
+    }
+    // 5. Keywords match in description = 0.30 - 0.50
+    else if (keywords.some(kw => productDesc.includes(kw))) {
+      const matchCount = keywords.filter(kw => productDesc.includes(kw)).length;
+      const matchRatio = matchCount / keywords.length;
+      score = 0.30 + (matchRatio * 0.20);
+    }
+
+    // Boost factors (fine-tuning)
+    let boost = 0.0;
+
+    // In stock bonus: +0.05
+    const firstVariant = product.variants?.[0];
+    if (firstVariant) {
+      const availableStock = firstVariant.total_stock - firstVariant.reserved_stock;
+      if (availableStock > 0) {
+        boost += 0.05;
+      }
+    }
+
+    // High rating bonus: +0.03
+    if (product.average_rating >= 4.0) {
+      boost += 0.03;
+    }
+
+    // Many reviews bonus: +0.02
+    if (product.total_reviews >= 50) {
+      boost += 0.02;
+    }
+
+    // Apply boost but cap at 1.0
+    score = Math.min(score + boost, 1.0);
+
+    // Round to 2 decimal places
+    return Math.round(score * 100) / 100;
+  }
+
+  /**
    * Search products by keyword
-   * Prioritizes products matching all keywords over partial matches
+   * Returns products with relevance_score, sorted by score descending
    */
   async searchProducts(dto: any) {
     const { query, limit = 5, category } = dto;
@@ -317,21 +389,17 @@ export class ChatbotService {
       });
     }
 
-    // Order by rating and reviews (simple approach to avoid SQL complexity)
-    queryBuilder
-      .orderBy('product.average_rating', 'DESC')
-      .addOrderBy('product.total_reviews', 'DESC')
-      .addOrderBy('product.created_at', 'DESC')
-      .take(limit);
-
+    // Get more results than limit to allow relevance score sorting
     const products = await queryBuilder.getMany();
 
-    // Format response
-    const formattedProducts = products.map(product => {
+    // Calculate relevance score for each product
+    const productsWithScore = products.map(product => {
       const firstVariant = product.variants?.[0];
       const availableStock = firstVariant
         ? firstVariant.total_stock - firstVariant.reserved_stock
         : 0;
+
+      const relevanceScore = this.calculateRelevanceScore(product, query, keywords);
 
       return {
         product_id: product.id,
@@ -344,13 +412,20 @@ export class ChatbotService {
         reviews: product.total_reviews,
         category: product.category?.name,
         in_stock: availableStock > 0,
+        relevance_score: relevanceScore,
       };
     });
 
+    // Sort by relevance_score descending (highest score first)
+    productsWithScore.sort((a, b) => b.relevance_score - a.relevance_score);
+
+    // Apply limit after sorting
+    const limitedProducts = productsWithScore.slice(0, limit);
+
     return {
       query,
-      total: formattedProducts.length,
-      products: formattedProducts,
+      total: limitedProducts.length,
+      products: limitedProducts,
     };
   }
 
